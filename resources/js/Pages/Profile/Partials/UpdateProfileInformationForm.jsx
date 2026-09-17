@@ -2,8 +2,10 @@ import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
+import { formatBelarusPhone } from '@/utils/phone';
 import { Transition } from '@headlessui/react';
 import { Link, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 
 export default function UpdateProfileInformation({
     mustVerifyEmail,
@@ -11,11 +13,13 @@ export default function UpdateProfileInformation({
     className = '',
 }) {
     const user = usePage().props.auth.user;
+    const [phoneFocused, setPhoneFocused] = useState(false);
 
     const { data, setData, patch, errors, processing, recentlySuccessful } =
         useForm({
             name: user.name,
             email: user.email,
+            phone: user.phone || '',
         });
 
     const submit = (e) => {
@@ -23,6 +27,12 @@ export default function UpdateProfileInformation({
 
         patch(route('profile.update'));
     };
+
+    const displayedPhone = phoneFocused
+        ? data.phone
+        : user.phone
+          ? formatBelarusPhone(user.phone)
+          : '';
 
     return (
         <section className={className}>
@@ -51,6 +61,33 @@ export default function UpdateProfileInformation({
                     />
 
                     <InputError className="mt-2" message={errors.name} />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="phone" value="Phone" />
+
+                    <TextInput
+                        id="phone"
+                        type="tel"
+                        className="mt-1 block w-full"
+                        value={displayedPhone}
+                        onFocus={() => {
+                            setPhoneFocused(true);
+                            setData(
+                                'phone',
+                                formatBelarusPhone(user.phone || data.phone || ''),
+                            );
+                        }}
+                        onBlur={() => setPhoneFocused(false)}
+                        onChange={(e) =>
+                            setData('phone', formatBelarusPhone(e.target.value))
+                        }
+                        required
+                        autoComplete="tel"
+                        placeholder="+375 (29) 123-45-67"
+                    />
+
+                    <InputError className="mt-2" message={errors.phone} />
                 </div>
 
                 <div>

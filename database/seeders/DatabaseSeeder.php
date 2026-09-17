@@ -16,8 +16,9 @@ class DatabaseSeeder extends Seeder
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // 2. Создаем роли (если их еще нет)
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $userRole  = Role::firstOrCreate(['name' => 'user']);
+        $adminRole = Role::firstOrCreate(['name' => 'Admin']);
+        $customerRole  = Role::firstOrCreate(['name' => 'Customer']);
+        $analystRole  = Role::firstOrCreate(['name' => 'Analyst']);
 
         // 3. Создаем администратора
         $admin = User::firstOrCreate(
@@ -37,6 +38,7 @@ class DatabaseSeeder extends Seeder
                 'password' => Hash::make('password'),
             ]
         );
-        $user->syncRoles($userRole);
+
+        $user->syncRoles($customerRole);
     }
 }
