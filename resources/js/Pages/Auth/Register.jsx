@@ -5,10 +5,47 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
+function formatBelarusPhone(value) {
+    let digits = value.replace(/\D/g, '');
+
+    if (digits.startsWith('375')) {
+        digits = digits.slice(3);
+    } else if (digits.startsWith('80')) {
+        digits = digits.slice(2);
+    }
+
+    digits = digits.slice(0, 9);
+
+    let formatted = '+375';
+
+    if (digits.length > 0) {
+        formatted += ` (${digits.slice(0, 2)}`;
+    }
+
+    if (digits.length >= 2) {
+        formatted += ')';
+    }
+
+    if (digits.length > 2) {
+        formatted += ` ${digits.slice(2, 5)}`;
+    }
+
+    if (digits.length > 5) {
+        formatted += `-${digits.slice(5, 7)}`;
+    }
+
+    if (digits.length > 7) {
+        formatted += `-${digits.slice(7, 9)}`;
+    }
+
+    return formatted;
+}
+
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: '',
+        phone: '',
         password: '',
         password_confirmation: '',
     });
@@ -58,6 +95,26 @@ export default function Register() {
                     />
 
                     <InputError message={errors.email} className="mt-2" />
+                </div>
+
+                <div className="mt-4">
+                    <InputLabel htmlFor="phone" value="Phone" />
+
+                    <TextInput
+                        id="phone"
+                        type="tel"
+                        name="phone"
+                        value={data.phone}
+                        className="mt-1 block w-full"
+                        autoComplete="tel"
+                        placeholder="+375 (29) 123-45-67"
+                        onChange={(e) =>
+                            setData('phone', formatBelarusPhone(e.target.value))
+                        }
+                        required
+                    />
+
+                    <InputError message={errors.phone} className="mt-2" />
                 </div>
 
                 <div className="mt-4">
