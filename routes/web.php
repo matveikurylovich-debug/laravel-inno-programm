@@ -21,6 +21,14 @@ Route::get('/dashboard', function () {
 
 Route::get('/admin', [AdminController::class, 'index'])->name('admin.index');
 
+Route::middleware('auth', 'can:access-admin')
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::patch('/users/{user}/role', [AdminController::class, 'updateRole'])->name('users.updateRole');
+    });
+
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
