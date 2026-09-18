@@ -1,7 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 
 export default function Dashboard({ users }) {
+    const { auth, flash } = usePage().props;
+
+    const handleUpdateRole = (userId, role) => {
+        router.patch(`/admin/users/${userId}/role`, { role });
+    };
+
     return (
         <AuthenticatedLayout
             header={
@@ -14,6 +20,18 @@ export default function Dashboard({ users }) {
 
             <div className="py-12">
                 <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                    {flash?.message && (
+                        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                            {flash.message}
+                        </div>
+                    )}
+
+                    {flash?.error && (
+                        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                            {flash.error}
+                        </div>
+                    )}
+
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
                             <p className="mb-4 text-lg font-medium">
@@ -60,11 +78,21 @@ export default function Dashboard({ users }) {
                                                     {user.email}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-600">
-                                                    {user.roles.length > 0
-                                                        ? user.roles
-                                                              .map((role) => role.name)
-                                                              .join(', ')
-                                                        : '—'}
+                                                    <select
+                                                        value={user.roles?.[0]?.name || 'customer'}
+                                                        disabled={user.id === auth.user.id}
+                                                        onChange={(e) =>
+                                                            handleUpdateRole(
+                                                                user.id,
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        className="rounded-md border-gray-300 py-1 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60"
+                                                    >
+                                                        <option value="customer">customer</option>
+                                                        <option value="admin">admin</option>
+                                                        <option value="analyst">analyst</option>
+                                                    </select>
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                                                     {new Date(
