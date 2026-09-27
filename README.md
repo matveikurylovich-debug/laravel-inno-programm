@@ -1,4 +1,4 @@
-# InnoTrainne Microservices (Week 1)
+# InnoTrainne Framework Laravel project
 
 Монорепозиторий микросервисной архитектуры:
 
