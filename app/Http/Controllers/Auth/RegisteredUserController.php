@@ -44,7 +44,7 @@ class RegisteredUserController extends Controller
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
         ]);
-        $user->syncRoles('Customer');
+        $user->syncRoles('customer');
 
         event(new Registered($user));
 
