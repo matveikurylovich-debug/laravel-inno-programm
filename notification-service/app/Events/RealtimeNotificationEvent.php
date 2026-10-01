@@ -13,11 +13,11 @@ class RealtimeNotificationEvent implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
-     * @param int|string $userId  ID пользователя, которому шлём пуш
-     * @param string     $type    Тип события: 'registered', 'password_reset', '2fa', 'profile_update'
-     * @param string     $title   Заголовок алерта
-     * @param string     $message Текст алерта
-     * @param array      $data    Дополнительные данные (например, код или ссылка)
+     * @param  int|string  $userId  ID пользователя, которому шлём пуш
+     * @param  string  $type  Тип события: 'user.registered', 'auth.password_reset', 'auth.two_factor_code', 'auth.profile_update_confirm'
+     * @param  string  $title  Заголовок алерта
+     * @param  string  $message  Текст алерта
+     * @param  array  $data  Дополнительные данные (например, код или ссылка)
      */
     public function __construct(
         public int|string $userId,
@@ -34,7 +34,7 @@ class RealtimeNotificationEvent implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new Channel('user.' . $this->userId),
+            new Channel('user.'.$this->userId),
         ];
     }
 
@@ -52,10 +52,10 @@ class RealtimeNotificationEvent implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'type'       => $this->type,
-            'title'      => $this->title,
-            'message'    => $this->message,
-            'data'       => $this->data,
+            'type' => $this->type,
+            'title' => $this->title,
+            'message' => $this->message,
+            'data' => $this->data,
             'created_at' => now()->toIso8601String(),
         ];
     }
