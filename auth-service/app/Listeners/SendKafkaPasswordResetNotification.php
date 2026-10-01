@@ -17,10 +17,7 @@ class SendKafkaPasswordResetNotification
     {
         $user = $event->user;
 
-        $resetUrl = url(route('password.reset', [
-            'token' => $event->token,
-            'email' => $user->getEmailForPasswordReset(),
-        ], false));
+        $resetUrl = rtrim((string) config('app.frontend_url'), '/').'/reset-password/'.$event->token.'?email='.urlencode($user->getEmailForPasswordReset());
 
         try {
             $this->producer->sendPasswordReset(

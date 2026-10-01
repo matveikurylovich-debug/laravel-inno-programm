@@ -42,7 +42,7 @@ class RoleMiddleware
 
         if (! $hasAccess) {
             return response()->json([
-                'error' => 'Доступ запрещен. Требуются роли: Admin или Analyst',
+                'error' => 'Доступ запрещен. Требуются роли: '.implode(', ', $normalizedAllowedRoles),
             ], Response::HTTP_FORBIDDEN);
         }
 

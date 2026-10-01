@@ -89,7 +89,7 @@ class NotificationAuthTest extends TestCase
 
         $response->assertStatus(403)
             ->assertJson([
-                'error' => 'Доступ запрещен. Требуются роли: Admin или Analyst',
+                'error' => 'Доступ запрещен. Требуются роли: admin, analyst',
             ]);
     }
 
@@ -111,6 +111,18 @@ class NotificationAuthTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_replay_forbidden_for_analyst_role(): void
+    {
+        $token = $this->generateToken(roles: ['analyst']);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/notifications/1/replay')
+            ->assertStatus(403)
+            ->assertJson([
+                'error' => 'Доступ запрещен. Требуются роли: admin',
+            ]);
+    }
+
     public function test_forbidden_for_user_without_roles(): void
     {
         $token = $this->generateToken(roles: []);
@@ -120,7 +132,7 @@ class NotificationAuthTest extends TestCase
 
         $response->assertStatus(403)
             ->assertJson([
-                'error' => 'Доступ запрещен. Требуются роли: Admin или Analyst',
+                'error' => 'Доступ запрещен. Требуются роли: admin, analyst',
             ]);
     }
 

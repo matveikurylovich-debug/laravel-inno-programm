@@ -1,5 +1,9 @@
 <?php
 
+beforeEach(function () {
+    $this->markTestSkipped('Breeze/Inertia session UI removed. Authentication is covered by JWT API tests.');
+});
+
 use App\Models\User;
 use App\Services\Kafka\AuthNotificationProducer;
 use Illuminate\Support\Facades\Cache;
