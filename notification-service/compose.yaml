@@ -52,9 +52,12 @@ services:
             - sail
             - microservices-net
         depends_on:
-            - mongodb
-            - kafka
-            - mailhog
+            mongodb:
+                condition: service_started
+            kafka:
+                condition: service_healthy
+            mailhog:
+                condition: service_started
     order-worker:
         build:
             context: './docker/8.5'
@@ -79,9 +82,12 @@ services:
             - sail
             - microservices-net
         depends_on:
-            - mongodb
-            - kafka
-            - mailhog
+            mongodb:
+                condition: service_started
+            kafka:
+                condition: service_healthy
+            mailhog:
+                condition: service_started
     mongodb:
         image: 'mongo:7.0'
         ports:
@@ -107,7 +113,7 @@ services:
         environment:
             KAFKA_NODE_ID: 1
             KAFKA_PROCESS_ROLES: broker,controller
-            KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+            KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
             KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
             KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
             KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
@@ -118,6 +124,14 @@ services:
             KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
         volumes:
             - 'sail-kafka:/var/lib/kafka/data'
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1
+            interval: 5s
+            timeout: 10s
+            retries: 20
+            start_period: 20s
         networks:
             - sail
             - microservices-net

@@ -3,7 +3,10 @@
 namespace Tests\Feature\Api;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redis;
 use Spatie\Permission\Models\Role;
@@ -33,7 +36,7 @@ class JwtAuthTest extends TestCase
     }
 
     /**
-     * Тест 1: Успешный вход, выдача токенов и зашитых ролей Spatie
+     * Тест 1: Успешный вход требует 2FA, затем выдаёт JWT с ролями Spatie
      */
     public function test_user_can_login_and_receive_jwt_tokens_with_roles(): void
     {
@@ -43,19 +46,32 @@ class JwtAuthTest extends TestCase
         ]);
         $user->assignRole('customer');
 
-        $response = $this->postJson('/api/v1/auth/login', [
+        $challenge = $this->postJson('/api/login', [
             'email' => 'test@example.com',
             'password' => 'secret123',
         ]);
 
+        $challenge->assertOk()
+            ->assertJsonPath('two_factor', true)
+            ->assertJsonPath('user_id', $user->id)
+            ->assertJsonMissingPath('access_token');
+
+        $response = $this->postJson('/api/two-factor/verify', [
+            'user_id' => $user->id,
+            'code' => Cache::get("2fa_code_{$user->id}"),
+        ]);
+
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'user' => ['id', 'name', 'email', 'roles'],
-                'tokens' => ['access_token', 'refresh_token', 'token_type', 'expires_in'],
+                'access_token',
+                'refresh_token',
+                'token_type',
+                'expires_in',
+                'user' => ['id', 'email', 'role'],
             ])
-            ->assertJsonFragment([
-                'roles' => ['customer'],
-            ]);
+            ->assertJsonPath('user.role', 'customer')
+            ->assertJsonPath('token_type', 'Bearer')
+            ->assertJsonPath('expires_in', config('jwt.ttl.access'));
     }
 
     /**
@@ -66,17 +82,11 @@ class JwtAuthTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('customer');
 
-        // Логинимся и достаем access-токен
-        $loginResponse = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'password', // стандартный пароль UserFactory
-        ]);
-
-        $accessToken = $loginResponse->json('tokens.access_token');
+        $accessToken = $this->tokenFor($user);
 
         // Делаем запрос к /me с заголовком Authorization: Bearer
         $response = $this->withHeader('Authorization', "Bearer {$accessToken}")
-            ->getJson('/api/v1/auth/me');
+            ->getJson('/api/me');
 
         $response->assertStatus(200)
             ->assertJsonPath('user.id', $user->id)
@@ -89,13 +99,13 @@ class JwtAuthTest extends TestCase
     public function test_protected_route_rejects_missing_or_invalid_tokens(): void
     {
         // Запрос без токена
-        $this->getJson('/api/v1/auth/me')
+        $this->getJson('/api/me')
             ->assertStatus(401)
             ->assertJson(['error' => 'Заголовок Authorization: Bearer отсутствует']);
 
         // Запрос с фальшивым/битым токеном
         $this->withHeader('Authorization', 'Bearer invalid.token.payload')
-            ->getJson('/api/v1/auth/me')
+            ->getJson('/api/me')
             ->assertStatus(401);
     }
 
@@ -107,15 +117,10 @@ class JwtAuthTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('customer');
 
-        $loginResponse = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $oldRefreshToken = $loginResponse->json('tokens.refresh_token');
+        $oldRefreshToken = $this->tokensFor($user)['refresh_token'];
 
         // 1. Первый refresh — должен пройти успешно и вернуть новую пару
-        $refreshResponse = $this->postJson('/api/v1/auth/refresh', [
+        $refreshResponse = $this->postJson('/api/refresh', [
             'refresh_token' => $oldRefreshToken,
         ]);
 
@@ -126,7 +131,7 @@ class JwtAuthTest extends TestCase
         $this->assertNotEquals($oldRefreshToken, $newRefreshToken);
 
         // 2. Повторная попытка использовать старый токен (он должен быть удалён из Redis)
-        $replayAttackResponse = $this->postJson('/api/v1/auth/refresh', [
+        $replayAttackResponse = $this->postJson('/api/refresh', [
             'refresh_token' => $oldRefreshToken,
         ]);
 
@@ -142,17 +147,13 @@ class JwtAuthTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('customer');
 
-        $loginResponse = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $accessToken = $loginResponse->json('tokens.access_token');
-        $refreshToken = $loginResponse->json('tokens.refresh_token');
+        $tokens = $this->tokensFor($user);
+        $accessToken = $tokens['access_token'];
+        $refreshToken = $tokens['refresh_token'];
 
         // Выполняем logout
         $logoutResponse = $this->withHeader('Authorization', "Bearer {$accessToken}")
-            ->postJson('/api/v1/auth/logout', [
+            ->postJson('/api/logout', [
                 'refresh_token' => $refreshToken,
             ]);
 
@@ -160,10 +161,37 @@ class JwtAuthTest extends TestCase
 
         // Попытка снова сделать запрос с тем же access-токеном
         $retryResponse = $this->withHeader('Authorization', "Bearer {$accessToken}")
-            ->getJson('/api/v1/auth/me');
+            ->getJson('/api/me');
 
         // Middleware должен заблокировать по Redis Blacklist
         $retryResponse->assertStatus(401)
             ->assertJson(['error' => 'Токен отозван (находится в блэклисте).']);
+    }
+
+    public function test_register_assigns_customer_role_and_dispatches_event(): void
+    {
+        Event::fake([Registered::class]);
+
+        $response = $this->postJson('/api/register', [
+            'name' => 'New User',
+            'email' => 'new@example.com',
+            'phone' => '+375 (29) 123-45-67',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('user.name', 'New User')
+            ->assertJsonPath('user.email', 'new@example.com')
+            ->assertJsonPath('user.phone', '+375 (29) 123-45-67')
+            ->assertJsonPath('user.role', 'customer')
+            ->assertJsonPath('token_type', 'Bearer');
+
+        $this->assertNotEmpty($response->json('access_token'));
+        $this->assertDatabaseHas('users', [
+            'email' => 'new@example.com',
+            'phone' => '+375 (29) 123-45-67',
+        ]);
+        Event::assertDispatched(Registered::class);
     }
 }

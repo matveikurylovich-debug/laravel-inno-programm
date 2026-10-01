@@ -5,8 +5,6 @@ namespace App\Services;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Firebase\JWT\ExpiredException;
-use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -14,9 +12,13 @@ use InvalidArgumentException;
 class JwtService
 {
     private string $accessSecret;
+
     private string $refreshSecret;
+
     private int $accessTtl;
+
     private int $refreshTtl;
+
     private string $algo;
 
     public function __construct()
@@ -47,16 +49,35 @@ class JwtService
     public function createAccessToken(User $user): string
     {
         $now = time();
+        $roles = $user->getRoleNames()->values()->all();
         $payload = [
             'iss' => config('app.url'),
             'sub' => $user->id,
-            'roles' => $user->getRoleNames()->toArray(), // достаем роли из Spatie
+            'email' => $user->email,
+            'role' => $this->primaryRole($user),
+            'roles' => $roles,
             'type' => 'access',
             'iat' => $now,
             'exp' => $now + $this->accessTtl,
         ];
 
         return JWT::encode($payload, $this->accessSecret, $this->algo);
+    }
+
+    /**
+     * Основная роль для claim `role` и ответа API.
+     */
+    public function primaryRole(User $user): string
+    {
+        $roles = $user->getRoleNames();
+
+        foreach (['admin', 'analyst', 'customer'] as $role) {
+            if ($roles->contains($role)) {
+                return $role;
+            }
+        }
+
+        return (string) ($roles->first() ?? 'customer');
     }
 
     /**

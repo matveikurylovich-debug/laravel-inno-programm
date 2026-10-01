@@ -57,8 +57,11 @@ class JwtServiceTest extends TestCase
         $payload = $this->jwtService->decodeAccessToken($tokens['access_token']);
 
         $this->assertEquals($user->id, $payload->sub);
+        $this->assertEquals($user->email, $payload->email);
+        $this->assertEquals('admin', $payload->role);
         $this->assertEquals('access', $payload->type);
         $this->assertEquals(['customer', 'admin'], (array) $payload->roles);
+        $this->assertNotEmpty($payload->exp);
     }
 
     /**
@@ -70,7 +73,7 @@ class JwtServiceTest extends TestCase
         $tokens = $this->jwtService->generateTokenPair($user);
 
         // Имитируем подделку: меняем последний символ токена
-        $tamperedToken = substr($tokens['access_token'], 0, -1) . 'x';
+        $tamperedToken = substr($tokens['access_token'], 0, -1).'x';
 
         $this->expectException(SignatureInvalidException::class);
         $this->jwtService->decodeAccessToken($tamperedToken);
