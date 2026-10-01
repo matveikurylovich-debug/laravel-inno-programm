@@ -7,7 +7,14 @@ use MongoDB\Laravel\Eloquent\Model;
 class NotificationLog extends Model
 {
     protected $connection = 'mongodb';
+
     protected $collection = 'notification_logs';
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_SENT = 'sent';
+
+    public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
         'event',
@@ -22,9 +29,9 @@ class NotificationLog extends Model
     ];
 
     protected $casts = [
-        'payload'  => 'array',
+        'payload' => 'array',
         'attempts' => 'integer',
-        'is_dlq'   => 'boolean',
-        'sent_at'  => 'datetime',
+        'is_dlq' => 'boolean',
+        'sent_at' => 'datetime',
     ];
 }

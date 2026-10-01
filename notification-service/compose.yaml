@@ -17,30 +17,88 @@ services:
             XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
             XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
             IGNITION_LOCAL_SITES_PATH: '${PWD}'
+            MAIL_MAILER: smtp
+            MAIL_HOST: mailhog
+            MAIL_PORT: 1025
         volumes:
             - '.:/var/www/html'
         networks:
             - sail
+            - microservices-net
         depends_on:
             - mongodb
-    mongodb:
-        image: 'mongodb/mongodb-atlas-local:latest'
+            - mailhog
+    notification-worker:
+        build:
+            context: './docker/8.5'
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: 'sail-8.5/app'
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        restart: always
+        command: php artisan kafka:consume-auth
         environment:
-            - 'MONGODB_INITDB_ROOT_USERNAME=${MONGODB_USERNAME:-}'
-            - 'MONGODB_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD:-}'
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+            MAIL_MAILER: smtp
+            MAIL_HOST: mailhog
+            MAIL_PORT: 1025
         volumes:
-            - 'sail-mongodb:/data/db'
-            - 'sail-mongodb-config:/data/configdb'
-        ports:
-            - '${FORWARD_MONGODB_PORT:-27017}:27017'
+            - '.:/var/www/html'
         networks:
             - sail
+            - microservices-net
+        depends_on:
+            - mongodb
+            - kafka
+            - mailhog
+    order-worker:
+        build:
+            context: './docker/8.5'
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: 'sail-8.5/app'
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        restart: always
+        command: php artisan kafka:consume-orders
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+            MAIL_MAILER: smtp
+            MAIL_HOST: mailhog
+            MAIL_PORT: 1025
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+            - microservices-net
+        depends_on:
+            - mongodb
+            - kafka
+            - mailhog
+    mongodb:
+        image: 'mongo:7.0'
+        ports:
+            - '${FORWARD_DB_PORT:-27017}:27017'
+        environment:
+            MONGO_INITDB_DATABASE: '${DB_DATABASE:-notification_service}'
+        volumes:
+            - 'sail-mongodb:/data/db'
+        networks:
+            - sail
+            - microservices-net
         healthcheck:
             test:
                 - CMD
                 - mongosh
-                - 'mongodb://localhost:27017/admin'
-                - '--eval=db.runCommand({ping:1})'
+                - '--eval'
+                - "db.adminCommand('ping')"
             retries: 3
             timeout: 5s
     kafka:
@@ -62,6 +120,7 @@ services:
             - 'sail-kafka:/var/lib/kafka/data'
         networks:
             - sail
+            - microservices-net
     mailhog:
         image: 'mailhog/mailhog:latest'
         container_name: notification_mailhog
@@ -87,10 +146,12 @@ services:
 networks:
     sail:
         driver: bridge
+    microservices-net:
+        external: true
 volumes:
     sail-mongodb:
         driver: local
-    sail-mongodb-config:
-        driver: local
     sail-kafka:
         driver: local
+
+        
