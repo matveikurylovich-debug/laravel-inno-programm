@@ -36,6 +36,9 @@ export default function CustomerHomePage() {
         <p className="mt-3 max-w-xl text-slate-600">
           Здесь будет история заказов. Имя, телефон и пароль можно изменить в меню профиля.
         </p>
+        <a href="/catalog" className="mt-6 text-sm font-medium text-slate-900 underline">
+          Открыть витрину
+        </a>
       </main>
     </div>
   );

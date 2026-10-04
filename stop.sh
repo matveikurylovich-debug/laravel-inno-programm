@@ -5,4 +5,7 @@ echo "Остановка Auth Service..."
 echo "Остановка Notification Service..."
 (cd notification-service && ./vendor/bin/sail down)
 
+echo "Остановка Catalog Service..."
+(cd catalog-service && docker compose down)
+
 echo "Все контейнеры остановлены."

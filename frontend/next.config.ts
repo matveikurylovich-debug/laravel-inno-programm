@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
         source: "/api/notifications/:path*",
         destination: "http://127.0.0.1:8001/api/notifications/:path*",
       },
+      {
+        source: "/api/catalog/:path*",
+        destination: "http://127.0.0.1:8084/api/:path*",
+      },
     ];
   },
 };

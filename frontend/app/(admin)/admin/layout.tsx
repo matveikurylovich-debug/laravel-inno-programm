@@ -8,6 +8,10 @@ import UserMenu from "@/app/components/UserMenu";
 const links = [
   { href: "/admin/users", label: "Пользователи и роли" },
   { href: "/admin/notifications", label: "Журнал уведомлений" },
+  { href: "/admin/stores", label: "Магазины" },
+  { href: "/admin/categories", label: "Категории" },
+  { href: "/admin/products", label: "Товары" },
+  { href: "/catalog", label: "Витрина" },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
