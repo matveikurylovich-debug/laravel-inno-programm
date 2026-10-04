@@ -10,12 +10,17 @@ echo "=== 2. Запуск Notification Service (Kafka, Mongo, MailHog) ==="
 echo "=== 3. Запуск Auth Service (PostgreSQL, Redis, Web) ==="
 (cd auth-service && ./vendor/bin/sail up -d)
 
+echo "=== 4. Запуск Catalog Service (PostgreSQL, Redis, MinIO, Nginx) ==="
+(cd catalog-service && docker compose up -d --build)
+
 echo ""
 echo "=== ВСЕ СЕРВИСЫ ЗАПУЩЕНЫ ==="
 echo "Frontend:             http://localhost:3000"
 echo "Auth Service:         http://localhost:8000"
 echo "Notification Service: http://localhost:8001"
+echo "Catalog Service:      https://localhost:8443"
+echo "MinIO console:        http://localhost:9001"
 echo "MailHog:              http://localhost:8025"
 echo ""
-echo "=== 4. Запуск Frontend (Next.js :3000) ==="
+echo "=== 5. Запуск Frontend (Next.js :3000) ==="
 (cd frontend && npm run dev)
