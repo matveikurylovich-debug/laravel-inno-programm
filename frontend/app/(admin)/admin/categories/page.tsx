@@ -54,23 +54,26 @@ export default function CategoriesPage() {
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">Категории</h1>
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      <label className="mt-4 block text-sm">
-        Магазин
-        <select className="mt-1 block rounded-lg border border-slate-300 px-3 py-2" value={storeId ?? ""} onChange={(event) => setStoreId(Number(event.target.value))}>
-          {stores.map((store) => (
-            <option key={store.id} value={store.id}>{store.name}</option>
-          ))}
-        </select>
-      </label>
-      <form onSubmit={createCategory} className="mt-4 flex gap-2">
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название категории" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
-        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Создать</button>
-      </form>
-      <ul className="mt-6 space-y-1 text-sm">
+      <h1 className="page-title">Категории</h1>
+      <p className="page-subtitle">Категории товаров выбранного магазина.</p>
+      {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+      <div className="card mt-6 space-y-4 p-4 sm:p-5">
+        <label className="field block max-w-sm">
+          Магазин
+          <select className="select" value={storeId ?? ""} onChange={(event) => setStoreId(Number(event.target.value))}>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>{store.name}</option>
+            ))}
+          </select>
+        </label>
+        <form onSubmit={createCategory} className="flex flex-col gap-3 sm:flex-row">
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название категории" className="input flex-1" required />
+          <button className="btn btn-primary">Создать</button>
+        </form>
+      </div>
+      <ul className="mt-6 space-y-2">
         {categories.map((category) => (
-          <li key={category.id}>{category.name}</li>
+          <li key={category.id} className="list-row font-medium">{category.name}</li>
         ))}
       </ul>
     </section>

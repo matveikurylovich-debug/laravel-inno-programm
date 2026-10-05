@@ -50,17 +50,18 @@ export default function StoresPage() {
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">Магазины</h1>
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      <form onSubmit={createStore} className="mt-4 flex gap-2">
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
-        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Создать</button>
+      <h1 className="page-title">Магазины</h1>
+      <p className="page-subtitle">Создание и удаление магазинов витрины.</p>
+      {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+      <form onSubmit={createStore} className="card mt-6 flex flex-col gap-3 p-4 sm:flex-row">
+        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название" className="input flex-1" required />
+        <button className="btn btn-primary">Создать</button>
       </form>
       <ul className="mt-6 space-y-2">
         {stores.map((store) => (
-          <li key={store.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
-            <span>{store.name}</span>
-            <button type="button" onClick={() => remove(store)} className="text-red-600">Удалить</button>
+          <li key={store.id} className="list-row">
+            <span className="font-medium">{store.name}</span>
+            <button type="button" onClick={() => remove(store)} className="btn btn-danger-ghost btn-sm">Удалить</button>
           </li>
         ))}
       </ul>

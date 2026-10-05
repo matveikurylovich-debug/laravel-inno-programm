@@ -5,7 +5,8 @@ import { apiFetch, readError } from "@/app/lib/api";
 
 type Store = { id: number; name: string };
 type Category = { id: number; name: string };
-type Product = { id: number; name: string; price: string };
+type ProductImage = { url: string };
+type Product = { id: number; name: string; price: string; primary_image?: ProductImage | null };
 
 export default function ProductsPage() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -71,6 +72,25 @@ export default function ProductsPage() {
     setProducts(body.data ?? []);
   }
 
+  async function uploadPhoto(product: Product, file: File) {
+    setError("");
+    const form = new FormData();
+    form.append("image", file);
+
+    const response = await apiFetch(`/api/catalog/v1/products/${product.id}/images`, {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) {
+      setError(await readError(response));
+      return;
+    }
+
+    const list = await apiFetch(`/api/catalog/v1/stores/${storeId}/products`);
+    const body = (await list.json()) as { data: Product[] };
+    setProducts(body.data ?? []);
+  }
+
   async function updateStock(product: Product) {
     const next = window.prompt("Новый остаток", "0");
     if (next === null) {
@@ -87,32 +107,66 @@ export default function ProductsPage() {
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">Товары</h1>
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-      <label className="mt-4 block text-sm">
-        Магазин
-        <select className="mt-1 block rounded-lg border border-slate-300 px-3 py-2" value={storeId ?? ""} onChange={(event) => setStoreId(Number(event.target.value))}>
-          {stores.map((store) => (
-            <option key={store.id} value={store.id}>{store.name}</option>
-          ))}
-        </select>
-      </label>
-      <form onSubmit={createProduct} className="mt-4 grid gap-2 md:grid-cols-4">
-        <select className="rounded-lg border border-slate-300 px-3 py-2 text-sm" value={categoryId ?? ""} onChange={(event) => setCategoryId(Number(event.target.value))}>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>{category.name}</option>
-          ))}
-        </select>
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
-        <input value={price} onChange={(event) => setPrice(event.target.value)} type="number" min="0" step="0.01" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input value={quantity} onChange={(event) => setQuantity(event.target.value)} type="number" min="0" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-4">Создать</button>
-      </form>
+      <h1 className="page-title">Товары</h1>
+      <p className="page-subtitle">Создание товаров, загрузка фото и управление остатками.</p>
+      {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+
+      <div className="card mt-6 space-y-4 p-4 sm:p-5">
+        <label className="field block max-w-sm">
+          Магазин
+          <select className="select" value={storeId ?? ""} onChange={(event) => setStoreId(Number(event.target.value))}>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>{store.name}</option>
+            ))}
+          </select>
+        </label>
+        <form onSubmit={createProduct} className="grid gap-3 md:grid-cols-4">
+          <select className="select" value={categoryId ?? ""} onChange={(event) => setCategoryId(Number(event.target.value))}>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>{category.name}</option>
+            ))}
+          </select>
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название" className="input" required />
+          <input value={price} onChange={(event) => setPrice(event.target.value)} type="number" min="0" step="0.01" className="input" />
+          <input value={quantity} onChange={(event) => setQuantity(event.target.value)} type="number" min="0" className="input" />
+          <button className="btn btn-primary md:col-span-4">Создать</button>
+        </form>
+      </div>
+
       <ul className="mt-6 space-y-2">
         {products.map((product) => (
-          <li key={product.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
-            <span>{product.name} — {product.price}</span>
-            <button type="button" onClick={() => updateStock(product)} className="text-slate-700">Остаток</button>
+          <li key={product.id} className="list-row">
+            <span className="flex min-w-0 items-center gap-3">
+              {product.primary_image?.url ? (
+                <img src={product.primary_image.url} alt="" className="h-12 w-12 shrink-0 rounded-xl border border-slate-200 object-cover" />
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-brand-50 text-lg font-semibold text-brand-300">
+                  {product.name.slice(0, 1)}
+                </span>
+              )}
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{product.name}</span>
+                <span className="block text-slate-500">{product.price}</span>
+              </span>
+            </span>
+            <span className="flex shrink-0 gap-2">
+              <label className="btn btn-secondary btn-sm cursor-pointer">
+                Фото
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      uploadPhoto(product, file);
+                    }
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              <button type="button" onClick={() => updateStock(product)} className="btn btn-secondary btn-sm">Остаток</button>
+            </span>
           </li>
         ))}
       </ul>

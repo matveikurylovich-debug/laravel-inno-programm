@@ -8,4 +8,7 @@ echo "Остановка Notification Service..."
 echo "Остановка Catalog Service..."
 (cd catalog-service && docker compose down)
 
+echo "Остановка Order Service..."
+(cd order-service && docker compose down)
+
 echo "Все контейнеры остановлены."

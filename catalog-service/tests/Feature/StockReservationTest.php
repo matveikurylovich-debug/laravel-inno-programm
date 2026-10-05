@@ -68,8 +68,36 @@ class StockReservationTest extends TestCase
 
         app(OrderEventsHandler::class)($message);
 
-        Kafka::assertPublishedOn('inventory.events');
+        Kafka::assertPublishedOn('inventory.events', null, function ($message): bool {
+            $body = $message->getBody();
+
+            return is_array($body) && ($body['event'] ?? null) === 'stock.reserved';
+        });
         $this->assertSame(1, Stock::query()->first()->reserved_quantity);
+    }
+
+    public function test_order_created_publishes_stock_reservation_failed(): void
+    {
+        [$store, $product] = $this->catalog();
+        $orderId = (string) Str::uuid();
+
+        $message = \Mockery::mock(ConsumerMessage::class);
+        $message->shouldReceive('getBody')->andReturn([
+            'event' => 'order.created',
+            'order_id' => $orderId,
+            'store_id' => $store->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 100]],
+        ]);
+
+        app(OrderEventsHandler::class)($message);
+
+        Kafka::assertPublishedOn('inventory.events', null, function ($message): bool {
+            $body = $message->getBody();
+
+            return is_array($body) && ($body['event'] ?? null) === 'stock.reservation_failed';
+        });
+        $this->assertSame(0, Stock::query()->first()->reserved_quantity);
+        $this->assertSame(0, StockReservation::query()->count());
     }
 
     public function test_stock_release_requested_frees_reservation(): void

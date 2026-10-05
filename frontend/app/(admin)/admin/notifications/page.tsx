@@ -6,6 +6,19 @@ import type { NotificationLog, PaginatedNotifications } from "@/app/lib/types";
 
 const statuses = ["", "pending", "sent", "failed"];
 
+function statusBadge(status?: string | null): string {
+  switch (status) {
+    case "sent":
+      return "badge badge-success";
+    case "failed":
+      return "badge badge-danger";
+    case "pending":
+      return "badge badge-warning";
+    default:
+      return "badge";
+  }
+}
+
 export default function NotificationsPage() {
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [page, setPage] = useState(1);
@@ -73,55 +86,57 @@ export default function NotificationsPage() {
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">Журнал уведомлений</h1>
-      <p className="mt-1 text-sm text-slate-500">Записи из MongoDB. Повторная отправка доступна администратору.</p>
+      <h1 className="page-title">Журнал уведомлений</h1>
+      <p className="page-subtitle">Записи из MongoDB. Повторная отправка доступна администратору.</p>
 
-      <form onSubmit={applyFilters} className="mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-5">
-        <select name="status" defaultValue={status} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+      <form onSubmit={applyFilters} className="card mt-6 grid gap-3 p-4 md:grid-cols-5">
+        <select name="status" defaultValue={status} className="select">
           {statuses.map((item) => (
             <option key={item || "all"} value={item}>
               {item || "Все статусы"}
             </option>
           ))}
         </select>
-        <input name="recipient" defaultValue={recipient} placeholder="Email" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input name="date_from" type="date" defaultValue={dateFrom} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <input name="date_to" type="date" defaultValue={dateTo} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <button type="submit" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
+        <input name="recipient" defaultValue={recipient} placeholder="Email" className="input" />
+        <input name="date_from" type="date" defaultValue={dateFrom} className="input" />
+        <input name="date_to" type="date" defaultValue={dateTo} className="input" />
+        <button type="submit" className="btn btn-primary">
           Применить
         </button>
       </form>
 
-      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="alert alert-error mt-4">{error}</p> : null}
       {loading ? <p className="mt-4 text-sm text-slate-500">Загрузка...</p> : null}
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500">
+      <div className="table-wrap mt-4">
+        <table className="data-table min-w-[760px]">
+          <thead>
             <tr>
-              <th className="px-4 py-3 font-medium">Дата</th>
-              <th className="px-4 py-3 font-medium">Событие</th>
-              <th className="px-4 py-3 font-medium">Получатель</th>
-              <th className="px-4 py-3 font-medium">Статус</th>
-              <th className="px-4 py-3 font-medium">Действия</th>
+              <th>Дата</th>
+              <th>Событие</th>
+              <th>Получатель</th>
+              <th>Статус</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>
             {logs.map((log) => (
-              <tr key={log.id} className="border-t border-slate-100">
-                <td className="px-4 py-3 text-slate-500">
+              <tr key={log.id}>
+                <td className="text-slate-500">
                   {log.created_at ? new Date(log.created_at).toLocaleString("ru-RU") : "—"}
                 </td>
-                <td className="px-4 py-3">{log.event ?? "—"}</td>
-                <td className="px-4 py-3">{log.recipient ?? "—"}</td>
-                <td className="px-4 py-3">{log.status ?? "—"}</td>
-                <td className="px-4 py-3">
+                <td className="font-medium">{log.event ?? "—"}</td>
+                <td>{log.recipient ?? "—"}</td>
+                <td>
+                  {log.status ? <span className={statusBadge(log.status)}>{log.status}</span> : "—"}
+                </td>
+                <td>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setSelected(log)} className="rounded-lg border border-slate-300 px-2 py-1">
+                    <button type="button" onClick={() => setSelected(log)} className="btn btn-secondary btn-sm">
                       Payload
                     </button>
                     {log.status === "failed" && role === "admin" ? (
-                      <button type="button" onClick={() => replay(log)} className="rounded-lg bg-slate-900 px-2 py-1 text-white">
+                      <button type="button" onClick={() => replay(log)} className="btn btn-primary btn-sm">
                         Replay
                       </button>
                     ) : null}
@@ -131,7 +146,7 @@ export default function NotificationsPage() {
             ))}
             {logs.length === 0 && !loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={5} className="!py-12 text-center text-slate-500">
                   Записей нет
                 </td>
               </tr>
@@ -140,28 +155,28 @@ export default function NotificationsPage() {
         </table>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 text-sm">
-        <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1 disabled:opacity-40">
+      <div className="mt-4 flex items-center gap-3 text-sm text-slate-600">
+        <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="btn btn-secondary btn-sm">
           Назад
         </button>
-        <span>
+        <span className="min-w-12 text-center font-medium tabular-nums">
           {page} / {lastPage}
         </span>
-        <button type="button" disabled={page >= lastPage} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1 disabled:opacity-40">
+        <button type="button" disabled={page >= lastPage} onClick={() => setPage((current) => current + 1)} className="btn btn-secondary btn-sm">
           Вперёд
         </button>
       </div>
 
       {selected ? (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setSelected(null)}>
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-3xl bg-white p-6 shadow-pop" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Payload</h2>
-              <button type="button" onClick={() => setSelected(null)} className="text-sm text-slate-500">
+              <h2 className="text-lg font-semibold tracking-tight">Payload</h2>
+              <button type="button" onClick={() => setSelected(null)} className="btn btn-ghost btn-sm">
                 Закрыть
               </button>
             </div>
-            <pre className="mt-4 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">
+            <pre className="mt-4 overflow-auto rounded-xl bg-slate-950 p-4 font-mono text-xs leading-5 text-slate-100">
               {JSON.stringify(selected.payload, null, 2)}
             </pre>
           </div>
