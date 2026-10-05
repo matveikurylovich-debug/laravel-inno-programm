@@ -52,38 +52,38 @@ export default function UsersPage() {
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">Пользователи и роли</h1>
-      <p className="mt-1 text-sm text-slate-500">Данные из PostgreSQL сервиса аутентификации.</p>
+      <h1 className="page-title">Пользователи и роли</h1>
+      <p className="page-subtitle">Данные из PostgreSQL сервиса аутентификации.</p>
 
       {readOnly ? (
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p className="alert alert-warning mt-4">
           Доступ только для чтения. Смена ролей доступна администратору.
         </p>
       ) : null}
-      {notice ? <p className="mt-4 text-sm text-emerald-700">{notice}</p> : null}
-      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+      {notice ? <p className="alert alert-success mt-4">{notice}</p> : null}
+      {error ? <p className="alert alert-error mt-4">{error}</p> : null}
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500">
+      <div className="table-wrap mt-6">
+        <table className="data-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3 font-medium">ID</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Роль</th>
-              <th className="px-4 py-3 font-medium">Регистрация</th>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Роль</th>
+              <th>Регистрация</th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id} className="border-t border-slate-100">
-                <td className="px-4 py-3">{user.id}</td>
-                <td className="px-4 py-3">{user.email}</td>
-                <td className="px-4 py-3">
+              <tr key={user.id}>
+                <td className="text-slate-500">{user.id}</td>
+                <td className="font-medium">{user.email}</td>
+                <td>
                   <select
                     value={user.role}
                     disabled={readOnly}
                     onChange={(event) => changeRole(user, event.target.value)}
-                    className="rounded-lg border border-slate-300 px-2 py-1 disabled:bg-slate-100"
+                    className="select select-sm w-auto"
                   >
                     {roles.map((item) => (
                       <option key={item} value={item}>
@@ -92,7 +92,7 @@ export default function UsersPage() {
                     ))}
                   </select>
                 </td>
-                <td className="px-4 py-3 text-slate-500">
+                <td className="text-slate-500">
                   {user.registered_at ? new Date(user.registered_at).toLocaleString("ru-RU") : "—"}
                 </td>
               </tr>

@@ -49,4 +49,37 @@ class Category extends Model
     {
         return $query->whereNull('parent_id')->orderBy('position');
     }
+
+    /**
+     * Идентификатор категории и всех её потомков внутри магазина.
+     *
+     * @return list<int>
+     */
+    public static function idsIncludingDescendants(int $storeId, int $categoryId): array
+    {
+        $childrenByParent = [];
+
+        foreach (static::query()->where('store_id', $storeId)->get(['id', 'parent_id']) as $category) {
+            $childrenByParent[$category->parent_id ?? 0][] = $category->id;
+        }
+
+        $ids = [];
+        $stack = [$categoryId];
+
+        while ($stack !== []) {
+            $current = array_pop($stack);
+
+            if (in_array($current, $ids, true)) {
+                continue;
+            }
+
+            $ids[] = $current;
+
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                $stack[] = $childId;
+            }
+        }
+
+        return $ids;
+    }
 }

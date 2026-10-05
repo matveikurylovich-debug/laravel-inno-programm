@@ -6,13 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Product\UploadProductImageRequest;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\CatalogCacheService;
 use App\Services\ProductImageService;
 use Illuminate\Http\JsonResponse;
 
 class ProductImageController extends Controller
 {
     public function __construct(
-        protected ProductImageService $imageService
+        protected ProductImageService $imageService,
+        protected CatalogCacheService $cacheService,
     ) {}
 
     /**
@@ -26,6 +28,8 @@ class ProductImageController extends Controller
             isPrimary: $request->boolean('is_primary', false)
         );
 
+        $this->forgetProductCache($product);
+
         return response()->json([
             'success' => true,
             'message' => 'Изображение успешно загружено',
@@ -38,11 +42,22 @@ class ProductImageController extends Controller
      */
     public function destroy(ProductImage $image): JsonResponse
     {
+        $product = $image->product;
         $this->imageService->delete($image);
+
+        if ($product) {
+            $this->forgetProductCache($product);
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Изображение удалено',
         ]);
+    }
+
+    private function forgetProductCache(Product $product): void
+    {
+        $this->cacheService->forgetProduct($product->id);
+        $this->cacheService->forgetProductList($product->store_id);
     }
 }

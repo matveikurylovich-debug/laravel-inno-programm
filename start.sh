@@ -13,14 +13,18 @@ echo "=== 3. Запуск Auth Service (PostgreSQL, Redis, Web) ==="
 echo "=== 4. Запуск Catalog Service (PostgreSQL, Redis, MinIO, Nginx) ==="
 (cd catalog-service && docker compose up -d --build)
 
+echo "=== 5. Запуск Order Service (PostgreSQL, Redis, Kafka, Nginx, Stripe CLI) ==="
+(cd order-service && docker compose up -d --build)
+
 echo ""
 echo "=== ВСЕ СЕРВИСЫ ЗАПУЩЕНЫ ==="
 echo "Frontend:             http://localhost:3000"
 echo "Auth Service:         http://localhost:8000"
 echo "Notification Service: http://localhost:8001"
 echo "Catalog Service:      https://localhost:8443"
+echo "Order Service:        https://localhost:8444"
 echo "MinIO console:        http://localhost:9001"
 echo "MailHog:              http://localhost:8025"
 echo ""
-echo "=== 5. Запуск Frontend (Next.js :3000) ==="
+echo "=== 6. Запуск Frontend (Next.js :3000) ==="
 (cd frontend && npm run dev)

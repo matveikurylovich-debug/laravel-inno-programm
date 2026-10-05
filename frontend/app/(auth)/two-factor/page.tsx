@@ -2,6 +2,7 @@
 
 import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
+import Brand from "@/app/components/Brand";
 import { useSearchParams } from "next/navigation";
 import { apiFetch, readError } from "@/app/lib/api";
 import { destinationFor, persistAuth } from "@/app/lib/auth";
@@ -54,10 +55,10 @@ function TwoFactorForm() {
 
   if (!userId) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <p className="text-sm text-slate-600">
+      <main className="auth-shell">
+        <p className="auth-card text-center text-sm text-slate-600">
           Сначала войдите по паролю.{" "}
-          <Link href="/login" className="font-medium text-slate-900">
+          <Link href="/login" className="link">
             Ко входу
           </Link>
         </p>
@@ -66,13 +67,13 @@ function TwoFactorForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-medium text-slate-500">InnoTrainne</p>
-        <h1 className="mt-2 text-2xl font-semibold">Код из письма</h1>
-        <p className="mt-1 text-sm text-slate-500">Шестизначный код действует 5 минут. Письмо в MailHog: localhost:8025.</p>
+    <main className="auth-shell">
+      <form onSubmit={onSubmit} className="auth-card">
+        <Brand />
+        <h1 className="auth-title">Код из письма</h1>
+        <p className="auth-hint">Шестизначный код действует 5 минут. Письмо в MailHog: localhost:8025.</p>
 
-        <label className="mt-6 block text-sm font-medium">
+        <label className="field mt-6">
           Код
           <input
             required
@@ -81,22 +82,22 @@ function TwoFactorForm() {
             maxLength={6}
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-900"
+            className="input text-center font-mono text-2xl tracking-[0.5em]"
           />
         </label>
 
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
-        {message ? <p className="mt-4 text-sm text-emerald-700">{message}</p> : null}
+        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {message ? <p className="alert alert-success mt-4">{message}</p> : null}
 
         <button
           type="submit"
           disabled={pending}
-          className="mt-6 w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+          className="btn btn-primary btn-block mt-6"
         >
           {pending ? "Проверяем..." : "Подтвердить"}
         </button>
 
-        <button type="button" onClick={() => void resend()} className="mt-3 w-full text-sm text-slate-600">
+        <button type="button" onClick={() => void resend()} className="btn btn-ghost btn-block mt-3">
           Отправить код ещё раз
         </button>
       </form>
@@ -106,7 +107,7 @@ function TwoFactorForm() {
 
 export default function TwoFactorPage() {
   return (
-    <Suspense fallback={<main className="p-8 text-sm text-slate-500">Загрузка...</main>}>
+    <Suspense fallback={<main className="state-screen">Загрузка...</main>}>
       <TwoFactorForm />
     </Suspense>
   );

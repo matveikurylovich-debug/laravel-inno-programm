@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Product\StoreProductRequest;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\Stock;
 use App\Services\CatalogCacheService;
@@ -41,7 +42,10 @@ class ProductController extends Controller
                 ->with(['primaryImage', 'stock', 'category']);
 
             if ($filters['category_id']) {
-                $query->where('category_id', $filters['category_id']);
+                $query->whereIn(
+                    'category_id',
+                    Category::idsIncludingDescendants($storeId, (int) $filters['category_id']),
+                );
             }
 
             if ($filters['price_from'] !== null && $filters['price_from'] !== '') {

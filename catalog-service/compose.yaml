@@ -101,12 +101,29 @@ services:
             minio:
                 condition: service_started
 
+    catalog-order-consumer:
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+        container_name: catalog-order-consumer
+        restart: unless-stopped
+        command: php artisan kafka:consume-orders
+        volumes:
+            - .:/var/www/html
+        networks:
+            - catalog
+            - microservices-net
+        depends_on:
+            catalog-postgres:
+                condition: service_healthy
+            catalog-redis:
+                condition: service_healthy
+
     catalog-nginx:
         image: nginx:alpine
         container_name: catalog-nginx
         ports:
             - '${FORWARD_HTTPS_PORT:-8443}:443'
-            - '127.0.0.1:${FORWARD_CATALOG_HTTP_PORT:-8084}:8080'
         volumes:
             - .:/var/www/html:ro
             - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
