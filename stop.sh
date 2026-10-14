@@ -11,4 +11,7 @@ echo "Остановка Catalog Service..."
 echo "Остановка Order Service..."
 (cd order-service && docker compose down)
 
+echo "Остановка Search Service..."
+(cd search-service && docker compose down)
+
 echo "Все контейнеры остановлены."

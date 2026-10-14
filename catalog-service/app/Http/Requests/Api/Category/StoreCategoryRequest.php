@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\Category;
 
 use App\Models\Category;
+use App\Support\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCategoryRequest extends FormRequest
@@ -10,6 +11,15 @@ class StoreCategoryRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $storeId = app(CurrentStore::class)->id();
+
+        if ($storeId !== null) {
+            $this->merge(['store_id' => $storeId]);
+        }
     }
 
     public function rules(): array

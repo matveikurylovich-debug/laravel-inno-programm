@@ -4,15 +4,26 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
+use App\Support\CurrentStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class StoreController extends Controller
 {
+    public function __construct(private readonly CurrentStore $currentStore) {}
+
     public function index(): JsonResponse
     {
-        $stores = Store::query()->where('is_active', true)->orderBy('name')->get();
+        $query = Store::query()->orderBy('name');
+
+        if ($this->currentStore->id() !== null) {
+            $query->whereKey($this->currentStore->id());
+        } else {
+            $query->where('is_active', true);
+        }
+
+        $stores = $query->get();
 
         return response()->json([
             'success' => true,
@@ -22,6 +33,13 @@ class StoreController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($this->currentStore->id() !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Нет доступа к созданию другого магазина',
+            ], 403);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:stores,slug'],
@@ -42,6 +60,10 @@ class StoreController extends Controller
 
     public function update(Request $request, Store $store): JsonResponse
     {
+        if ($denied = $this->denyForeignStore($store)) {
+            return $denied;
+        }
+
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:stores,slug,'.$store->id],
@@ -59,11 +81,29 @@ class StoreController extends Controller
 
     public function destroy(Store $store): JsonResponse
     {
+        if ($denied = $this->denyForeignStore($store)) {
+            return $denied;
+        }
+
         $store->delete();
 
         return response()->json([
             'success' => true,
             'message' => 'Магазин удален',
         ]);
+    }
+
+    private function denyForeignStore(Store $store): ?JsonResponse
+    {
+        $storeId = $this->currentStore->id();
+
+        if ($storeId !== null && (int) $store->id !== $storeId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Нет доступа к этому магазину',
+            ], 403);
+        }
+
+        return null;
     }
 }

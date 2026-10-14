@@ -20,25 +20,24 @@ class DatabaseSeeder extends Seeder
         $customerRole  = Role::firstOrCreate(['name' => 'customer']);
         $analystRole  = Role::firstOrCreate(['name' => 'analyst']);
 
-        // 3. Создаем администратора
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
-            [
-                'name' => 'Admin User',
-                'password' => Hash::make('password'),
-            ]
-        );
-        $admin->syncRoles($adminRole);
+        $users = [
+            ['email' => 'admin@example.com', 'name' => 'Admin User', 'role' => $adminRole],
+            ['email' => 'user@example.com', 'name' => 'Regular User', 'role' => $customerRole],
+            ['email' => 'analyst@example.com', 'name' => 'Анна Аналитик', 'role' => $analystRole],
+            ['email' => 'maria@example.com', 'name' => 'Мария Покупатель', 'role' => $customerRole],
+            ['email' => 'ivan@example.com', 'name' => 'Иван Петров', 'role' => $customerRole],
+            ['email' => 'olga@example.com', 'name' => 'Ольга Смирнова', 'role' => $customerRole],
+        ];
 
-        // 4. Создаем обычного пользователя
-        $user = User::firstOrCreate(
-            ['email' => 'user@example.com'],
-            [
-                'name' => 'Regular User',
-                'password' => Hash::make('password'),
-            ]
-        );
-
-        $user->syncRoles($customerRole);
+        foreach ($users as $item) {
+            $user = User::firstOrCreate(
+                ['email' => $item['email']],
+                [
+                    'name' => $item['name'],
+                    'password' => Hash::make('password'),
+                ]
+            );
+            $user->syncRoles($item['role']);
+        }
     }
 }

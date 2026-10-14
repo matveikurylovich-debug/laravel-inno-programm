@@ -1,0 +1,152 @@
+services:
+    order-service:
+        image: order-service:local
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+        container_name: order-service
+        volumes:
+            - .:/var/www/html
+            - ./docker/php/zz-www.conf:/usr/local/etc/php-fpm.d/zz-www.conf:ro
+        environment:
+            KAFKA_BROKERS: kafka:9092
+        networks:
+            - order
+            - microservices-net
+        depends_on:
+            order-postgres:
+                condition: service_healthy
+            order-redis:
+                condition: service_healthy
+
+    order-postgres:
+        image: postgres:16-alpine
+        container_name: order-postgres
+        ports:
+            - '${FORWARD_DB_PORT:-5435}:5432'
+        environment:
+            POSTGRES_DB: '${DB_DATABASE:-order_db}'
+            POSTGRES_USER: '${DB_USERNAME:-order}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - order-pgsql:/var/lib/postgresql/data
+        networks:
+            - order
+            - microservices-net
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -q -d ${DB_DATABASE:-order_db} -U ${DB_USERNAME:-order}']
+            retries: 5
+            timeout: 5s
+
+    order-redis:
+        image: redis:7-alpine
+        container_name: order-redis
+        ports:
+            - '${FORWARD_REDIS_PORT:-6382}:6379'
+        volumes:
+            - order-redis:/data
+        networks:
+            - order
+            - microservices-net
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            retries: 5
+            timeout: 5s
+
+    order-nginx:
+        image: nginx:alpine
+        container_name: order-nginx
+        ports:
+            - '${FORWARD_HTTP_PORT:-8088}:80'
+            - '${FORWARD_HTTPS_PORT:-8444}:443'
+        volumes:
+            - .:/var/www/html:ro
+            - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - ./docker/nginx/certs:/etc/nginx/certs:ro
+        depends_on:
+            - order-service
+        networks:
+            - order
+            - microservices-net
+
+    stripe-cli:
+        image: stripe/stripe-cli:latest
+        container_name: order-stripe-cli
+        environment:
+            STRIPE_API_KEY: ${STRIPE_API_KEY:-${STRIPE_SECRET_KEY:-}}
+        command:
+            - listen
+            - --forward-to
+            - https://order-nginx/webhooks/stripe
+            - --skip-verify
+        depends_on:
+            - order-nginx
+        networks:
+            - order
+        restart: unless-stopped
+
+    order-outbox-relay:
+        image: order-service:local
+        container_name: order-outbox-relay
+        restart: unless-stopped
+        command: php artisan order:outbox-relay
+        environment:
+            KAFKA_BROKERS: kafka:9092
+        volumes:
+            - .:/var/www/html
+        networks:
+            - order
+            - microservices-net
+        depends_on:
+            order-service:
+                condition: service_started
+            order-postgres:
+                condition: service_healthy
+            order-redis:
+                condition: service_healthy
+
+    order-catalog-consumer:
+        image: order-service:local
+        container_name: order-catalog-consumer
+        restart: unless-stopped
+        command: php artisan kafka:consume-catalog
+        environment:
+            KAFKA_BROKERS: kafka:9092
+        volumes:
+            - .:/var/www/html
+        networks:
+            - order
+            - microservices-net
+        depends_on:
+            order-service:
+                condition: service_started
+            order-postgres:
+                condition: service_healthy
+
+    order-inventory-consumer:
+        image: order-service:local
+        container_name: order-inventory-consumer
+        restart: unless-stopped
+        command: php artisan kafka:consume-inventory
+        environment:
+            KAFKA_BROKERS: kafka:9092
+        volumes:
+            - .:/var/www/html
+        networks:
+            - order
+            - microservices-net
+        depends_on:
+            order-service:
+                condition: service_started
+            order-postgres:
+                condition: service_healthy
+
+networks:
+    order:
+        driver: bridge
+    microservices-net:
+        external: true
+
+volumes:
+    order-pgsql:
+    order-redis:

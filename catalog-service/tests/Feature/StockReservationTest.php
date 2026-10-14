@@ -100,6 +100,32 @@ class StockReservationTest extends TestCase
         $this->assertSame(0, StockReservation::query()->count());
     }
 
+    public function test_order_paid_publishes_stock_committed(): void
+    {
+        [$store, $product] = $this->catalog();
+        $orderId = (string) Str::uuid();
+        app(StockReservationService::class)->reserve($orderId, $store->id, [
+            ['product_id' => $product->id, 'quantity' => 2],
+        ]);
+
+        $message = \Mockery::mock(ConsumerMessage::class);
+        $message->shouldReceive('getBody')->andReturn([
+            'event' => 'order.paid',
+            'order_id' => $orderId,
+            'store_id' => $store->id,
+        ]);
+
+        app(OrderEventsHandler::class)($message);
+
+        Kafka::assertPublishedOn('inventory.events', null, function ($message): bool {
+            $body = $message->getBody();
+
+            return is_array($body) && ($body['event'] ?? null) === 'stock.committed';
+        });
+        $this->assertSame(8, Stock::query()->first()->quantity);
+        $this->assertSame(0, Stock::query()->first()->reserved_quantity);
+    }
+
     public function test_stock_release_requested_frees_reservation(): void
     {
         [$store, $product] = $this->catalog();

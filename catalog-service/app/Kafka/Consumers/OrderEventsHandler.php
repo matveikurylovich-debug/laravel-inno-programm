@@ -62,7 +62,9 @@ class OrderEventsHandler
                 break;
 
             case 'order.paid':
-                $this->reservationService->commit((string) $orderId);
+                if ($this->reservationService->commit((string) $orderId)) {
+                    $this->producer->emitCommitted((string) $orderId, $storeId);
+                }
                 break;
 
             case 'order.cancelled':
