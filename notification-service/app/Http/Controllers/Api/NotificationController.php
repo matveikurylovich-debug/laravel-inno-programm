@@ -170,7 +170,7 @@ class NotificationController extends Controller
             ),
             'order.paid' => new OrderPaidMail(
                 orderId: $data['order_id'] ?? '—',
-                amount: $data['amount'] ?? 0,
+                amount: $data['total_amount'] ?? $data['amount'] ?? 0,
                 currency: $data['currency'] ?? 'RUB',
                 items: $data['items'] ?? [],
             ),

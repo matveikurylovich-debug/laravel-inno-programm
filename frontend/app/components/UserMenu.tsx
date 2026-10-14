@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch, logout } from "@/app/lib/api";
 import type { AuthUser } from "@/app/lib/types";
@@ -11,13 +12,18 @@ type UserMenuProps = {
 };
 
 export default function UserMenu({ variant = "light", dropUp = false }: UserMenuProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const inAdmin = pathname.startsWith("/admin");
+  const staff = role === "admin" || role === "analyst";
 
   useEffect(() => {
     setName(localStorage.getItem("user_name") ?? "");
+    setRole(localStorage.getItem("user_role") ?? "");
 
     apiFetch("/api/auth/me")
       .then(async (response) => {
@@ -86,6 +92,24 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
             {email ? <p className="mt-0.5 truncate text-xs text-slate-500">{email}</p> : null}
           </div>
           <div className="pt-1.5">
+            {inAdmin ? (
+              <Link
+                href="/catalog"
+                onClick={() => setOpen(false)}
+                className="block rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
+              >
+                В магазин
+              </Link>
+            ) : null}
+            {!inAdmin && staff ? (
+              <Link
+                href="/admin/products"
+                onClick={() => setOpen(false)}
+                className="block rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 sm:hidden"
+              >
+                Панель управления
+              </Link>
+            ) : null}
             <Link
               href="/profile"
               onClick={() => setOpen(false)}

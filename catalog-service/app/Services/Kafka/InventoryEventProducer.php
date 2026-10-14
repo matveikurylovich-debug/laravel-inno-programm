@@ -43,6 +43,19 @@ class InventoryEventProducer
         ]);
     }
 
+    /**
+     * Уведомление: бронь списана после оплаты.
+     */
+    public function emitCommitted(string $orderId, int $storeId): void
+    {
+        $this->send($orderId, [
+            'event' => 'stock.committed',
+            'order_id' => $orderId,
+            'store_id' => $storeId,
+            'timestamp' => now()->toISOString(),
+        ]);
+    }
+
     protected function send(string $key, array $payload): void
     {
         try {

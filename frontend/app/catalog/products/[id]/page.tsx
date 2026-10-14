@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { apiFetch, readError } from "@/app/lib/api";
+import { addToCart } from "@/app/lib/cart";
 
 type ProductImage = { url: string; is_primary: boolean };
 type ProductCard = {
   id: number;
+  store_id?: number;
   name: string;
   description?: string | null;
   price: string;
@@ -27,9 +29,12 @@ function money(value: string): string {
 
 export default function ProductPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [product, setProduct] = useState<ProductCard | null>(null);
   const [error, setError] = useState("");
   const [photo, setPhoto] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     apiFetch(`/api/catalog/v1/products/${params.id}`)
@@ -92,6 +97,40 @@ export default function ProductPage() {
               <p className={`badge mt-3 ${stock > 0 ? "badge-success" : ""}`}>
                 {stock > 0 ? `В наличии: ${stock}` : "Нет в наличии"}
               </p>
+              <div className="mt-6 flex flex-wrap items-end gap-3">
+                <label className="field">
+                  Количество
+                  <input
+                    className="input w-24"
+                    type="number"
+                    min={1}
+                    value={quantity}
+                    onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!product.store_id || stock < 1}
+                  onClick={() => {
+                    if (!product.store_id) {
+                      return;
+                    }
+                    addToCart({
+                      productId: product.id,
+                      storeId: product.store_id,
+                      name: product.name,
+                      price: Number(product.price),
+                      quantity,
+                    });
+                    setAdded(true);
+                    router.push("/checkout");
+                  }}
+                >
+                  В корзину
+                </button>
+                {added ? <span className="text-sm text-slate-500">Добавлено</span> : null}
+              </div>
               {product.description ? <p className="mt-6 leading-7 text-slate-600">{product.description}</p> : null}
               {attributes.length > 0 ? (
                 <dl className="mt-8 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/60 px-4">

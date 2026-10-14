@@ -1,0 +1,132 @@
+services:
+    search-app:
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+        image: search-service:local
+        container_name: search-app
+        environment:
+            KAFKA_BROKERS: kafka:9092
+            ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+            REDIS_HOST: redis
+            CACHE_STORE: redis
+            SESSION_DRIVER: array
+            DB_CONNECTION: "null"
+        volumes:
+            - .:/var/www/html
+            - ./docker/php/zz-www.conf:/usr/local/etc/php-fpm.d/zz-www.conf:ro
+        networks:
+            - search
+            - microservices-net
+        depends_on:
+            elasticsearch:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+
+    search-catalog-consumer:
+        image: search-service:local
+        container_name: search-catalog-consumer
+        restart: unless-stopped
+        command: php artisan kafka:consume-catalog
+        environment:
+            KAFKA_BROKERS: kafka:9092
+            ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+            REDIS_HOST: redis
+            CACHE_STORE: redis
+            SESSION_DRIVER: array
+            DB_CONNECTION: "null"
+        volumes:
+            - .:/var/www/html
+        networks:
+            - search
+            - microservices-net
+        depends_on:
+            search-app:
+                condition: service_started
+            elasticsearch:
+                condition: service_healthy
+
+    search-stock-consumer:
+        image: search-service:local
+        container_name: search-stock-consumer
+        restart: unless-stopped
+        command: php artisan kafka:consume-stock
+        environment:
+            KAFKA_BROKERS: kafka:9092
+            ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+            REDIS_HOST: redis
+            CACHE_STORE: redis
+            SESSION_DRIVER: array
+            DB_CONNECTION: "null"
+        volumes:
+            - .:/var/www/html
+        networks:
+            - search
+            - microservices-net
+        depends_on:
+            search-app:
+                condition: service_started
+            elasticsearch:
+                condition: service_healthy
+
+    elasticsearch:
+        image: elasticsearch:8.13.4
+        container_name: search-elasticsearch
+        environment:
+            discovery.type: single-node
+            xpack.security.enabled: "false"
+            ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+            - '${FORWARD_ELASTICSEARCH_PORT:-9200}:9200'
+        volumes:
+            - search-elasticsearch:/usr/share/elasticsearch/data
+        networks:
+            - search
+        healthcheck:
+            test: ['CMD-SHELL', 'curl -sf http://localhost:9200 >/dev/null']
+            interval: 10s
+            timeout: 5s
+            retries: 20
+            start_period: 30s
+
+    redis:
+        image: redis:7-alpine
+        container_name: search-redis
+        ports:
+            - '${FORWARD_REDIS_PORT:-6383}:6379'
+        volumes:
+            - search-redis:/data
+        networks:
+            - search
+            - microservices-net
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            retries: 5
+            timeout: 5s
+
+    nginx:
+        image: nginx:alpine
+        container_name: search-nginx
+        ports:
+            - '${FORWARD_HTTP_PORT:-8089}:80'
+            - '${FORWARD_HTTPS_PORT:-8446}:443'
+        volumes:
+            - .:/var/www/html:ro
+            - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - ./docker/nginx/certs:/etc/nginx/certs:ro
+        networks:
+            - search
+            - microservices-net
+        depends_on:
+            - search-app
+
+networks:
+    search:
+        driver: bridge
+    microservices-net:
+        external: true
+
+volumes:
+    search-elasticsearch:
+    search-redis:

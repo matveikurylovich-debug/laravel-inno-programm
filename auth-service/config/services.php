@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'gateway' => [
+        'catalog' => env('CATALOG_SERVICE_URL', 'https://catalog-nginx/api'),
+        'order' => env('ORDER_SERVICE_URL', 'https://order-nginx/api'),
+        'notifications' => env('NOTIFICATION_SERVICE_URL', 'https://notification_nginx/api'),
+        'search' => env('SEARCH_SERVICE_URL', 'https://search-nginx/api'),
+    ],
+
 ];

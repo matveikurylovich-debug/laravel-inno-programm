@@ -4,9 +4,10 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\StoreController;
+use App\Http\Middleware\ResolveCurrentStore;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware(ResolveCurrentStore::class)->group(function () {
 
     // 1. Публичные маршруты (Витрина)
     Route::prefix('stores/{storeId}')->group(function () {

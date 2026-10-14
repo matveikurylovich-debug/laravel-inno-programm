@@ -16,20 +16,32 @@ class CatalogEventProducer
         $this->topic = (string) config('kafka.topics.catalog_events', 'catalog.events');
     }
 
-    public function productCreated(int $productId, int $storeId): void
+    /**
+     * @param  array<string, mixed>  $extra
+     */
+    public function productCreated(int $productId, int $storeId, string $name, string $price, bool $isActive, array $extra = []): void
     {
-        $this->emit('product.created', (string) $productId, [
+        $this->emit('product.created', (string) $productId, array_merge([
             'product_id' => $productId,
             'store_id' => $storeId,
-        ]);
+            'name' => $name,
+            'price' => $price,
+            'is_active' => $isActive,
+        ], $extra));
     }
 
-    public function productUpdated(int $productId, int $storeId): void
+    /**
+     * @param  array<string, mixed>  $extra
+     */
+    public function productUpdated(int $productId, int $storeId, string $name, string $price, bool $isActive, array $extra = []): void
     {
-        $this->emit('product.updated', (string) $productId, [
+        $this->emit('product.updated', (string) $productId, array_merge([
             'product_id' => $productId,
             'store_id' => $storeId,
-        ]);
+            'name' => $name,
+            'price' => $price,
+            'is_active' => $isActive,
+        ], $extra));
     }
 
     public function productDeleted(int $productId, int $storeId): void

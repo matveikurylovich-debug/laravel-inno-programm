@@ -1,0 +1,12 @@
+includes:
+    - ./vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - config
+        - routes
+
+    level: 5
+
+    checkModelProperties: true

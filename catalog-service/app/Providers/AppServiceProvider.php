@@ -8,13 +8,14 @@ use App\Models\Stock;
 use App\Observers\CategoryObserver;
 use App\Observers\ProductObserver;
 use App\Observers\StockObserver;
+use App\Support\CurrentStore;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->scoped(CurrentStore::class);
     }
 
     public function boot(): void

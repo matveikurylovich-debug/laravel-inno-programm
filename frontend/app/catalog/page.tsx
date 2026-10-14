@@ -165,33 +165,35 @@ export default function CatalogPage() {
     <div className="min-h-screen">
       <AppHeader />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <div className="relative flex flex-col gap-5 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 px-6 py-8 text-white shadow-pop sm:flex-row sm:items-end sm:justify-between sm:px-8">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-10 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl"
-          />
-          <div className="relative">
-            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-brand-200">Каталог</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{store?.name ?? "Витрина"}</h1>
-            <p className="mt-2 max-w-xl text-sm text-brand-100">Товары и категории выбранного магазина.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-slate-400">Магазин</p>
+            <h1 className="page-title mt-1">{store?.name ?? "Каталог"}</h1>
+            <p className="page-subtitle">Выберите категорию слева или найдите товар по названию.</p>
+            <form action="/catalog/search" className="mt-4 flex max-w-xl gap-2">
+              <input className="input" name="q" placeholder="Найти товар" aria-label="Поиск" />
+              <button type="submit" className="btn btn-primary">Найти</button>
+            </form>
           </div>
-          <label className="relative text-sm font-medium text-brand-100">
-            Магазин
-            <select
-              className="select mt-1.5 min-w-56 border-white/20 bg-white/10 text-white backdrop-blur hover:border-white/40 focus:border-white/60 focus:ring-white/20 [&>option]:text-slate-900"
-              value={storeId ?? ""}
-              onChange={(event) => {
-                setCategoryId(null);
-                setStoreId(Number(event.target.value));
-              }}
-            >
-              {stores.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {stores.length > 1 ? (
+            <label className="field min-w-56">
+              Другой магазин
+              <select
+                className="select"
+                value={storeId ?? ""}
+                onChange={(event) => {
+                  setCategoryId(null);
+                  setStoreId(Number(event.target.value));
+                }}
+              >
+                {stores.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
 
         {error ? <p className="alert alert-error mt-4">{error}</p> : null}
@@ -253,7 +255,12 @@ export default function CatalogPage() {
                     </div>
                     <div className="p-4">
                       <p className="line-clamp-2 min-h-12 font-medium leading-6 transition-colors group-hover:text-brand-700">{product.name}</p>
-                      <p className="mt-3 text-lg font-semibold tracking-tight">{money(product.price)}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-lg font-semibold tracking-tight">{money(product.price)}</p>
+                        <span className={`text-xs ${ (product.available_stock ?? 0) > 0 ? "text-emerald-700" : "text-slate-400" }`}>
+                          {(product.available_stock ?? 0) > 0 ? "В наличии" : "Нет в наличии"}
+                        </span>
+                      </div>
                     </div>
                   </Link>
                 ))}

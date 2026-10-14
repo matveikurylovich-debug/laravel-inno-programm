@@ -108,7 +108,7 @@ class OrderNotificationHandler
         $mailable = match ($event) {
             'order.paid' => new OrderPaidMail(
                 orderId: $orderId,
-                amount: $data['amount'] ?? 0,
+                amount: $data['total_amount'] ?? $data['amount'] ?? 0,
                 currency: $data['currency'] ?? 'RUB',
                 items: $data['items'] ?? []
             ),
