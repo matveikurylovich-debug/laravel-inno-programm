@@ -2,8 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Contracts\AuthService;
 use App\Models\User;
-use App\Services\JwtService;
 use Closure;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\SignatureInvalidException;
@@ -14,7 +14,7 @@ use Throwable;
 class JwtMiddleware
 {
     public function __construct(
-        protected JwtService $jwtService
+        protected AuthService $authService
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -26,8 +26,8 @@ class JwtMiddleware
         }
 
         try {
-        
-            $payload = $this->jwtService->decodeAccessToken($token);
+
+            $payload = $this->authService->decodeAccessToken($token);
 
             $user = User::find($payload->sub);
             if (! $user) {

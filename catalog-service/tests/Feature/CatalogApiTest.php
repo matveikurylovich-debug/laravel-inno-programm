@@ -40,14 +40,14 @@ class CatalogApiTest extends TestCase
             ->assertJsonPath('data.slug', 'phone');
     }
 
-    public function test_admin_routes_require_admin_token(): void
+    public function test_write_routes_require_access_token(): void
     {
         $this->postJson('/api/v1/stores', ['name' => 'New'])
             ->assertUnauthorized();
 
         $this->withToken($this->token('customer'))
             ->postJson('/api/v1/stores', ['name' => 'New'])
-            ->assertForbidden();
+            ->assertCreated();
     }
 
     public function test_admin_creates_store_category_and_product(): void

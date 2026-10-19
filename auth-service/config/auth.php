@@ -16,7 +16,7 @@ return [
     */
 
     'defaults' => [
-        'guard' => env('AUTH_GUARD', 'web'),
+        'guard' => env('AUTH_GUARD', 'web'),  // ЧТО ЭТО?
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 

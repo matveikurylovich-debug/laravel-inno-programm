@@ -10,21 +10,36 @@ class NotificationResource extends JsonResource
     /**
      * Преобразование сущности из MongoDB в массив для JSON-ответа.
      *
-     * @return array<string, mixed>
+     * @return array{
+     *     id: string,
+     *     event: string,
+     *     channel: string,
+     *     recipient: string|null,
+     *     status: string,
+     *     attempts: int,
+     *     is_dlq: bool,
+     *     error_message: string|null,
+     *     payload: array<string, mixed>|null,
+     *     sent_at: string|null,
+     *     created_at: string|null,
+     *     updated_at: string|null
+     * }
      */
     public function toArray(Request $request): array
     {
+        $recipient = $this->recipient ?? $this->recipient_email;
+
         return [
             // Превращаем системный ObjectId MongoDB в обычную строку
             'id' => (string) $this->_id,
-            'event' => $this->event,
-            'channel' => $this->channel,
-            'recipient' => $this->recipient ?? $this->recipient_email,
-            'status' => $this->status,
+            'event' => (string) $this->event,
+            'channel' => (string) $this->channel,
+            'recipient' => $recipient !== null ? (string) $recipient : null,
+            'status' => (string) $this->status,
             'attempts' => (int) $this->attempts,
             'is_dlq' => (bool) $this->is_dlq,
-            'error_message' => $this->error_message,
-            'payload' => $this->payload,
+            'error_message' => $this->error_message !== null ? (string) $this->error_message : null,
+            'payload' => is_array($this->payload) ? $this->payload : null,
 
             // Приводим даты к единому международному стандарту ISO 8601
             'sent_at' => $this->sent_at?->toIso8601String(),

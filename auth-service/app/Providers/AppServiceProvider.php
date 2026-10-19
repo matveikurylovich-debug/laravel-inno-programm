@@ -2,11 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\AuthService;
 use App\Models\User;
+use App\Services\JwtService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
-use App\Services\JwtService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -15,10 +16,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Регистрируем как Singleton: создаётся один раз на запрос
-        $this->app->singleton(JwtService::class, function () {
-            return new JwtService();
-        });
+        $this->app->singleton(JwtService::class);
+        $this->app->singleton(AuthService::class, fn ($app) => $app->make(JwtService::class));
     }
 
     /**
@@ -26,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-       
+
         Vite::prefetch(concurrency: 3);
 
         Gate::define('access-admin', fn (User $user) => $user->hasRole('admin'));
