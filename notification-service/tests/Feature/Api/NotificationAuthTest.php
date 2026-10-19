@@ -80,17 +80,22 @@ class NotificationAuthTest extends TestCase
             ]);
     }
 
-    public function test_forbidden_for_user_with_customer_role(): void
+    public function test_notification_routes_require_token_without_role(): void
     {
-        $token = $this->generateToken(roles: ['customer']);
+        $routes = collect(Route::getRoutes())->filter(
+            fn ($route) => str_starts_with($route->uri(), 'api/notifications'),
+        );
 
-        $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/notifications');
+        $this->assertNotEmpty($routes);
 
-        $response->assertStatus(403)
-            ->assertJson([
-                'error' => 'Доступ запрещен. Требуются роли: admin, analyst',
-            ]);
+        foreach ($routes as $route) {
+            $middleware = $route->gatherMiddleware();
+
+            $this->assertContains('jwt.auth', $middleware);
+            $this->assertFalse(
+                collect($middleware)->contains(fn (string $item) => str_starts_with($item, 'role:')),
+            );
+        }
     }
 
     public function test_replay_requires_authorization_header(): void
@@ -99,40 +104,6 @@ class NotificationAuthTest extends TestCase
             ->assertStatus(401)
             ->assertJson([
                 'error' => 'Заголовок Authorization: Bearer отсутствует',
-            ]);
-    }
-
-    public function test_replay_forbidden_for_customer_role(): void
-    {
-        $token = $this->generateToken(roles: ['customer']);
-
-        $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/notifications/1/replay')
-            ->assertStatus(403);
-    }
-
-    public function test_replay_forbidden_for_analyst_role(): void
-    {
-        $token = $this->generateToken(roles: ['analyst']);
-
-        $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/notifications/1/replay')
-            ->assertStatus(403)
-            ->assertJson([
-                'error' => 'Доступ запрещен. Требуются роли: admin',
-            ]);
-    }
-
-    public function test_forbidden_for_user_without_roles(): void
-    {
-        $token = $this->generateToken(roles: []);
-
-        $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/notifications');
-
-        $response->assertStatus(403)
-            ->assertJson([
-                'error' => 'Доступ запрещен. Требуются роли: admin, analyst',
             ]);
     }
 

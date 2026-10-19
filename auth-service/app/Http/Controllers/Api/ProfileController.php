@@ -2,20 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\AuthService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ProfileDestroyRequest;
+use App\Http\Requests\ProfileUpdatePasswordRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\User;
-use App\Services\JwtService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
-use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
     public function __construct(
-        protected JwtService $jwtService
+        protected AuthService $authService
     ) {}
 
     public function update(ProfileUpdateRequest $request): JsonResponse
@@ -34,23 +32,10 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function updatePassword(Request $request): JsonResponse
+    public function updatePassword(ProfileUpdatePasswordRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'current_password' => ['required', 'string'],
-            'password' => ['required', 'string', Password::defaults(), 'confirmed'],
-        ]);
-
-        $user = $request->user();
-
-        if (! Hash::check($validated['current_password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'current_password' => 'Неверный текущий пароль.',
-            ]);
-        }
-
-        $user->update([
-            'password' => $validated['password'],
+        $request->user()->update([
+            'password' => $request->validated('password'),
         ]);
 
         return response()->json([
@@ -58,22 +43,12 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function destroy(Request $request): JsonResponse
+    public function destroy(ProfileDestroyRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'password' => ['required', 'string'],
-        ]);
-
         $user = $request->user();
 
-        if (! Hash::check($validated['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'password' => 'Неверный пароль.',
-            ]);
-        }
-
         if ($token = $request->bearerToken()) {
-            $this->jwtService->blacklistAccessToken($token);
+            $this->authService->blacklistAccessToken($token);
         }
 
         $user->delete();
@@ -93,7 +68,7 @@ class ProfileController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
-            'role' => $this->jwtService->primaryRole($user),
+            'role' => $this->authService->primaryRole($user),
         ];
     }
 }

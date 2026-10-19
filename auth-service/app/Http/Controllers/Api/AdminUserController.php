@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\AuthService;
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\JwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,7 +13,7 @@ use Spatie\Permission\Models\Role;
 class AdminUserController extends Controller
 {
     public function __construct(
-        protected JwtService $jwtService
+        protected AuthService $authService
     ) {}
 
     public function index(): JsonResponse
@@ -25,7 +25,7 @@ class AdminUserController extends Controller
             ->map(fn (User $user) => [
                 'id' => $user->id,
                 'email' => $user->email,
-                'role' => $this->jwtService->primaryRole($user),
+                'role' => $this->authService->primaryRole($user),
                 'registered_at' => $user->created_at?->toIso8601String(),
             ])
             ->values();

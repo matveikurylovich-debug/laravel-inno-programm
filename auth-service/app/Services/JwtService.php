@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\AuthService;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -9,7 +10,7 @@ use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
-class JwtService
+class JwtService implements AuthService
 {
     private string $accessSecret;
 

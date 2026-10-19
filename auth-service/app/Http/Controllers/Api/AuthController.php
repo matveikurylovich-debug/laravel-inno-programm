@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\AuthService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
-use App\Services\JwtService;
 use App\Services\TwoFactorService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
@@ -19,18 +20,13 @@ use Throwable;
 class AuthController extends Controller
 {
     public function __construct(
-        protected JwtService $jwtService,
+        protected AuthService $authService,
         protected TwoFactorService $twoFactorService,
     ) {}
 
-    public function register(Request $request): JsonResponse
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'phone' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s\-\(\)]+$/'],
-            'password' => ['required', 'string', Password::defaults(), 'confirmed'],
-        ]);
+        $data = $request->validated();
 
         $user = User::create([
             'name' => $data['name'],
@@ -147,12 +143,12 @@ class AuthController extends Controller
         ]);
 
         try {
-            $payload = $this->jwtService->decodeRefreshToken($data['refresh_token']);
+            $payload = $this->authService->decodeRefreshToken($data['refresh_token']);
             $user = User::findOrFail($payload->sub);
 
-            $this->jwtService->revokeRefreshToken($user->id, $payload->jti);
+            $this->authService->revokeRefreshToken($user->id, $payload->jti);
 
-            return response()->json($this->jwtService->generateTokenPair($user));
+            return response()->json($this->authService->generateTokenPair($user));
         } catch (Throwable) {
             return response()->json(['error' => 'Недействительный или отозванный refresh-токен'], 401);
         }
@@ -162,13 +158,13 @@ class AuthController extends Controller
     {
         $accessToken = $request->bearerToken();
         if ($accessToken) {
-            $this->jwtService->blacklistAccessToken($accessToken);
+            $this->authService->blacklistAccessToken($accessToken);
         }
 
         if ($refreshToken = $request->input('refresh_token')) {
             try {
-                $payload = $this->jwtService->decodeRefreshToken($refreshToken);
-                $this->jwtService->revokeRefreshToken($payload->sub, $payload->jti);
+                $payload = $this->authService->decodeRefreshToken($refreshToken);
+                $this->authService->revokeRefreshToken($payload->sub, $payload->jti);
             } catch (Throwable) {
                 // Игнорируем ошибки при логауте
             }
@@ -196,13 +192,13 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
-            'role' => $this->jwtService->primaryRole($user),
+            'role' => $this->authService->primaryRole($user),
         ];
     }
 
     private function tokenResponse(User $user, int $status = 200): JsonResponse
     {
-        $tokens = $this->jwtService->generateTokenPair($user);
+        $tokens = $this->authService->generateTokenPair($user);
 
         return response()->json([
             'access_token' => $tokens['access_token'],

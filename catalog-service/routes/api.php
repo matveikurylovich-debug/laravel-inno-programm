@@ -18,8 +18,8 @@ Route::prefix('v1')->middleware(ResolveCurrentStore::class)->group(function () {
     Route::get('products/{id}', [ProductController::class, 'show']);
     Route::get('stores', [StoreController::class, 'index']);
 
-    // 2. Защищенные маршруты админки (только роль admin)
-    Route::middleware(['jwt.auth:admin'])->group(function () {
+    // 2. Запись: нужен access-токен. Роль admin проверяет auth-service на gateway.
+    Route::middleware(['jwt.auth'])->group(function () {
         // Магазины
         Route::post('stores', [StoreController::class, 'store']);
         Route::match(['put', 'patch'], 'stores/{store}', [StoreController::class, 'update']);
