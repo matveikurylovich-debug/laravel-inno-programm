@@ -33,6 +33,7 @@ export default function AppHeader() {
   const [signedIn, setSignedIn] = useState(false);
   const [staff, setStaff] = useState(false);
   const catalogActive = pathname === "/catalog" || pathname.startsWith("/catalog/");
+  const assistantActive = pathname === "/assistant";
   const ordersActive = pathname === "/orders" || pathname.startsWith("/orders/");
   const cartActive = pathname === "/checkout";
 
@@ -60,6 +61,17 @@ export default function AppHeader() {
           >
             Каталог
           </Link>
+          {signedIn ? (
+            <Link
+              href="/assistant"
+              aria-current={assistantActive ? "page" : undefined}
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                assistantActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              Консультант
+            </Link>
+          ) : null}
         </nav>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
@@ -96,7 +108,7 @@ export default function AppHeader() {
 
           {staff ? (
             <Link
-              href="/admin/products"
+              href="/admin/users"
               className="hidden rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:inline-flex"
             >
               Панель

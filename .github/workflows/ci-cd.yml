@@ -10,36 +10,106 @@ on:
 
 jobs:
   # ==========================================
-  # 1. ЭТАП CI: Проверка качества и тесты
+  # 1. ЭТАП CI: синтаксис всего монорепо
   # ==========================================
-  ci-test:
-    name: Code Quality & Tests (CI)
+  ci-syntax:
+    name: PHP Syntax (CI)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
       - name: Validate PHP Syntax across Microservices
         run: |
           echo "Запуск синтаксической проверки микросервисов..."
           find . -name "*.php" ! -path "*/vendor/*" -print0 | xargs -0 -n 1 -P 4 php -l
 
-      # Здесь в боевом проекте прогоняются юнит-тесты сервисов
-      - name: Run Test Suites
+  # ==========================================
+  # 2. ЭТАП CI: Pint, PHPStan, Pest / PHPUnit
+  # ==========================================
+  ci-test:
+    name: ${{ matrix.service }} (Pint / PHPStan / Tests)
+    runs-on: ubuntu-latest
+    needs: [ci-syntax]
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - order-service
+          - catalog-service
+          - search-service
+          - notification-service
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+
+    env:
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_sqlite, sqlite3, bcmath, redis, mongodb, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.service }}/vendor
+          key: composer-${{ matrix.service }}-${{ hashFiles(format('{0}/composer.lock', matrix.service)) }}
+          restore-keys: |
+            composer-${{ matrix.service }}-
+
+      - name: Prepare Laravel environment
         run: |
-          echo "Прогон тестов PHPUnit / Pest..."
-          # Если вендоры установлены внутри контейнеров, тесты запускаются через команду:
-          # ./start.sh && docker compose exec -T auth-service vendor/bin/phpunit
-          echo "✅ Все тесты успешно пройдены!"
+          cp .env.example .env
+          composer install --prefer-dist --no-interaction --no-progress --optimize-autoloader
+          php artisan key:generate --force
+
+      - name: Pint (code style)
+        run: vendor/bin/pint --test
+
+      - name: PHPStan (static analysis)
+        if: hashFiles(format('{0}/phpstan.neon', matrix.service)) != '' || hashFiles(format('{0}/phpstan.neon.dist', matrix.service)) != ''
+        run: vendor/bin/phpstan analyse --memory-limit=1G
+
+      - name: Pest / PHPUnit
+        run: |
+          if [ -x vendor/bin/pest ]; then
+            echo "Прогон Pest..."
+            vendor/bin/pest --compact
+          else
+            echo "Прогон PHPUnit (php artisan test)..."
+            php artisan test --compact
+          fi
 
   # ==========================================
-  # 2. ЭТАП CD: Доставка и развёртывание на Stage
+  # 3. ЭТАП CD: Доставка и развёртывание на Stage
   # ==========================================
   cd-deploy:
     name: Delivery to Stage VM (CD)
     runs-on: ubuntu-latest
-    needs: [ci-test] # <-- ДЕПЛОЙ СТАРТУЕТ ТОЛЬКО ПОСЛЕ УСПЕШНОГО CI
+    needs: [ci-syntax, ci-test]
     # Условие: деплоим только при пуше в main или ручном вызове, но не из PR и feature-веток
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
 

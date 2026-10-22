@@ -1,0 +1,94 @@
+services:
+    analytics-nginx:
+        image: nginx:alpine
+        container_name: analytics-nginx
+        ports:
+            - '${FORWARD_HTTP_PORT:-8090}:80'
+            - '${FORWARD_HTTPS_PORT:-8448}:443'
+        volumes:
+            - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - ./infra/nginx/certs:/etc/nginx/certs:ro
+        depends_on:
+            - analytics-back
+        networks:
+            - analytics
+            - microservices-net
+        restart: unless-stopped
+
+    analytics-back:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        image: analytics-back:local
+        container_name: analytics-back
+        env_file:
+            - .env
+        environment:
+            HTTP_PORT: ${HTTP_PORT:-8080}
+            CLICKHOUSE_ADDR: analytics-clickhouse:9000
+            CLICKHOUSE_DB: ${CLICKHOUSE_DB:-analytics}
+            CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+            CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-secret}
+            RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@analytics-rabbitmq:5672/
+            RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-analytics.events}
+        depends_on:
+            analytics-clickhouse:
+                condition: service_healthy
+            analytics-rabbitmq:
+                condition: service_healthy
+        networks:
+            - analytics
+            - microservices-net
+        restart: unless-stopped
+
+    analytics-clickhouse:
+        image: clickhouse/clickhouse-server:24.3-alpine
+        container_name: analytics-clickhouse
+        environment:
+            CLICKHOUSE_DB: analytics
+            CLICKHOUSE_USER: default
+            CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-secret}
+            CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        volumes:
+            - clickhouse-data:/var/lib/clickhouse
+            - ./infra/clickhouse/01_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+        healthcheck:
+            test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:8123/ping']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
+        networks:
+            - analytics
+            - microservices-net
+        restart: unless-stopped
+
+    analytics-rabbitmq:
+        image: rabbitmq:3-management-alpine
+        container_name: analytics-rabbitmq
+        environment:
+            RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+            RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+        ports:
+            - '${FORWARD_RABBITMQ_UI_PORT:-15672}:15672'
+        volumes:
+            - rabbitmq-data:/var/lib/rabbitmq
+        healthcheck:
+            test: ['CMD', 'rabbitmq-diagnostics', 'check_running']
+            interval: 5s
+            timeout: 10s
+            retries: 5
+        networks:
+            - analytics
+            - microservices-net
+        restart: unless-stopped
+
+networks:
+    analytics:
+        driver: bridge
+    microservices-net:
+        external: true
+
+volumes:
+    clickhouse-data:
+    rabbitmq-data:

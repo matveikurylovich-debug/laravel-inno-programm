@@ -30,6 +30,10 @@ class Product extends Model
         'attributes' => 'array',
     ];
 
+    protected $appends = [
+        'available_stock',
+    ];
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);

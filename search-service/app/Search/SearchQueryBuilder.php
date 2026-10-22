@@ -40,9 +40,64 @@ class SearchQueryBuilder
         }
 
         return [[
-            'multi_match' => [
-                'query' => $query,
-                'fields' => ['name^3', 'description'],
+            'bool' => [
+                'should' => [
+                    [
+                        'match' => [
+                            'name' => [
+                                'query' => $query,
+                                'boost' => 5,
+                            ],
+                        ],
+                    ],
+                    [
+                        'multi_match' => [
+                            'query' => $query,
+                            'fields' => ['name^3', 'description', 'category_name.text^2'],
+                            'fuzziness' => 1,
+                        ],
+                    ],
+                    [
+                        'multi_match' => [
+                            'query' => $query,
+                            'fields' => ['name.syn^3', 'description.syn', 'category_name.syn^2'],
+                        ],
+                    ],
+                    [
+                        'match' => [
+                            'name.prefix' => [
+                                'query' => $query,
+                            ],
+                        ],
+                    ],
+                    [
+                        'nested' => [
+                            'path' => 'attributes',
+                            'query' => [
+                                'bool' => [
+                                    'should' => [
+                                        [
+                                            'match' => [
+                                                'attributes.value.text' => [
+                                                    'query' => $query,
+                                                    'fuzziness' => 1,
+                                                ],
+                                            ],
+                                        ],
+                                        [
+                                            'match' => [
+                                                'attributes.value.syn' => [
+                                                    'query' => $query,
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'minimum_should_match' => 1,
             ],
         ]];
     }

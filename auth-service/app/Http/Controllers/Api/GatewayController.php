@@ -49,6 +49,28 @@ class GatewayController extends Controller
         return $this->proxy($request, $this->target(config('services.gateway.notifications'), 'notifications/'.ltrim((string) $path, '/')));
     }
 
+    /**
+     * Проксирование запросов к Recommendation Service.
+     */
+    public function analytics(Request $request, ?string $path = ''): Response
+    {
+        return $this->proxy($request, $this->target(config('services.gateway.analytics'), $path));
+    }
+
+    public function recommendations(Request $request, ?string $path = ''): Response
+    {
+        $base = config('services.gateway.recommendations');
+        $cleanPath = ltrim((string) $path, '/');
+
+        if (! str_ends_with(rtrim((string) $base, '/'), 'recommendations')) {
+            $suffix = $cleanPath === '' ? 'recommendations' : 'recommendations/'.$cleanPath;
+        } else {
+            $suffix = $cleanPath;
+        }
+
+        return $this->proxy($request, $this->target($base, $suffix));
+    }
+
     private function target(?string $baseUrl, ?string $path): string
     {
         $base = rtrim((string) $baseUrl, '/');

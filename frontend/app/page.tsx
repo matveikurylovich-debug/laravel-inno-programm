@@ -13,7 +13,7 @@ export default function HomePage() {
     }
 
     if (role === "admin" || role === "analyst") {
-      window.location.href = "/admin/products";
+      window.location.href = "/admin/users";
       return;
     }
 

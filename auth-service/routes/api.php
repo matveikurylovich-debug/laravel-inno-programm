@@ -17,6 +17,10 @@ Route::post('two-factor/resend', [AuthController::class, 'resendTwoFactor']);
 // Поиск публичный: витрина ходит сюда без JWT.
 Route::match(['get', 'head'], 'search', [GatewayController::class, 'search']);
 
+// Health-check рекомендаций (доступен для мониторинга без токена)
+Route::match(['get', 'head'], 'recommendations/health', [GatewayController::class, 'recommendations'])
+    ->defaults('path', 'health');
+
 // Витрина каталога публичная. Запись в каталог — только admin.
 Route::match(['get', 'head'], 'catalog/{path?}', [GatewayController::class, 'catalog'])
     ->where('path', '.*');
@@ -30,6 +34,9 @@ Route::middleware('jwt.auth')->group(function () {
     Route::any('orders/{path?}', [GatewayController::class, 'orders'])
         ->where('path', '.*');
 
+    Route::any('recommendations/{path?}', [GatewayController::class, 'recommendations'])
+        ->where('path', '.*');
+
     Route::get('me', [AuthController::class, 'me']);
     Route::post('logout', [AuthController::class, 'logout']);
     Route::patch('profile', [ProfileController::class, 'update']);
@@ -39,6 +46,8 @@ Route::middleware('jwt.auth')->group(function () {
     Route::middleware('role:admin,analyst')->group(function () {
         Route::get('admin/users', [AdminUserController::class, 'index']);
         Route::match(['get', 'head'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
+            ->where('path', '.*');
+        Route::match(['get', 'head'], 'analytics/{path?}', [GatewayController::class, 'analytics'])
             ->where('path', '.*');
     });
 

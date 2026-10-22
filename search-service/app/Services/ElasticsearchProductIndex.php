@@ -97,17 +97,39 @@ class ElasticsearchProductIndex implements ProductIndex
             'index' => $index,
             'body' => [
                 'settings' => [
+                    'max_ngram_diff' => 12,
                     'analysis' => [
                         'filter' => [
                             'product_stemmer' => [
                                 'type' => 'stemmer',
                                 'language' => 'russian',
                             ],
+                            'product_synonyms' => [
+                                'type' => 'synonym_graph',
+                                'synonyms' => $this->synonyms(),
+                            ],
+                            'product_edge' => [
+                                'type' => 'edge_ngram',
+                                'min_gram' => 3,
+                                'max_gram' => 15,
+                            ],
                         ],
                         'analyzer' => [
                             'product_text' => [
                                 'tokenizer' => 'standard',
                                 'filter' => ['lowercase', 'product_stemmer'],
+                            ],
+                            'product_synonyms' => [
+                                'tokenizer' => 'standard',
+                                'filter' => ['lowercase', 'product_synonyms', 'product_stemmer'],
+                            ],
+                            'product_prefix' => [
+                                'tokenizer' => 'standard',
+                                'filter' => ['lowercase', 'product_edge'],
+                            ],
+                            'product_prefix_search' => [
+                                'tokenizer' => 'standard',
+                                'filter' => ['lowercase'],
                             ],
                         ],
                     ],
@@ -119,18 +141,60 @@ class ElasticsearchProductIndex implements ProductIndex
                         'name' => [
                             'type' => 'text',
                             'analyzer' => 'product_text',
-                            'fields' => ['keyword' => ['type' => 'keyword']],
+                            'fields' => [
+                                'keyword' => ['type' => 'keyword'],
+                                'syn' => [
+                                    'type' => 'text',
+                                    'analyzer' => 'product_text',
+                                    'search_analyzer' => 'product_synonyms',
+                                ],
+                                'prefix' => [
+                                    'type' => 'text',
+                                    'analyzer' => 'product_prefix',
+                                    'search_analyzer' => 'product_prefix_search',
+                                ],
+                            ],
                         ],
-                        'description' => ['type' => 'text', 'analyzer' => 'product_text'],
+                        'description' => [
+                            'type' => 'text',
+                            'analyzer' => 'product_text',
+                            'fields' => [
+                                'syn' => [
+                                    'type' => 'text',
+                                    'analyzer' => 'product_text',
+                                    'search_analyzer' => 'product_synonyms',
+                                ],
+                            ],
+                        ],
                         'price' => ['type' => 'scaled_float', 'scaling_factor' => 100],
                         'is_in_stock' => ['type' => 'boolean'],
                         'category_id' => ['type' => 'integer'],
-                        'category_name' => ['type' => 'keyword'],
+                        'category_name' => [
+                            'type' => 'keyword',
+                            'fields' => [
+                                'text' => ['type' => 'text', 'analyzer' => 'product_text'],
+                                'syn' => [
+                                    'type' => 'text',
+                                    'analyzer' => 'product_text',
+                                    'search_analyzer' => 'product_synonyms',
+                                ],
+                            ],
+                        ],
                         'attributes' => [
                             'type' => 'nested',
                             'properties' => [
                                 'key' => ['type' => 'keyword'],
-                                'value' => ['type' => 'keyword'],
+                                'value' => [
+                                    'type' => 'keyword',
+                                    'fields' => [
+                                        'text' => ['type' => 'text', 'analyzer' => 'product_text'],
+                                        'syn' => [
+                                            'type' => 'text',
+                                            'analyzer' => 'product_text',
+                                            'search_analyzer' => 'product_synonyms',
+                                        ],
+                                    ],
+                                ],
                             ],
                         ],
                         'updated_at' => ['type' => 'date'],
@@ -138,5 +202,33 @@ class ElasticsearchProductIndex implements ProductIndex
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Слова, которые покупатель считает одним и тем же.
+     * Стоят только в анализаторе поиска: с fuzziness Elasticsearch их не совмещает.
+     *
+     * @return list<string>
+     */
+    private function synonyms(): array
+    {
+        return [
+            'диван, софа',
+            'сковорода, сковородка',
+            'смартфон, телефон',
+            'ноутбук, лэптоп',
+            'наушники, гарнитура',
+            'колонка, динамик',
+            'кроссовки, кеды',
+            'чехол, кейс',
+            'зарядка, зарядное',
+            'рюкзак, ранец',
+            'палатка, шатер, шатёр',
+            'футболка, майка',
+            'торшер, лампа',
+            'матрас, матрац',
+            'чайник, электрочайник',
+            'кофеварка, кофемашина',
+        ];
     }
 }

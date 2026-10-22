@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\OutboxMessage;
+use App\Services\Analytics\AnalyticsEventPublisher;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Junges\Kafka\Facades\Kafka;
@@ -98,6 +99,8 @@ class OutboxRelayCommand extends Command
                 ->send();
 
             // Если отправка прошла без ошибок — фиксируем успех в БД
+            $this->publishAnalytics($outboxMessage);
+
             $outboxMessage->update([
                 'status' => 'published',
                 'published_at' => now(),
@@ -111,6 +114,23 @@ class OutboxRelayCommand extends Command
             $this->error(" [!] Ошибка отправки ID {$outboxMessage->id}: {$e->getMessage()}");
             $this->scheduleRetry($outboxMessage, $e);
         }
+    }
+
+    private function publishAnalytics(OutboxMessage $outboxMessage): void
+    {
+        if (! in_array($outboxMessage->event_type, ['order.created', 'order.paid', 'order.cancelled'], true)) {
+            return;
+        }
+
+        $payload = is_array($outboxMessage->payload) ? $outboxMessage->payload : [];
+
+        app(AnalyticsEventPublisher::class)->publish($outboxMessage->event_type, [
+            'order_id' => $payload['order_id'] ?? $outboxMessage->aggregate_id,
+            'user_id' => $payload['user_id'] ?? null,
+            'store_id' => $payload['store_id'] ?? null,
+            'total_amount' => $payload['total_amount'] ?? 0,
+            'occurred_at' => now()->toIso8601String(),
+        ]);
     }
 
     private function scheduleRetry(OutboxMessage $outboxMessage, Throwable $e): void

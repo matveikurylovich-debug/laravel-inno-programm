@@ -1,0 +1,3 @@
+.env
+infra/nginx/certs/*.key
+backend/bin/

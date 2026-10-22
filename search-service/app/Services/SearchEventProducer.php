@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Analytics\AnalyticsEventPublisher;
 use Junges\Kafka\Facades\Kafka;
 use Junges\Kafka\Message\Message;
 
@@ -10,8 +11,18 @@ class SearchEventProducer
     /**
      * @param  array<string, mixed>  $filters
      */
+    public function __construct(private readonly AnalyticsEventPublisher $analytics) {}
+
     public function performed(string $query, array $filters, int $resultsCount, int $tookMs): void
     {
+        $this->analytics->publish('search.performed', [
+            'query' => $query,
+            'filters' => $filters,
+            'results_count' => $resultsCount,
+            'took_ms' => $tookMs,
+            'occurred_at' => now()->toIso8601String(),
+        ]);
+
         Kafka::publish()
             ->onTopic((string) config('kafka.topics.search_events', 'search.events'))
             ->withMessage(new Message(

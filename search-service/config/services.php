@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'analytics_broker' => [
+        'url' => env('ANALYTICS_RABBITMQ_URL'),
+        'exchange' => env('ANALYTICS_RABBITMQ_EXCHANGE', 'analytics.events'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

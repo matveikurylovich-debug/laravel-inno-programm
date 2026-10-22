@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Cache;
 
 class IdempotencyMiddleware
 {
@@ -36,9 +37,9 @@ class IdempotencyMiddleware
                 ->header('X-Idempotent-Replay', 'true');
         }
 
-        $locked = Redis::set($lockKey, 'processing', ['EX' => 10, 'NX' => true]);
+        $locked = Cache::lock($lockKey, 10);
 
-        if ($locked !== true && $locked !== 'OK') {
+        if (!$locked->get()) {
             return response()->json([
                 'error' => 'Conflict',
                 'details' => 'Запрос с этим ключом идемпотентности уже выполняется',
@@ -57,7 +58,7 @@ class IdempotencyMiddleware
 
             return $response;
         } finally {
-            Redis::del($lockKey);
+            $locked->release();
         }
     }
 }
