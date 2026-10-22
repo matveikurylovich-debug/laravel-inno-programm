@@ -77,7 +77,12 @@ class ProductController extends Controller
             $products = $query->paginate($filters['per_page']);
 
             return [
-                'data' => collect($products->items())->map(fn (Product $product) => $product->toArray())->values()->all(),
+                'data' => collect($products->items())->map(function (Product $product): array {
+                    $data = $product->toArray();
+                    $data['available_stock'] = $product->available_stock;
+
+                    return $data;
+                })->values()->all(),
                 'meta' => [
                     'current_page' => $products->currentPage(),
                     'last_page' => $products->lastPage(),

@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: Order Postgres
+    uid: order-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: $ORDER_DB_HOST
+    user: $ORDER_DB_USER
+    isDefault: true
+    editable: false
+    jsonData:
+      database: $ORDER_DB_NAME
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: $ORDER_DB_PASSWORD

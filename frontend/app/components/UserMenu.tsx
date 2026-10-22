@@ -103,7 +103,7 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
             ) : null}
             {!inAdmin && staff ? (
               <Link
-                href="/admin/products"
+                href="/admin/users"
                 onClick={() => setOpen(false)}
                 className="block rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 sm:hidden"
               >

@@ -1,0 +1,493 @@
+{
+  "uid": "orders-overview",
+  "title": "Заказы",
+  "description": "Статусы заказов, оплата и очередь outbox из order_db",
+  "tags": ["orders"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Всего заказов",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::double precision AS value FROM orders",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Выручка оплаченных",
+      "description": "Сумма заказов в статусах paid и confirmed",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(total_amount), 0)::double precision AS value FROM orders WHERE status IN ('paid', 'confirmed')",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "decimals": 2,
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "В процессе",
+      "description": "created, stock_reserved, payment_pending",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::double precision AS value FROM orders WHERE status IN ('created', 'stock_reserved', 'payment_pending')",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "yellow" },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Outbox не опубликован",
+      "description": "pending и failed",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::double precision AS value FROM outbox_messages WHERE status IN ('pending', 'failed')",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "piechart",
+      "title": "Заказы по статусам",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT status, COUNT(*)::double precision AS count FROM orders GROUP BY status ORDER BY count DESC",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              { "fieldName": "status", "handlerKey": "field.name" },
+              { "fieldName": "count", "handlerKey": "field.value" }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent", "value"],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"],
+          "calcs": []
+        },
+        "tooltip": { "mode": "single", "sort": "none" },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "created" },
+            "properties": [
+              { "id": "displayName", "value": "Создан" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "stock_reserved" },
+            "properties": [
+              { "id": "displayName", "value": "Резерв склада" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#B877D9" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "payment_pending" },
+            "properties": [
+              { "id": "displayName", "value": "Ожидает оплату" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#FADE2A" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "paid" },
+            "properties": [
+              { "id": "displayName", "value": "Оплачен" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "confirmed" },
+            "properties": [
+              { "id": "displayName", "value": "Подтверждён" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#37872D" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "payment_failed" },
+            "properties": [
+              { "id": "displayName", "value": "Оплата не прошла" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#F2495C" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "cancelled" },
+            "properties": [
+              { "id": "displayName", "value": "Отменён" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#8E8E8E" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "Оплата заказов",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT payment_status AS status, COUNT(*)::double precision AS count FROM orders GROUP BY payment_status ORDER BY count DESC",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              { "fieldName": "status", "handlerKey": "field.name" },
+              { "fieldName": "count", "handlerKey": "field.value" }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent", "value"],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"],
+          "calcs": []
+        },
+        "tooltip": { "mode": "single", "sort": "none" },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "pending" },
+            "properties": [
+              { "id": "displayName", "value": "Ожидает" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#FADE2A" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "paid" },
+            "properties": [
+              { "id": "displayName", "value": "Оплачен" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "failed" },
+            "properties": [
+              { "id": "displayName", "value": "Ошибка" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#F2495C" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Новые заказы по дням",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, COUNT(*)::double precision AS \"Заказы\" FROM orders WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "mode": "none", "group": "A" },
+            "barAlignment": 0
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Outbox",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT status AS metric, COUNT(*)::double precision AS count FROM outbox_messages GROUP BY status ORDER BY count DESC",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "showValue": "always",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.8,
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "pending" },
+            "properties": [
+              { "id": "displayName", "value": "pending" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#FADE2A" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "published" },
+            "properties": [
+              { "id": "displayName", "value": "published" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "failed" },
+            "properties": [
+              { "id": "displayName", "value": "failed" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#F2495C" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Последние заказы",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "order-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT created_at AS \"Создан\", status AS \"Статус\", payment_status AS \"Оплата\", total_amount AS \"Сумма\", currency AS \"Валюта\", store_id AS \"Магазин\", user_id AS \"Пользователь\" FROM orders ORDER BY created_at DESC LIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "countRows": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Сумма" },
+            "properties": [
+              { "id": "decimals", "value": 2 },
+              { "id": "unit", "value": "none" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Статус" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-text" }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "created": { "text": "Создан", "color": "blue" } } },
+                  { "type": "value", "options": { "stock_reserved": { "text": "Резерв склада", "color": "purple" } } },
+                  { "type": "value", "options": { "payment_pending": { "text": "Ожидает оплату", "color": "yellow" } } },
+                  { "type": "value", "options": { "paid": { "text": "Оплачен", "color": "green" } } },
+                  { "type": "value", "options": { "confirmed": { "text": "Подтверждён", "color": "dark-green" } } },
+                  { "type": "value", "options": { "payment_failed": { "text": "Оплата не прошла", "color": "red" } } },
+                  { "type": "value", "options": { "cancelled": { "text": "Отменён", "color": "gray" } } }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

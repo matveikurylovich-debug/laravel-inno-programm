@@ -7,17 +7,41 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    jwt_algo: HS256
+    default_similarity_threshold: 0.57
 
 services:
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+        bind:
+            $similarityThreshold: '%env(float:default:default_similarity_threshold:SIMILARITY_THRESHOLD)%'
+            $maxProductsLimit: 5
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
     App\:
         resource: '../src/'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    App\Contract\LlmClientInterface: '@App\Infrastructure\Llm\GeminiLlmClient'
+
+    App\Infrastructure\Llm\GeminiLlmClient:
+        arguments:
+            $geminiApiKey: '%env(GEMINI_API_KEY)%'
+            $embeddingModel: '%env(GEMINI_EMBEDDING_MODEL)%'
+            $chatModel: '%env(GEMINI_CHAT_MODEL)%'
+
+    App\Security\JwtAccessTokenAuthenticator:
+        arguments:
+            $jwtAccessSecret: '%env(JWT_ACCESS_SECRET)%'
+            $jwtAlgo: '%env(default:jwt_algo:JWT_ALGO)%'
+
+    App\Serializer\CatalogEventSerializer:
+        public: true
+
+    App\Service\RecommendationEngine:
+        arguments:
+            $similarityThreshold: '%env(float:default:default_similarity_threshold:SIMILARITY_THRESHOLD)%'
+            $maxProductsLimit: 5
+

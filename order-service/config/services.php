@@ -37,6 +37,11 @@ return [
         ],
     ],
 
+    'analytics_broker' => [
+        'url' => env('ANALYTICS_RABBITMQ_URL'),
+        'exchange' => env('ANALYTICS_RABBITMQ_EXCHANGE', 'analytics.events'),
+    ],
+
     'stripe' => [
         'key' => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET_KEY'),

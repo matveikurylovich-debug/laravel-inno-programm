@@ -40,6 +40,13 @@ return [
         'order' => env('ORDER_SERVICE_URL', 'https://order-nginx/api'),
         'notifications' => env('NOTIFICATION_SERVICE_URL', 'https://notification_nginx/api'),
         'search' => env('SEARCH_SERVICE_URL', 'https://search-nginx/api'),
+        'recommendations' => env('RECOMMENDATION_SERVICE_URL', 'https://recommendation-nginx'),
+        'analytics' => env('ANALYTICS_SERVICE_URL', 'https://analytics-nginx/analytics'),
+    ],
+
+    'analytics_broker' => [
+        'url' => env('ANALYTICS_RABBITMQ_URL'),
+        'exchange' => env('ANALYTICS_RABBITMQ_EXCHANGE', 'analytics.events'),
     ],
 
 ];

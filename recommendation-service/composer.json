@@ -10,6 +10,7 @@
         "doctrine/doctrine-bundle": "^3.3",
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.7",
+        "firebase/php-jwt": "^7.2",
         "pgvector/pgvector": "^0.2.2",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
@@ -20,6 +21,8 @@
         "symfony/rate-limiter": "8.1.*",
         "symfony/runtime": "8.1.*",
         "symfony/security-bundle": "8.1.*",
+        "symfony/serializer": "8.1.*",
+        "symfony/uid": "8.1.*",
         "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*",
         "ufo-tech/kafka-messenger": "^1.0"

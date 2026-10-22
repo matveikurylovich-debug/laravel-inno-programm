@@ -10,6 +10,8 @@ services:
             - ./docker/php/zz-www.conf:/usr/local/etc/php-fpm.d/zz-www.conf:ro
         environment:
             KAFKA_BROKERS: kafka:9092
+            ANALYTICS_RABBITMQ_URL: amqp://guest:guest@analytics-rabbitmq:5672/
+            ANALYTICS_RABBITMQ_EXCHANGE: analytics.events
         networks:
             - order
             - microservices-net
@@ -92,6 +94,8 @@ services:
         command: php artisan order:outbox-relay
         environment:
             KAFKA_BROKERS: kafka:9092
+            ANALYTICS_RABBITMQ_URL: amqp://guest:guest@analytics-rabbitmq:5672/
+            ANALYTICS_RABBITMQ_EXCHANGE: analytics.events
         volumes:
             - .:/var/www/html
         networks:
@@ -140,6 +144,34 @@ services:
                 condition: service_started
             order-postgres:
                 condition: service_healthy
+    order-grafana:
+        image: grafana/grafana:latest
+        container_name: order_grafana
+        ports:
+            - "3001:3000"
+        environment:
+            GF_SECURITY_ADMIN_USER: admin
+            GF_SECURITY_ADMIN_PASSWORD: admin
+            GF_USERS_ALLOW_SIGN_UP: "false"
+            GF_SERVER_PROTOCOL: http
+            GF_SERVER_ROOT_URL: http://localhost:3001
+            GF_SECURITY_COOKIE_SECURE: "false"
+            GF_AUTH_ANONYMOUS_ENABLED: "true"
+            GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+            GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/orders.json
+            ORDER_DB_HOST: order-postgres:5432
+            ORDER_DB_NAME: ${DB_DATABASE:-order_db}
+            ORDER_DB_USER: ${DB_USERNAME:-order}
+            ORDER_DB_PASSWORD: ${DB_PASSWORD:-secret}
+        volumes:
+            - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+            - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+        depends_on:
+            order-postgres:
+                condition: service_healthy
+        networks:
+            - order
+            - microservices-net
 
 networks:
     order:
