@@ -13,6 +13,7 @@ class StockReservation extends Model
     protected $fillable = [
         'order_id',
         'store_id',
+        'location_id',
         'product_id',
         'quantity',
         'status',
@@ -21,5 +22,10 @@ class StockReservation extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(StoreLocation::class, 'location_id');
     }
 }

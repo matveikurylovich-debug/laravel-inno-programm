@@ -12,6 +12,7 @@
         "doctrine/orm": "^3.7",
         "firebase/php-jwt": "^7.2",
         "pgvector/pgvector": "^0.2.2",
+        "swagger-api/swagger-ui": "*",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/flex": "^2",
@@ -25,7 +26,8 @@
         "symfony/uid": "8.1.*",
         "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*",
-        "ufo-tech/kafka-messenger": "^1.0"
+        "ufo-tech/kafka-messenger": "^1.0",
+        "zircote/swagger-php": "*"
     },
     "config": {
         "allow-plugins": {

@@ -21,7 +21,7 @@ class OrderService
     /**
      * @param  array<int, array{product_id: int|string, quantity: int|string}>  $rawItems
      */
-    public function createOrder(int $userId, int $storeId, string $email, array $rawItems): Order
+    public function createOrder(int $userId, int $storeId, int $locationId, string $email, array $rawItems): Order
     {
         $productIds = array_values(array_unique(array_map(
             static fn (array $item): int => (int) $item['product_id'],
@@ -40,7 +40,7 @@ class OrderService
             throw new InvalidArgumentException('Один или несколько товаров недоступны в этом магазине');
         }
 
-        return DB::transaction(function () use ($userId, $storeId, $email, $rawItems, $snapshots): Order {
+        return DB::transaction(function () use ($userId, $storeId, $locationId, $email, $rawItems, $snapshots): Order {
             $lines = [];
             $total = 0.0;
 
@@ -65,6 +65,7 @@ class OrderService
                 'user_id' => $userId,
                 'email' => $email,
                 'store_id' => $storeId,
+                'location_id' => $locationId,
                 'status' => 'created',
                 'payment_status' => 'pending',
                 'total_amount' => round($total, 2),

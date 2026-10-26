@@ -59,7 +59,7 @@ class ProductObserver
             'category_id' => $product->category_id,
             'category_name' => (string) ($product->category->name ?? ''),
             'attributes' => $product->attributes ?? [],
-            'quantity' => (int) ($product->stock->quantity ?? 0),
+            'quantity' => (int) $product->stock->sum('quantity'),
             'available' => $product->available_stock,
         ];
     }

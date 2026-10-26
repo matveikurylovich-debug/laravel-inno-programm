@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductResource\Pages;
 use App\Filament\Resources\ProductResource\RelationManagers\ImagesRelationManager;
+use App\Filament\Resources\ProductResource\RelationManagers\StocksRelationManager;
 use App\Models\Category;
 use App\Models\Product;
 use Filament\Forms;
@@ -66,7 +67,8 @@ class ProductResource extends Resource
                     ->minValue(0)
                     ->default(0)
                     ->required()
-                    ->label('Остаток'),
+                    ->visibleOn('create')
+                    ->label('Начальный остаток первой точки'),
                 Forms\Components\Toggle::make('is_active')
                     ->default(true)
                     ->required()
@@ -110,9 +112,9 @@ class ProductResource extends Resource
                     ->money('RUB')
                     ->sortable()
                     ->label('Цена'),
-                Tables\Columns\TextColumn::make('stock.quantity')
+                Tables\Columns\TextColumn::make('available_stock')
                     ->numeric()
-                    ->label('Остаток'),
+                    ->label('Доступно'),
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean()
                     ->label('В продаже'),
@@ -138,6 +140,7 @@ class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
+            StocksRelationManager::class,
             ImagesRelationManager::class,
         ];
     }

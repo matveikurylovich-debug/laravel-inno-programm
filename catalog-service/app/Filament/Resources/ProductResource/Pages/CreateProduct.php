@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ProductResource\Pages;
 use App\Filament\Resources\ProductResource;
 use App\Models\Product;
 use App\Models\Stock;
+use App\Models\StoreLocation;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -41,9 +42,16 @@ class CreateProduct extends CreateRecord
             /** @var Product $product */
             $product = Product::query()->create($data);
 
+            $locationId = StoreLocation::query()
+                ->where('store_id', $product->store_id)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->value('id');
+
             Stock::query()->create([
                 'product_id' => $product->id,
                 'store_id' => $product->store_id,
+                'location_id' => $locationId,
                 'quantity' => $quantity,
                 'reserved_quantity' => 0,
             ]);

@@ -18,6 +18,7 @@ class Order extends Model
         'user_id',
         'email',
         'store_id',
+        'location_id',
         'status',
         'payment_status',
         'total_amount',
@@ -29,6 +30,7 @@ class Order extends Model
         'total_amount' => 'float',
         'user_id' => 'integer',
         'store_id' => 'integer',
+        'location_id' => 'integer',
     ];
 
     // Позиции заказа (товары)
@@ -57,6 +59,7 @@ class Order extends Model
             'user_id' => $this->user_id,
             'order_id' => $this->id,
             'store_id' => $this->store_id,
+            'location_id' => $this->location_id,
             'total_amount' => $this->total_amount,
             'data' => array_merge([
                 'order_id' => $this->id,

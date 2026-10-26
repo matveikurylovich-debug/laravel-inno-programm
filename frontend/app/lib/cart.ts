@@ -1,6 +1,8 @@
 export type CartLine = {
   productId: number;
   storeId: number;
+  locationId: number;
+  locationLabel: string;
   name: string;
   price: number;
   quantity: number;
@@ -24,6 +26,8 @@ export function readCart(): CartLine[] {
         && typeof line === "object"
         && typeof line.productId === "number"
         && typeof line.storeId === "number"
+        && typeof line.locationId === "number"
+        && typeof line.locationLabel === "string"
         && typeof line.name === "string"
         && typeof line.price === "number"
         && typeof line.quantity === "number";
@@ -41,23 +45,21 @@ export function writeCart(lines: CartLine[]): void {
 export function addToCart(line: Omit<CartLine, "quantity"> & { quantity?: number }): void {
   const quantity = line.quantity ?? 1;
   const current = readCart();
-  const sameStore = current.length === 0 || current[0].storeId === line.storeId;
-  const base = sameStore ? current : [];
-  const existing = base.find((item) => item.productId === line.productId);
+  const existing = current.find((item) => item.productId === line.productId && item.locationId === line.locationId);
 
   if (existing) {
     existing.quantity += quantity;
-    writeCart(base);
+    writeCart(current);
     return;
   }
 
-  writeCart([...base, { ...line, quantity }]);
+  writeCart([...current, { ...line, quantity }]);
 }
 
-export function setQuantity(productId: number, quantity: number): void {
+export function setQuantity(productId: number, locationId: number, quantity: number): void {
   writeCart(
     readCart()
-      .map((line) => (line.productId === productId ? { ...line, quantity } : line))
+      .map((line) => (line.productId === productId && line.locationId === locationId ? { ...line, quantity } : line))
       .filter((line) => line.quantity > 0),
   );
 }

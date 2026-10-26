@@ -21,6 +21,7 @@ it('writes the order and outbox to postgres', function () {
     $response = $this->withToken(orderJwt(email: 'user@example.com'))
         ->postJson('/api/orders', [
             'store_id' => 1,
+            'location_id' => 1,
             'items' => [
                 ['product_id' => 10, 'quantity' => 1],
             ],

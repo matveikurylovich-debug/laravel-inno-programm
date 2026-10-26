@@ -19,8 +19,8 @@ export default function CheckoutPage() {
     setLines(readCart());
   }, []);
 
-  function changeQuantity(productId: number, quantity: number) {
-    setQuantity(productId, quantity);
+  function changeQuantity(productId: number, locationId: number, quantity: number) {
+    setQuantity(productId, locationId, quantity);
     setLines(readCart());
     idempotencyKey.current = "";
   }
@@ -34,32 +34,45 @@ export default function CheckoutPage() {
       idempotencyKey.current = crypto.randomUUID();
     }
 
+    const groups = new Map<string, CartLine[]>();
+    for (const line of lines) {
+      const key = `${line.storeId}:${line.locationId}`;
+      groups.set(key, [...(groups.get(key) ?? []), line]);
+    }
+
     setPending(true);
     setError("");
 
-    const response = await apiFetch("/api/orders", {
-      method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey.current },
-      body: JSON.stringify({
-        store_id: lines[0].storeId,
-        items: lines.map((line) => ({
-          product_id: line.productId,
-          quantity: line.quantity,
-        })),
-      }),
-    });
+    const created: string[] = [];
 
-    setPending(false);
+    for (const [key, group] of groups) {
+      const response = await apiFetch("/api/orders", {
+        method: "POST",
+        headers: { "Idempotency-Key": `${idempotencyKey.current}:${key}` },
+        body: JSON.stringify({
+          store_id: group[0].storeId,
+          location_id: group[0].locationId,
+          items: group.map((line) => ({
+            product_id: line.productId,
+            quantity: line.quantity,
+          })),
+        }),
+      });
 
-    if (!response.ok) {
-      setError(await readError(response));
-      idempotencyKey.current = "";
-      return;
+      if (!response.ok) {
+        setPending(false);
+        setError(await readError(response));
+        idempotencyKey.current = "";
+        return;
+      }
+
+      const body = (await response.json()) as { data: { id: string } };
+      created.push(body.data.id);
     }
 
-    const body = (await response.json()) as { data: { id: string } };
+    setPending(false);
     clearCart();
-    router.push(`/orders/${body.data.id}`);
+    router.push(created.length === 1 ? `/orders/${created[0]}` : "/orders");
   }
 
   const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
@@ -81,10 +94,11 @@ export default function CheckoutPage() {
           <section className="card mt-6 p-6">
             <ul className="divide-y divide-slate-100">
               {lines.map((line) => (
-                <li key={line.productId} className="flex items-center justify-between gap-4 py-4">
+                <li key={`${line.productId}-${line.locationId}`} className="flex items-center justify-between gap-4 py-4">
                   <div>
                     <p className="font-medium">{line.name}</p>
                     <p className="text-sm text-slate-500">{money(line.price)}</p>
+                    <p className="text-sm text-slate-500">Самовывоз: {line.locationLabel}</p>
                   </div>
                   <label className="text-sm text-slate-500">
                     Кол-во
@@ -93,7 +107,7 @@ export default function CheckoutPage() {
                       type="number"
                       min={1}
                       value={line.quantity}
-                      onChange={(event) => changeQuantity(line.productId, Number(event.target.value))}
+                      onChange={(event) => changeQuantity(line.productId, line.locationId, Number(event.target.value))}
                     />
                   </label>
                 </li>

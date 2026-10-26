@@ -25,6 +25,31 @@ echo "=== 5c. Запуск Recommendation Service (PostgreSQL+pgvector, Nginx) =
 echo "=== 5d. Запуск Analytics Service (ClickHouse, RabbitMQ, Nginx) ==="
 (cd analytics-service && docker compose up -d --build)
 
+echo "=== 5e. Первичная синхронизация каталога → product_snapshots ==="
+wait_for_container() {
+  local name="$1"
+  local attempts="${2:-45}"
+  local i
+  for i in $(seq 1 "$attempts"); do
+    if docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -q true; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Контейнер $name не запустился вовремя" >&2
+  return 1
+}
+
+wait_for_container catalog-service
+wait_for_container order-catalog-consumer
+# Даём Kafka-консьюмеру подписаться на catalog.events до replay
+sleep 5
+
+(cd catalog-service && docker compose exec -T catalog-service php artisan migrate --force)
+(cd catalog-service && docker compose exec -T catalog-service php artisan db:seed --force)
+(cd order-service && docker compose exec -T order-service php artisan migrate --force)
+(cd catalog-service && docker compose exec -T catalog-service php artisan catalog:reindex-products)
+
 echo ""
 echo "=== ВСЕ СЕРВИСЫ ЗАПУЩЕНЫ ==="
 echo "Frontend:               http://localhost:3000"

@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Product;
 use App\Models\Stock;
 use App\Models\StockReservation;
+use App\Models\StoreLocation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -19,15 +21,20 @@ class StockReservationService
      *
      * @param  array<array{product_id: int, quantity: int}>  $items
      */
-    public function reserve(string $orderId, int $storeId, array $items): bool
+    public function reserve(string $orderId, int $storeId, array $items, ?int $locationId = null): bool
     {
         try {
-            return DB::transaction(function () use ($orderId, $storeId, $items) {
+            return DB::transaction(function () use ($orderId, $storeId, $items, $locationId) {
                 $existingReservations = StockReservation::where('order_id', $orderId)->exists();
                 if ($existingReservations) {
                     Log::info("Резерв для заказа {$orderId} уже был создан ранее.");
 
                     return true;
+                }
+
+                if ($locationId !== null && ! $this->locationBelongsToStore($locationId, $storeId)) {
+                    Log::warning("Точка {$locationId} не принадлежит магазину {$storeId}");
+                    throw new RuntimeException('stock-not-found');
                 }
 
                 $lockedStocks = [];
@@ -36,11 +43,24 @@ class StockReservationService
                     $productId = (int) $item['product_id'];
                     $requiredQty = (int) $item['quantity'];
 
+                    if (! Product::query()->whereKey($productId)->where('store_id', $storeId)->exists()) {
+                        Log::warning("Товар {$productId} не принадлежит магазину {$storeId}");
+                        throw new RuntimeException('stock-not-found');
+                    }
+
+                    $stockQuery = Stock::query()
+                        ->where('product_id', $productId)
+                        ->where('store_id', $storeId);
+
+                    if ($locationId !== null) {
+                        $stockQuery->where('location_id', $locationId);
+                    } elseif ((clone $stockQuery)->count() !== 1) {
+                        Log::warning("Для товара {$productId} не указана точка самовывоза магазина {$storeId}");
+                        throw new RuntimeException('stock-not-found');
+                    }
+
                     /** @var Stock|null $stock */
-                    $stock = Stock::where('product_id', $productId)
-                        ->where('store_id', $storeId)
-                        ->lockForUpdate()
-                        ->first();
+                    $stock = $stockQuery->lockForUpdate()->first();
 
                     if (! $stock) {
                         Log::warning("Складская запись не найдена для product_id={$productId}, store_id={$storeId}");
@@ -70,6 +90,7 @@ class StockReservationService
                     StockReservation::create([
                         'order_id' => $orderId,
                         'store_id' => $stock->store_id,
+                        'location_id' => $stock->location_id,
                         'product_id' => $stock->product_id,
                         'quantity' => $quantity,
                         'status' => 'reserved',
@@ -103,10 +124,7 @@ class StockReservationService
             }
 
             foreach ($reservations as $reservation) {
-                $stock = Stock::where('product_id', $reservation->product_id)
-                    ->where('store_id', $reservation->store_id)
-                    ->lockForUpdate()
-                    ->first();
+                $stock = $this->lockedReservationStock($reservation);
 
                 if ($stock) {
                     $stock->decrement('quantity', $reservation->quantity);
@@ -136,10 +154,7 @@ class StockReservationService
             }
 
             foreach ($reservations as $reservation) {
-                $stock = Stock::where('product_id', $reservation->product_id)
-                    ->where('store_id', $reservation->store_id)
-                    ->lockForUpdate()
-                    ->first();
+                $stock = $this->lockedReservationStock($reservation);
 
                 if ($stock) {
                     $stock->decrement('reserved_quantity', $reservation->quantity);
@@ -150,5 +165,27 @@ class StockReservationService
 
             return true;
         });
+    }
+
+    private function lockedReservationStock(StockReservation $reservation): ?Stock
+    {
+        $query = Stock::query()
+            ->where('product_id', $reservation->product_id)
+            ->where('store_id', $reservation->store_id);
+
+        if ($reservation->location_id !== null) {
+            $query->where('location_id', $reservation->location_id);
+        }
+
+        return $query->lockForUpdate()->first();
+    }
+
+    private function locationBelongsToStore(int $locationId, int $storeId): bool
+    {
+        return StoreLocation::query()
+            ->whereKey($locationId)
+            ->where('store_id', $storeId)
+            ->where('is_active', true)
+            ->exists();
     }
 }

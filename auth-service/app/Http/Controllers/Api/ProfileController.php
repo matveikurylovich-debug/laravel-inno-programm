@@ -9,6 +9,7 @@ use App\Http\Requests\ProfileUpdatePasswordRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use OpenApi\Attributes as OA;
 
 class ProfileController extends Controller
 {
@@ -16,6 +17,25 @@ class ProfileController extends Controller
         protected AuthService $authService
     ) {}
 
+    #[OA\Patch(
+        path: '/api/profile',
+        summary: 'Обновить профиль',
+        security: [['bearerAuth' => []]],
+        tags: ['Profile'],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                    new OA\Property(property: 'phone', type: 'string', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Профиль обновлён'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function update(ProfileUpdateRequest $request): JsonResponse
     {
         $user = $request->user();
@@ -32,6 +52,28 @@ class ProfileController extends Controller
         ]);
     }
 
+    #[OA\Put(
+        path: '/api/profile/password',
+        summary: 'Сменить пароль',
+        security: [['bearerAuth' => []]],
+        tags: ['Profile'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['current_password', 'password', 'password_confirmation'],
+                properties: [
+                    new OA\Property(property: 'current_password', type: 'string', format: 'password'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                    new OA\Property(property: 'password_confirmation', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Пароль обновлён'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+            new OA\Response(response: 422, description: 'Ошибка валидации'),
+        ]
+    )]
     public function updatePassword(ProfileUpdatePasswordRequest $request): JsonResponse
     {
         $request->user()->update([
@@ -43,6 +85,23 @@ class ProfileController extends Controller
         ]);
     }
 
+    #[OA\Delete(
+        path: '/api/profile',
+        summary: 'Удалить аккаунт',
+        security: [['bearerAuth' => []]],
+        tags: ['Profile'],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Аккаунт удалён'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function destroy(ProfileDestroyRequest $request): JsonResponse
     {
         $user = $request->user();

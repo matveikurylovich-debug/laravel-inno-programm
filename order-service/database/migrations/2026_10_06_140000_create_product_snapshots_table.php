@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('product_snapshots')) {
+            return;
+        }
+
         Schema::create('product_snapshots', function (Blueprint $table) {
             $table->unsignedBigInteger('product_id')->primary();
             $table->unsignedBigInteger('store_id')->index();

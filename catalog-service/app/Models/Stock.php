@@ -12,6 +12,7 @@ class Stock extends Model
 
     protected $fillable = [
         'store_id',
+        'location_id',
         'product_id',
         'quantity',
         'reserved_quantity',
@@ -27,8 +28,19 @@ class Stock extends Model
         return $this->belongsTo(Product::class);
     }
 
-    public function getAvailableAttribute(): int
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(StoreLocation::class, 'location_id');
+    }
+
+    public function getAvailableStockAttribute(): int
     {
         return max(0, $this->quantity - $this->reserved_quantity);
     }
+
 }

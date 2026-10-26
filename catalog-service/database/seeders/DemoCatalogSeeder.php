@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\Stock;
 use App\Models\Store;
+use App\Models\StoreLocation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -19,14 +20,22 @@ class DemoCatalogSeeder extends Seeder
             foreach ($this->stores() as $storeData) {
                 $store = Store::query()->updateOrCreate(
                     ['slug' => $storeData['slug']],
-                    ['name' => $storeData['name'], 'is_active' => true],
+                    [
+                        'name' => $storeData['name'],
+                        'is_active' => true,
+                        'city' => $storeData['city'],
+                        'address' => $storeData['address'],
+                        'phone' => $storeData['phone'],
+                        'working_hours' => $storeData['working_hours'],
+                    ],
                 );
 
+                $locations = $this->seedLocations($store, $storeData['locations']);
                 $categories = [];
                 $this->seedTree($store, $storeData['categories'], null, $categories);
 
                 foreach ($storeData['products'] as $item) {
-                    $this->seedProduct($store, $categories[$item[2]], $item);
+                    $this->seedProduct($store, $locations, $categories[$item[2]], $item);
                 }
             }
         });
@@ -61,9 +70,34 @@ class DemoCatalogSeeder extends Seeder
     }
 
     /**
+     * @param  list<array{name: string, city: string, address: string, phone: string, working_hours: string}>  $locations
+     * @return list<StoreLocation>
+     */
+    private function seedLocations(Store $store, array $locations): array
+    {
+        $saved = [];
+
+        foreach ($locations as $location) {
+            $saved[] = StoreLocation::query()->updateOrCreate(
+                ['store_id' => $store->id, 'address' => $location['address']],
+                [
+                    'name' => $location['name'],
+                    'city' => $location['city'],
+                    'phone' => $location['phone'],
+                    'working_hours' => $location['working_hours'],
+                    'is_active' => true,
+                ],
+            );
+        }
+
+        return $saved;
+    }
+
+    /**
+     * @param  list<StoreLocation>  $locations
      * @param  array{0: string, 1: string, 2: string, 3: float|int, 4: int, 5: array<string, mixed>}  $item
      */
-    private function seedProduct(Store $store, Category $category, array $item): void
+    private function seedProduct(Store $store, array $locations, Category $category, array $item): void
     {
         [$sku, $name, , $price, $stock, $attributes] = $item;
 
@@ -80,10 +114,18 @@ class DemoCatalogSeeder extends Seeder
             ],
         );
 
-        Stock::query()->firstOrCreate(
-            ['store_id' => $store->id, 'product_id' => $product->id],
-            ['quantity' => $stock, 'reserved_quantity' => 0],
-        );
+        foreach ($locations as $index => $location) {
+            $quantity = $index === 0 ? (int) $stock : (int) max(0, intdiv((int) $stock, 3));
+
+            Stock::query()->updateOrCreate(
+                ['location_id' => $location->id, 'product_id' => $product->id],
+                [
+                    'store_id' => $store->id,
+                    'quantity' => $quantity,
+                    'reserved_quantity' => 0,
+                ],
+            );
+        }
 
         ProductImage::query()->firstOrCreate(
             ['product_id' => $product->id, 'position' => 0],
@@ -96,7 +138,7 @@ class DemoCatalogSeeder extends Seeder
     }
 
     /**
-     * @return list<array{slug: string, name: string, categories: list<array<string, mixed>>, products: list<array{0: string, 1: string, 2: string, 3: float|int, 4: int, 5: array<string, mixed>}>}>
+     * @return list<array{slug: string, name: string, city: string, address: string, phone: string, working_hours: string, categories: list<array<string, mixed>>, products: list<array{0: string, 1: string, 2: string, 3: float|int, 4: int, 5: array<string, mixed>}>}>
      */
     private function stores(): array
     {
@@ -104,6 +146,14 @@ class DemoCatalogSeeder extends Seeder
             [
                 'slug' => 'tech-universe',
                 'name' => 'ТехноВселенная',
+                'city' => 'Минск',
+                'address' => 'ул. Немига, 5',
+                'phone' => '+375 29 111-11-11',
+                'working_hours' => '10:00 - 22:00',
+                'locations' => [
+                    ['name' => 'Немига', 'city' => 'Минск', 'address' => 'ул. Немига, 5', 'phone' => '+375 29 111-11-11', 'working_hours' => '10:00 - 22:00'],
+                    ['name' => 'Каменная Горка', 'city' => 'Минск', 'address' => 'ул. Притыцкого, 156', 'phone' => '+375 29 111-22-22', 'working_hours' => '10:00 - 21:00'],
+                ],
                 'categories' => [
                     ['slug' => 'electronics', 'name' => 'Электроника', 'children' => [
                         ['slug' => 'smartphones', 'name' => 'Смартфоны', 'children' => [
@@ -157,6 +207,14 @@ class DemoCatalogSeeder extends Seeder
             [
                 'slug' => 'home-atelier',
                 'name' => 'Дом и уют',
+                'city' => 'Минск',
+                'address' => 'пр-т Независимости, 22',
+                'phone' => '+375 29 222-22-22',
+                'working_hours' => '10:00 - 21:00',
+                'locations' => [
+                    ['name' => 'Независимость', 'city' => 'Минск', 'address' => 'пр-т Независимости, 22', 'phone' => '+375 29 222-22-22', 'working_hours' => '10:00 - 21:00'],
+                    ['name' => 'Грушевка', 'city' => 'Минск', 'address' => 'ул. Голубка, 2', 'phone' => '+375 29 222-33-33', 'working_hours' => '10:00 - 20:00'],
+                ],
                 'categories' => [
                     ['slug' => 'home', 'name' => 'Дом', 'children' => [
                         ['slug' => 'kitchen', 'name' => 'Кухня', 'children' => [
@@ -197,6 +255,14 @@ class DemoCatalogSeeder extends Seeder
             [
                 'slug' => 'sport-line',
                 'name' => 'СпортЛайн',
+                'city' => 'Минск',
+                'address' => 'ул. Притыцкого, 29',
+                'phone' => '+375 29 333-33-33',
+                'working_hours' => '09:00 - 22:00',
+                'locations' => [
+                    ['name' => 'Притыцкого', 'city' => 'Минск', 'address' => 'ул. Притыцкого, 29', 'phone' => '+375 29 333-33-33', 'working_hours' => '09:00 - 22:00'],
+                    ['name' => 'Уручье', 'city' => 'Минск', 'address' => 'пр-т Независимости, 154', 'phone' => '+375 29 333-44-44', 'working_hours' => '10:00 - 22:00'],
+                ],
                 'categories' => [
                     ['slug' => 'sport', 'name' => 'Спорт', 'children' => [
                         ['slug' => 'running', 'name' => 'Бег', 'children' => [

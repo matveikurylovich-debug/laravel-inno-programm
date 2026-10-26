@@ -22,6 +22,7 @@ class CreateOrderRequest extends FormRequest
     {
         return [
             'store_id' => ['required', 'integer', 'min:1'],
+            'location_id' => ['required', 'integer', 'min:1'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],

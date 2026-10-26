@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 use Spatie\Permission\Models\Role;
 use Throwable;
 
@@ -24,6 +25,28 @@ class AuthController extends Controller
         protected TwoFactorService $twoFactorService,
     ) {}
 
+    #[OA\Post(
+        path: '/api/register',
+        summary: 'Регистрация',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'email', 'phone', 'password'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                    new OA\Property(property: 'phone', type: 'string'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                    new OA\Property(property: 'password_confirmation', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Пользователь создан, выданы токены'),
+            new OA\Response(response: 422, description: 'Ошибка валидации'),
+        ]
+    )]
     public function register(RegisterRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -43,6 +66,25 @@ class AuthController extends Controller
         return $this->tokenResponse($user, 201);
     }
 
+    #[OA\Post(
+        path: '/api/login',
+        summary: 'Логин (запуск 2FA)',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email', 'password'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Код 2FA отправлен на почту'),
+            new OA\Response(response: 401, description: 'Неверный логин или пароль'),
+        ]
+    )]
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -66,6 +108,25 @@ class AuthController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/two-factor/verify',
+        summary: 'Подтверждение 2FA',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['user_id', 'code'],
+                properties: [
+                    new OA\Property(property: 'user_id', type: 'integer'),
+                    new OA\Property(property: 'code', type: 'string', minLength: 6, maxLength: 6),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Токены выданы'),
+            new OA\Response(response: 422, description: 'Неверный код'),
+        ]
+    )]
     public function verifyTwoFactor(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -78,6 +139,23 @@ class AuthController extends Controller
         return $this->tokenResponse($user);
     }
 
+    #[OA\Post(
+        path: '/api/two-factor/resend',
+        summary: 'Повторная отправка кода 2FA',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['user_id'],
+                properties: [
+                    new OA\Property(property: 'user_id', type: 'integer'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Новый код отправлен'),
+        ]
+    )]
     public function resendTwoFactor(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -95,6 +173,23 @@ class AuthController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/forgot-password',
+        summary: 'Запрос сброса пароля',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Ссылка отправлена (если аккаунт существует)'),
+        ]
+    )]
     public function forgotPassword(Request $request): JsonResponse
     {
         $request->validate([
@@ -108,6 +203,27 @@ class AuthController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/reset-password',
+        summary: 'Сброс пароля',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['token', 'email', 'password', 'password_confirmation'],
+                properties: [
+                    new OA\Property(property: 'token', type: 'string'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                    new OA\Property(property: 'password_confirmation', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Пароль обновлён'),
+            new OA\Response(response: 422, description: 'Ошибка валидации'),
+        ]
+    )]
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
@@ -136,6 +252,24 @@ class AuthController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/refresh',
+        summary: 'Обновление access-токена',
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['refresh_token'],
+                properties: [
+                    new OA\Property(property: 'refresh_token', type: 'string'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Новая пара токенов'),
+            new OA\Response(response: 401, description: 'Недействительный refresh-токен'),
+        ]
+    )]
     public function refresh(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -154,6 +288,23 @@ class AuthController extends Controller
         }
     }
 
+    #[OA\Post(
+        path: '/api/logout',
+        summary: 'Выход',
+        security: [['bearerAuth' => []]],
+        tags: ['Auth'],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'refresh_token', type: 'string', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Успешный выход'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function logout(Request $request): JsonResponse
     {
         $accessToken = $request->bearerToken();
@@ -173,6 +324,16 @@ class AuthController extends Controller
         return response()->json(['message' => 'Вы успешно вышли из системы']);
     }
 
+    #[OA\Get(
+        path: '/api/me',
+        summary: 'Текущий пользователь',
+        security: [['bearerAuth' => []]],
+        tags: ['Auth'],
+        responses: [
+            new OA\Response(response: 200, description: 'Профиль пользователя'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
