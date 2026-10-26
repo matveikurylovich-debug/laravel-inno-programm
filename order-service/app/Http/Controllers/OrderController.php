@@ -10,6 +10,7 @@ use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
+use OpenApi\Attributes as OA;
 
 class OrderController extends Controller
 {
@@ -17,6 +18,16 @@ class OrderController extends Controller
         private readonly OrderService $orders,
     ) {}
 
+    #[OA\Get(
+        path: '/api/orders',
+        summary: 'Список заказов',
+        security: [['bearerAuth' => []]],
+        tags: ['Orders'],
+        responses: [
+            new OA\Response(response: 200, description: 'Пагинированный список заказов'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function index(Request $request): JsonResponse
     {
         $userRole = (string) $request->attributes->get('auth_role', 'customer');
@@ -33,6 +44,48 @@ class OrderController extends Controller
         return response()->json($orders);
     }
 
+    #[OA\Post(
+        path: '/api/orders',
+        summary: 'Создать заказ',
+        security: [['bearerAuth' => []]],
+        tags: ['Orders'],
+        parameters: [
+            new OA\Parameter(
+                name: 'Idempotency-Key',
+                in: 'header',
+                required: true,
+                schema: new OA\Schema(type: 'string'),
+                description: 'Ключ идемпотентности'
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['store_id', 'location_id', 'items'],
+                properties: [
+                    new OA\Property(property: 'store_id', type: 'integer'),
+                    new OA\Property(property: 'location_id', type: 'integer'),
+                    new OA\Property(
+                        property: 'items',
+                        type: 'array',
+                        items: new OA\Items(
+                            required: ['product_id', 'quantity'],
+                            properties: [
+                                new OA\Property(property: 'product_id', type: 'integer'),
+                                new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
+                            ],
+                            type: 'object'
+                        )
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Заказ создан'),
+            new OA\Response(response: 422, description: 'Ошибка валидации / бизнес-логики'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function store(CreateOrderRequest $request): JsonResponse
     {
         $email = $request->attributes->get('auth_email');
@@ -48,6 +101,7 @@ class OrderController extends Controller
             $order = $this->orders->createOrder(
                 (int) $request->attributes->get('auth_user_id'),
                 (int) $request->validated('store_id'),
+                (int) $request->validated('location_id'),
                 $email,
                 $request->validated('items'),
             );
@@ -63,6 +117,20 @@ class OrderController extends Controller
         ], 201);
     }
 
+    #[OA\Get(
+        path: '/api/orders/{id}',
+        summary: 'Детали заказа',
+        security: [['bearerAuth' => []]],
+        tags: ['Orders'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Заказ'),
+            new OA\Response(response: 403, description: 'Недостаточно прав'),
+            new OA\Response(response: 404, description: 'Не найден'),
+        ]
+    )]
     public function show(Request $request, string $id): JsonResponse
     {
         $order = Order::query()->with(['items', 'payment'])->find($id);
@@ -89,6 +157,21 @@ class OrderController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/orders/{id}/cancel',
+        summary: 'Отменить заказ',
+        security: [['bearerAuth' => []]],
+        tags: ['Orders'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Заказ отменён'),
+            new OA\Response(response: 400, description: 'Отмена недоступна'),
+            new OA\Response(response: 403, description: 'Недостаточно прав'),
+            new OA\Response(response: 404, description: 'Не найден'),
+        ]
+    )]
     public function cancel(Request $request, string $id): JsonResponse
     {
         $order = Order::query()->find($id);
@@ -124,6 +207,20 @@ class OrderController extends Controller
         ]);
     }
 
+    #[OA\Delete(
+        path: '/api/orders/{id}',
+        summary: 'Удалить заказ',
+        security: [['bearerAuth' => []]],
+        tags: ['Orders'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Удалён'),
+            new OA\Response(response: 403, description: 'Недостаточно прав'),
+            new OA\Response(response: 404, description: 'Не найден'),
+        ]
+    )]
     public function destroy(Request $request, string $id): JsonResponse
     {
         $order = Order::query()->find($id);

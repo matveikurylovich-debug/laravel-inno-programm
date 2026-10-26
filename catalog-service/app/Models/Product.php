@@ -49,9 +49,9 @@ class Product extends Model
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
     }
 
-    public function stock(): HasOne
+    public function stock(): HasMany
     {
-        return $this->hasOne(Stock::class);
+        return $this->hasMany(Stock::class);
     }
 
     /**
@@ -59,10 +59,12 @@ class Product extends Model
      */
     public function getAvailableStockAttribute(): int
     {
-        if (! $this->relationLoaded('stock') || ! $this->stock) {
+        if (! $this->relationLoaded('stock') || ! $this->stock->count()) {
             return 0;
         }
 
-        return max(0, $this->stock->quantity - $this->stock->reserved_quantity);
+        return $this->stock->sum(function (Stock $stock) {
+            return max(0, $stock->quantity - $stock->reserved_quantity);
+        });
     }
 }

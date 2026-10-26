@@ -8,6 +8,17 @@ import { apiFetch, readError } from "@/app/lib/api";
 import { addToCart } from "@/app/lib/cart";
 
 type ProductImage = { url: string; is_primary: boolean };
+type PickupLocation = {
+  location_id: number;
+  store_id: number;
+  name: string;
+  city: string;
+  address: string;
+  phone?: string | null;
+  working_hours: string;
+  available: number;
+  is_in_stock: boolean;
+};
 type ProductCard = {
   id: number;
   store_id?: number;
@@ -15,8 +26,10 @@ type ProductCard = {
   description?: string | null;
   price: string;
   attributes?: Record<string, string | number | boolean>;
+  total_available?: number;
   available_stock?: number;
   images?: ProductImage[];
+  locations?: PickupLocation[];
 };
 
 function money(value: string): string {
@@ -34,6 +47,7 @@ export default function ProductPage() {
   const [error, setError] = useState("");
   const [photo, setPhoto] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [locationId, setLocationId] = useState<number | null>(null);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -46,14 +60,19 @@ export default function ProductPage() {
         const body = (await response.json()) as { data: ProductCard };
         const images = body.data.images ?? [];
         const primary = images.find((image) => image.is_primary) ?? images[0];
+        const locations = body.data.locations ?? [];
+        const preferred = locations.find((location) => location.is_in_stock) ?? locations[0];
         setProduct(body.data);
+        setLocationId(preferred?.location_id ?? null);
         setPhoto(primary?.url ?? "");
       })
       .catch(() => setError("Не удалось загрузить товар"));
   }, [params.id]);
 
-  const stock = product?.available_stock ?? 0;
-  const attributes = Object.entries(product?.attributes ?? {});
+  const locations = product?.locations ?? [];
+  const selected = locations.find((location) => location.location_id === locationId) ?? null;
+  const stock = selected?.available ?? product?.total_available ?? product?.available_stock ?? 0;
+  const attributes = Object.entries(product?.attributes ?? []);
 
   return (
     <div className="min-h-screen">
@@ -95,8 +114,44 @@ export default function ProductPage() {
               <h1 className="text-3xl font-semibold tracking-tight">{product.name}</h1>
               <p className="mt-4 bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-3xl font-bold tracking-tight text-transparent">{money(product.price)}</p>
               <p className={`badge mt-3 ${stock > 0 ? "badge-success" : ""}`}>
-                {stock > 0 ? `В наличии: ${stock}` : "Нет в наличии"}
+                {stock > 0 ? `В выбранной точке: ${stock}` : "Нет в наличии"}
               </p>
+              <div className="mt-6 space-y-2">
+                <p className="text-sm font-medium text-slate-700">Наличие в магазинах</p>
+                {locations.length === 0 ? (
+                  <p className="text-sm text-slate-500">У этого магазина нет точек самовывоза</p>
+                ) : (
+                  locations.map((location) => (
+                    <label
+                      key={location.location_id}
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 ${
+                        locationId === location.location_id ? "border-brand-500 bg-brand-50" : "border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="pickup"
+                        className="mt-1"
+                        checked={locationId === location.location_id}
+                        onChange={() => setLocationId(location.location_id)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{location.name}</span>
+                        <span className="block text-sm text-slate-600">
+                          {location.city}, {location.address}
+                        </span>
+                        <span className="block text-sm text-slate-500">
+                          {location.working_hours}
+                          {location.phone ? ` · ${location.phone}` : ""}
+                        </span>
+                      </span>
+                      <span className={`badge ${location.is_in_stock ? "badge-success" : ""}`}>
+                        {location.is_in_stock ? `${location.available} шт.` : "Нет в наличии"}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
               <div className="mt-6 flex flex-wrap items-end gap-3">
                 <label className="field">
                   Количество
@@ -111,14 +166,16 @@ export default function ProductPage() {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={!product.store_id || stock < 1}
+                  disabled={!product.store_id || !selected || selected.available < quantity}
                   onClick={() => {
-                    if (!product.store_id) {
+                    if (!product.store_id || !selected || selected.available < quantity) {
                       return;
                     }
                     addToCart({
                       productId: product.id,
                       storeId: product.store_id,
+                      locationId: selected.location_id,
+                      locationLabel: `${selected.name}, ${selected.address}`,
                       name: product.name,
                       price: Number(product.price),
                       quantity,

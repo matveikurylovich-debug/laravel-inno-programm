@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
+use OpenApi\Attributes as OA;
 use Throwable;
 
 class NotificationController extends Controller
@@ -26,6 +27,24 @@ class NotificationController extends Controller
      * Получение списка уведомлений с фильтрацией и пагинацией.
      * GET /api/notifications
      */
+    #[OA\Get(
+        path: '/api/notifications',
+        summary: 'Список уведомлений',
+        security: [['bearerAuth' => []]],
+        tags: ['Notifications'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['pending', 'sent', 'failed'])),
+            new OA\Parameter(name: 'channel', in: 'query', required: false, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'recipient', in: 'query', required: false, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'date_from', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'date_to', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'per_page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Пагинированный список'),
+            new OA\Response(response: 401, description: 'Не авторизован'),
+        ]
+    )]
     public function index(Request $request): AnonymousResourceCollection
     {
         // 1. Валидация входных параметров
@@ -82,6 +101,19 @@ class NotificationController extends Controller
      * Детальная информация по конкретному уведомлению.
      * GET /api/notifications/{id}
      */
+    #[OA\Get(
+        path: '/api/notifications/{id}',
+        summary: 'Детали уведомления',
+        security: [['bearerAuth' => []]],
+        tags: ['Notifications'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Уведомление'),
+            new OA\Response(response: 404, description: 'Не найдено'),
+        ]
+    )]
     public function show(string $id): JsonResponse|NotificationResource
     {
         $log = NotificationLog::find($id);
@@ -99,6 +131,20 @@ class NotificationController extends Controller
      * Повторная отправка упавшего уведомления.
      * POST /api/notifications/{id}/replay
      */
+    #[OA\Post(
+        path: '/api/notifications/{id}/replay',
+        summary: 'Повторная отправка failed-уведомления',
+        security: [['bearerAuth' => []]],
+        tags: ['Notifications'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Отправлено повторно'),
+            new OA\Response(response: 404, description: 'Не найдено'),
+            new OA\Response(response: 422, description: 'Replay недоступен или ошибка отправки'),
+        ]
+    )]
     public function replay(string $id): JsonResponse|NotificationResource
     {
         $log = NotificationLog::find($id);

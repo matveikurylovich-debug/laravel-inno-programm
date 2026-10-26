@@ -52,7 +52,8 @@ class OrderEventsHandler
                     $items = (array) $items;
                 }
 
-                $success = $this->reservationService->reserve((string) $orderId, $storeId, $items);
+                $locationId = isset($payload['location_id']) ? (int) $payload['location_id'] : null;
+                $success = $this->reservationService->reserve((string) $orderId, $storeId, $items, $locationId);
 
                 if ($success) {
                     $this->producer->emitReserved((string) $orderId, $storeId);

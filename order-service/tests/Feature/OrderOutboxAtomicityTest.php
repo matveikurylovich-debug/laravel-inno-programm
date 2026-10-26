@@ -23,6 +23,7 @@ it('persists the created order and outbox row together', function () {
     $response = $this->withToken(orderJwt(email: 'user@example.com'))
         ->postJson('/api/orders', [
             'store_id' => 1,
+            'location_id' => 1,
             'items' => [
                 ['product_id' => 10, 'quantity' => 2],
             ],
@@ -53,6 +54,7 @@ it('rolls the order back when the outbox write fails', function () {
     $this->withToken(orderJwt(email: 'user@example.com'))
         ->postJson('/api/orders', [
             'store_id' => 1,
+            'location_id' => 1,
             'items' => [
                 ['product_id' => 10, 'quantity' => 1],
             ],

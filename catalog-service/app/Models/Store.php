@@ -7,7 +7,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Store extends Model
 {
-    protected $fillable = ['name', 'slug', 'is_active'];
+    protected $fillable = [
+        'name',
+        'slug',
+        'is_active',
+        'city',
+        'address',
+        'phone',
+        'working_hours',
+    ];
 
     protected $casts = [
         'is_active' => 'boolean',
@@ -26,5 +34,10 @@ class Store extends Model
     public function stocks(): HasMany
     {
         return $this->hasMany(Stock::class);
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(StoreLocation::class);
     }
 }

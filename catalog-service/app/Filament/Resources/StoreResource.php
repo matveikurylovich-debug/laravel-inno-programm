@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\StoreResource\Pages;
+use App\Filament\Resources\StoreResource\RelationManagers\LocationsRelationManager;
 use App\Models\Store;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -49,6 +50,9 @@ class StoreResource extends Resource
                     ->label('Название'),
                 Tables\Columns\TextColumn::make('slug')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('locations_count')
+                    ->counts('locations')
+                    ->label('Точки'),
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean()
                     ->label('Активен'),
@@ -62,6 +66,13 @@ class StoreResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            LocationsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

@@ -8,6 +8,7 @@ use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use OpenApi\Attributes as OA;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\Webhook;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,6 +23,30 @@ class StripeWebhookController extends Controller
     /**
      * Обработка входящих событий от Stripe.
      */
+    #[OA\Post(
+        path: '/webhooks/stripe',
+        summary: 'Stripe webhook',
+        tags: ['Webhooks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'Stripe-Signature',
+                in: 'header',
+                required: true,
+                schema: new OA\Schema(type: 'string')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                description: 'Сырое тело события Stripe'
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Событие принято'),
+            new OA\Response(response: 400, description: 'Невалидный payload или сигнатура'),
+        ]
+    )]
     public function handle(Request $request): JsonResponse
     {
         // 1. Получаем «сырое» тело запроса (raw body)

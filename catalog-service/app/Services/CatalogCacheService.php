@@ -71,7 +71,7 @@ class CatalogCacheService
 
             $data = $product->toArray();
             // Добавляем виртуальное поле доступного остатка
-            $data['available_stock'] = $product->available_stock ?? ($product->stock ? ($product->stock->quantity - $product->stock->reserved_quantity) : 0);
+            $data['available_stock'] = $product->available_stock;
 
             return $data;
         });

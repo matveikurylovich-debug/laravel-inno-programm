@@ -10,7 +10,7 @@ class ReindexProductsCommand extends Command
 {
     protected $signature = 'catalog:reindex-products';
 
-    protected $description = 'Повторно публикует товары в Kafka, чтобы Search Service построил индекс';
+    protected $description = 'Публикует все товары в Kafka (product.updated): Search индекс и product_snapshots в Order Service';
 
     public function handle(ProductObserver $observer): int
     {

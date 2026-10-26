@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('stores')) {
+            return;
+        }
+
         // 1. Сторы (Тенанты)
         Schema::create('stores', function (Blueprint $table) {
             $table->id();
@@ -56,7 +60,7 @@ return new class extends Migration
         });
 
         if (Schema::getConnection()->getDriverName() === 'pgsql') {
-            DB::statement('CREATE INDEX products_attributes_gin_idx ON products USING gin (attributes);');
+            DB::statement('CREATE INDEX IF NOT EXISTS products_attributes_gin_idx ON products USING gin (attributes);');
         }
 
         // 4. Изображения товаров (MinIO)

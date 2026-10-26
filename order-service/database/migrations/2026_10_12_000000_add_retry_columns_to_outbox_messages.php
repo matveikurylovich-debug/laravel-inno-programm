@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('outbox_messages', 'retry_count')) {
+            return;
+        }
+
         Schema::table('outbox_messages', function (Blueprint $table) {
             $table->unsignedInteger('retry_count')->default(0)->after('status');
             $table->timestamp('next_retry_at')->nullable()->after('retry_count');
