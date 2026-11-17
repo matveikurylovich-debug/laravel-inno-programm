@@ -16,13 +16,13 @@ class CategoryObserver
     public function created(Category $category): void
     {
         $this->forget($category);
-        $this->events->categoryCreated((int) $category->id, (int) $category->store_id);
+        $this->events->categoryCreated((int) $category->id, (int) $category->store_id, (string) $category->name);
     }
 
     public function updated(Category $category): void
     {
         $this->forget($category);
-        $this->events->categoryUpdated((int) $category->id, (int) $category->store_id);
+        $this->events->categoryUpdated((int) $category->id, (int) $category->store_id, (string) $category->name);
 
         if ($category->wasChanged('store_id')) {
             $previousStoreId = $category->getOriginal('store_id');
@@ -34,7 +34,7 @@ class CategoryObserver
     public function deleted(Category $category): void
     {
         $this->forget($category);
-        $this->events->categoryDeleted((int) $category->id, (int) $category->store_id);
+        $this->events->categoryDeleted((int) $category->id, (int) $category->store_id, (string) $category->name);
     }
 
     private function forget(Category $category): void

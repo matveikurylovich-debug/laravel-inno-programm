@@ -1,23 +1,13 @@
 "use client";
 
+import { currentUser } from "@/app/lib/auth";
 import { useEffect } from "react";
 
 export default function HomePage() {
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    const role = localStorage.getItem("user_role");
-
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
-    if (role === "admin" || role === "analyst") {
-      window.location.href = "/admin/users";
-      return;
-    }
-
-    window.location.href = "/catalog";
+    currentUser().then((user) => {
+      window.location.href = !user ? "/login" : ["admin", "analyst"].includes(user.role) ? "/admin/users" : "/catalog";
+    }).catch(() => undefined);
   }, []);
 
   return <main className="state-screen">Открываем магазин...</main>;

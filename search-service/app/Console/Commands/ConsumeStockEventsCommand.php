@@ -14,7 +14,7 @@ class ConsumeStockEventsCommand extends Command
 
     public function handle(StockEventsConsumer $handler): int
     {
-        $topic = (string) config('kafka.topics.inventory_events', 'inventory.events');
+        $topic = (string) config('kafka.topics.catalog_events', 'catalog.events');
         $group = (string) config('kafka.stock_consumer_group_id', 'search-service-stock-group');
 
         $this->info("Слушаем {$topic}, группа {$group}");

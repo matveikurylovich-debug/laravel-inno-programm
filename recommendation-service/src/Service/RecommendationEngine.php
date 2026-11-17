@@ -44,14 +44,14 @@ final class RecommendationEngine
         // 3. Семантический поиск релевантных товаров в pgvector с учетом фильтров
         $matchedProducts = $this->productRepository->searchSimilar(
             embedding: $queryEmbedding,
-            storeId: $storeId,
+            storeId: $conversation->getStoreId(),
             filters: $extractedFilters,
             limit: $this->maxProductsLimit,
             threshold: $this->similarityThreshold,
         );
 
         $this->logger->info('Поиск товаров для рекомендаций завершен', [
-            'store_id' => $storeId,
+            'store_id' => $conversation->getStoreId(),
             'filters' => $extractedFilters,
             'found_count' => count($matchedProducts),
         ]);

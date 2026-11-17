@@ -52,28 +52,37 @@ class CatalogEventProducer
         ]);
     }
 
-    public function categoryCreated(int $categoryId, int $storeId): void
+    public function categoryCreated(int $categoryId, int $storeId, string $name = ''): void
     {
-        $this->emit('category.created', (string) $categoryId, [
-            'category_id' => $categoryId,
-            'store_id' => $storeId,
-        ]);
+        $this->emit('category.created', (string) $categoryId, $this->categoryBody($categoryId, $storeId, $name));
     }
 
-    public function categoryUpdated(int $categoryId, int $storeId): void
+    public function categoryUpdated(int $categoryId, int $storeId, string $name = ''): void
     {
-        $this->emit('category.updated', (string) $categoryId, [
-            'category_id' => $categoryId,
-            'store_id' => $storeId,
-        ]);
+        $this->emit('category.updated', (string) $categoryId, $this->categoryBody($categoryId, $storeId, $name));
     }
 
-    public function categoryDeleted(int $categoryId, int $storeId): void
+    public function categoryDeleted(int $categoryId, int $storeId, string $name = ''): void
     {
-        $this->emit('category.deleted', (string) $categoryId, [
+        $this->emit('category.deleted', (string) $categoryId, $this->categoryBody($categoryId, $storeId, $name));
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function categoryBody(int $categoryId, int $storeId, string $name): array
+    {
+        $body = [
             'category_id' => $categoryId,
             'store_id' => $storeId,
-        ]);
+        ];
+
+        if ($name !== '') {
+            $body['category_name'] = $name;
+            $body['name'] = $name;
+        }
+
+        return $body;
     }
 
     public function stockChanged(int $productId, int $storeId, int $quantity, int $reservedQuantity): void

@@ -22,8 +22,6 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
   const staff = role === "admin" || role === "analyst";
 
   useEffect(() => {
-    setName(localStorage.getItem("user_name") ?? "");
-    setRole(localStorage.getItem("user_role") ?? "");
 
     apiFetch("/api/auth/me")
       .then(async (response) => {
@@ -34,7 +32,7 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
         const body = (await response.json()) as { user: AuthUser };
         setName(body.user.name);
         setEmail(body.user.email);
-        localStorage.setItem("user_name", body.user.name);
+        setRole(body.user.role);
       })
       .catch(() => undefined);
   }, []);

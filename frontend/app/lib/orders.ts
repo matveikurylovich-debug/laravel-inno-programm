@@ -57,5 +57,5 @@ export function isFinalStatus(status: string): boolean {
 }
 
 export function canCancel(status: string): boolean {
-  return ["created", "stock_reserved", "payment_pending"].includes(status);
+  return ["created", "stock_reserved", "payment_pending", "paid", "confirmed"].includes(status);
 }

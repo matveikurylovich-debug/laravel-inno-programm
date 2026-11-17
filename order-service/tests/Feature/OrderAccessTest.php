@@ -54,7 +54,7 @@ it('lets the owner delete an order and request stock release', function () {
         ->deleteJson("/api/orders/{$order->id}")
         ->assertNoContent();
 
-    $this->assertDatabaseMissing('orders', ['id' => $order->id]);
+    $this->assertSoftDeleted('orders', ['id' => $order->id]);
     expect(
         OutboxMessage::query()
             ->where('event_type', 'stock.release_requested')

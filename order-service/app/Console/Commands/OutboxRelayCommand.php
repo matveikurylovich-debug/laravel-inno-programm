@@ -70,7 +70,12 @@ class OutboxRelayCommand extends Command
 
         // 2. Отправляем каждое по очереди
         foreach ($messages as $outboxMessage) {
-            $this->publishMessage($outboxMessage, $topic);
+            DB::transaction(function () use ($outboxMessage, $topic): void {
+                $locked = OutboxMessage::query()->lockForUpdate()->find($outboxMessage->id);
+                if ($locked !== null && $locked->status === 'pending' && ($locked->next_retry_at === null || $locked->next_retry_at <= now())) {
+                    $this->publishMessage($locked, $topic);
+                }
+            });
         }
 
         return $messages->count();
@@ -93,13 +98,19 @@ class OutboxRelayCommand extends Command
             );
 
             // Сетевой вызов: отправка в брокер
-            Kafka::publish()
-                ->onTopic($topic)
-                ->withMessage($kafkaMessage)
-                ->send();
+            if ($outboxMessage->kafka_published_at === null) {
+                Kafka::publish()
+                    ->onTopic($topic)
+                    ->withMessage($kafkaMessage)
+                    ->send();
+                $outboxMessage->update(['kafka_published_at' => now()]);
+            }
 
             // Если отправка прошла без ошибок — фиксируем успех в БД
-            $this->publishAnalytics($outboxMessage);
+            if ($outboxMessage->analytics_published_at === null) {
+                $this->publishAnalytics($outboxMessage);
+                $outboxMessage->update(['analytics_published_at' => now()]);
+            }
 
             $outboxMessage->update([
                 'status' => 'published',
@@ -122,15 +133,16 @@ class OutboxRelayCommand extends Command
             return;
         }
 
-        $payload = is_array($outboxMessage->payload) ? $outboxMessage->payload : [];
+        $payload = $outboxMessage->payload;
 
         app(AnalyticsEventPublisher::class)->publish($outboxMessage->event_type, [
             'order_id' => $payload['order_id'] ?? $outboxMessage->aggregate_id,
             'user_id' => $payload['user_id'] ?? null,
             'store_id' => $payload['store_id'] ?? null,
             'total_amount' => $payload['total_amount'] ?? 0,
-            'occurred_at' => now()->toIso8601String(),
-        ]);
+            'event_id' => $payload['event_id'] ?? 'order-outbox-'.$outboxMessage->id,
+            'occurred_at' => $payload['occurred_at'] ?? $outboxMessage->created_at->toIso8601String(),
+        ], true);
     }
 
     private function scheduleRetry(OutboxMessage $outboxMessage, Throwable $e): void

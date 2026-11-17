@@ -1,5 +1,7 @@
 "use client";
 
+import { currentUser } from "@/app/lib/auth";
+
 import { useEffect, useState } from "react";
 import { apiFetch, readError } from "@/app/lib/api";
 import type { DirectoryUser } from "@/app/lib/types";
@@ -14,8 +16,7 @@ export default function UsersPage() {
   const readOnly = role === "analyst";
 
   useEffect(() => {
-    const currentRole = localStorage.getItem("user_role");
-    setRole(currentRole);
+    currentUser().then((user) => setRole(user?.role ?? null)).catch(() => undefined);
 
     apiFetch("/api/auth/admin/users")
       .then(async (response) => {

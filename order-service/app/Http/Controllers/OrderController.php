@@ -183,13 +183,6 @@ class OrderController extends Controller
             ], 404);
         }
 
-        if (! in_array($order->status, ['created', 'stock_reserved', 'payment_pending'], true)) {
-            return response()->json([
-                'error' => 'Bad Request',
-                'details' => 'Отмена заказа разрешена только до момента shipped',
-            ], 400);
-        }
-
         $isOwner = (string) $order->user_id === (string) $request->attributes->get('auth_user_id');
         $isAdmin = $request->attributes->get('auth_role') === 'admin';
 
@@ -200,7 +193,11 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $order = $this->orders->cancelOrder($order);
+        try {
+            $order = $this->orders->cancelOrder($order);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
 
         return response()->json([
             'data' => $order,
@@ -242,7 +239,11 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $this->orders->deleteOrder($order);
+        try {
+            $this->orders->deleteOrder($order);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
 
         return response()->json(null, 204);
     }

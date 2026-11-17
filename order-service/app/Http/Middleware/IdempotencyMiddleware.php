@@ -20,7 +20,10 @@ class IdempotencyMiddleware
         $idempotencyKey = $request->header('Idempotency-Key');
 
         if (! is_string($idempotencyKey) || $idempotencyKey === '') {
-            return $next($request);
+            return response()->json([
+                'error' => 'Idempotency-Key required',
+                'details' => 'Заголовок Idempotency-Key обязателен для создания заказа',
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $userId = (string) $request->attributes->get('auth_user_id', 'guest');

@@ -1,0 +1,61 @@
+# Local bind mounts. Docker Compose loads this file only when start.sh sets
+# COMPOSE_FILE for START_ENV=local. The mount hides the vendor directory baked
+# into the image, so start.sh runs composer install into the host tree for the IDE.
+services:
+  auth-app:
+    volumes:
+      - ./auth-service:/var/www/html
+  auth-events:
+    volumes:
+      - ./auth-service:/var/www/html
+  catalog-service:
+    volumes:
+      - ./catalog-service:/var/www/html
+  catalog-order-consumer:
+    volumes:
+      - ./catalog-service:/var/www/html
+  order-service:
+    volumes:
+      - ./order-service:/var/www/html
+  order-outbox-relay:
+    volumes:
+      - ./order-service:/var/www/html
+  order-catalog-consumer:
+    volumes:
+      - ./order-service:/var/www/html
+  order-inventory-consumer:
+    volumes:
+      - ./order-service:/var/www/html
+  order-payments:
+    volumes:
+      - ./order-service:/var/www/html
+  search-app:
+    volumes:
+      - ./search-service:/var/www/html
+  search-catalog-consumer:
+    volumes:
+      - ./search-service:/var/www/html
+  search-stock-consumer:
+    volumes:
+      - ./search-service:/var/www/html
+  search-events:
+    volumes:
+      - ./search-service:/var/www/html
+  notification-app:
+    volumes:
+      - ./notification-service:/var/www/html
+  notification-worker:
+    volumes:
+      - ./notification-service:/var/www/html
+  notification-order-worker:
+    volumes:
+      - ./notification-service:/var/www/html
+  recommendation-app:
+    volumes:
+      - ./recommendation-service:/var/www/html
+  recommendation-worker:
+    volumes:
+      - ./recommendation-service:/var/www/html
+  recommendation-cleanup:
+    volumes:
+      - ./recommendation-service:/var/www/html

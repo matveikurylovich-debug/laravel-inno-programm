@@ -6,7 +6,8 @@
     "dev": "NODE_EXTRA_CA_CERTS=../catalog-service/docker/nginx/certs/localhost.crt next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^7.0.0",

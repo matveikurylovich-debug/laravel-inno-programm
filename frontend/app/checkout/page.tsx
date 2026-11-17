@@ -16,7 +16,7 @@ export default function CheckoutPage() {
   const idempotencyKey = useRef<string>("");
 
   useEffect(() => {
-    setLines(readCart());
+    queueMicrotask(() => setLines(readCart()));
   }, []);
 
   function changeQuantity(productId: number, locationId: number, quantity: number) {
@@ -82,7 +82,10 @@ export default function CheckoutPage() {
       <AppHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <h1 className="page-title">Оформление заказа</h1>
-        <p className="page-subtitle">Количество можно изменить перед отправкой. Повтор того же запроса использует один Idempotency-Key.</p>
+        <p className="page-subtitle">
+          Количество можно изменить перед отправкой. Повтор того же запроса использует один Idempotency-Key.{" "}
+          <Link href="/cart" className="text-brand-700">Вернуться в корзину</Link>
+        </p>
 
         {error ? <p className="alert alert-error mt-4">{error}</p> : null}
 

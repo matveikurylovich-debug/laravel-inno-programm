@@ -1,5 +1,7 @@
 "use client";
 
+import { currentUser } from "@/app/lib/auth";
+
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, readError } from "@/app/lib/api";
 import type { NotificationLog, PaginatedNotifications } from "@/app/lib/types";
@@ -33,7 +35,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setRole(localStorage.getItem("user_role"));
+    currentUser().then((user) => setRole(user?.role ?? null)).catch(() => undefined);
   }, []);
 
   useEffect(() => {

@@ -2,20 +2,66 @@
 
 namespace App\Kafka\Consumers;
 
-use App\Services\Kafka\InventoryEventProducer;
-use App\Services\StockReservationService;
+use App\Kafka\Consumers\OrderEvents\CommitStockOnOrderPaid;
+use App\Kafka\Consumers\OrderEvents\HandlesOrderEvent;
+use App\Kafka\Consumers\OrderEvents\ReleaseStockReservation;
+use App\Kafka\Consumers\OrderEvents\ReserveStockOnOrderCreated;
 use Illuminate\Support\Facades\Log;
 use Junges\Kafka\Contracts\ConsumerMessage;
 use Junges\Kafka\Contracts\MessageConsumer;
 
 class OrderEventsHandler
 {
+    /** @var array<string, HandlesOrderEvent> */
+    private array $handlers;
+
     public function __construct(
-        protected StockReservationService $reservationService,
-        protected InventoryEventProducer $producer,
-    ) {}
+        ReserveStockOnOrderCreated $reserveStock,
+        CommitStockOnOrderPaid $commitStock,
+        ReleaseStockReservation $releaseStock,
+    ) {
+        $this->handlers = [
+            'order.created' => $reserveStock,
+            'order.paid' => $commitStock,
+            'order.cancelled' => $releaseStock,
+            'stock.release_requested' => $releaseStock,
+        ];
+    }
 
     public function __invoke(ConsumerMessage $message, ?MessageConsumer $consumer = null): void
+    {
+        $payload = $this->payload($message);
+
+        if ($payload === null) {
+            return;
+        }
+
+        $eventType = $payload['event'] ?? null;
+        $orderId = $payload['order_id'] ?? null;
+
+        if (! is_string($eventType) || $eventType === '' || $orderId === null || $orderId === '') {
+            Log::warning('Получено некорректное сообщение из Kafka', ['message' => $payload]);
+
+            return;
+        }
+
+        Log::info("Обработка события Kafka: {$eventType} для заказа {$orderId}");
+
+        $handler = $this->handlers[$eventType] ?? null;
+
+        if ($handler === null) {
+            Log::info("Игнорирование неизвестного типа события: {$eventType}");
+
+            return;
+        }
+
+        $handler->handle($payload);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function payload(ConsumerMessage $message): ?array
     {
         $payload = $message->getBody();
 
@@ -30,52 +76,9 @@ class OrderEventsHandler
         if (! is_array($payload)) {
             Log::warning('Получено некорректное сообщение из Kafka', ['message' => $payload]);
 
-            return;
+            return null;
         }
 
-        $eventType = $payload['event'] ?? null;
-        $orderId = $payload['order_id'] ?? null;
-        $storeId = (int) ($payload['store_id'] ?? 0);
-
-        if (! $orderId || ! $eventType) {
-            Log::warning('Получено некорректное сообщение из Kafka', ['message' => $payload]);
-
-            return;
-        }
-
-        Log::info("Обработка события Kafka: {$eventType} для заказа {$orderId}");
-
-        switch ($eventType) {
-            case 'order.created':
-                $items = $payload['items'] ?? [];
-                if (is_object($items)) {
-                    $items = (array) $items;
-                }
-
-                $locationId = isset($payload['location_id']) ? (int) $payload['location_id'] : null;
-                $success = $this->reservationService->reserve((string) $orderId, $storeId, $items, $locationId);
-
-                if ($success) {
-                    $this->producer->emitReserved((string) $orderId, $storeId);
-                } else {
-                    $this->producer->emitFailed((string) $orderId, $storeId, 'Insufficient stock');
-                }
-                break;
-
-            case 'order.paid':
-                if ($this->reservationService->commit((string) $orderId)) {
-                    $this->producer->emitCommitted((string) $orderId, $storeId);
-                }
-                break;
-
-            case 'order.cancelled':
-            case 'stock.release_requested':
-                $this->reservationService->release((string) $orderId);
-                break;
-
-            default:
-                Log::info("Игнорирование неизвестного типа события: {$eventType}");
-                break;
-        }
+        return $payload;
     }
 }

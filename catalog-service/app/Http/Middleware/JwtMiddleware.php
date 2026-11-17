@@ -16,8 +16,8 @@ class JwtMiddleware
     /**
      * Обработка входящего запроса.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     * @param  string|null  $requiredRole Ожидаемая роль (например, 'admin')
+     * @param  Closure(Request): (Response)  $next
+     * @param  string|null  $requiredRole  Ожидаемая роль (например, 'admin')
      */
     public function handle(Request $request, Closure $next, ?string $requiredRole = null): Response
     {
@@ -31,7 +31,7 @@ class JwtMiddleware
         }
 
         try {
-            $secret = config('jwt.secret') ?? env('JWT_ACCESS_SECRET');
+            $secret = config('jwt.secret');
             $algo = config('jwt.algo', 'HS256');
 
             if (! is_string($secret) || $secret === '') {

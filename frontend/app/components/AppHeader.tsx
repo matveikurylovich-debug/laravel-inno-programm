@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { currentUser } from "@/app/lib/auth";
 import Brand from "@/app/components/Brand";
 import UserMenu from "@/app/components/UserMenu";
 import { readCart } from "@/app/lib/cart";
@@ -35,13 +36,13 @@ export default function AppHeader() {
   const catalogActive = pathname === "/catalog" || pathname.startsWith("/catalog/");
   const assistantActive = pathname === "/assistant";
   const ordersActive = pathname === "/orders" || pathname.startsWith("/orders/");
-  const cartActive = pathname === "/checkout";
+  const cartActive = pathname === "/cart" || pathname === "/checkout";
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    const role = localStorage.getItem("user_role");
-    setSignedIn(Boolean(token));
-    setStaff(role === "admin" || role === "analyst");
+    currentUser().then((user) => {
+      setSignedIn(Boolean(user));
+      setStaff(user?.role === "admin" || user?.role === "analyst");
+    }).catch(() => undefined);
   }, []);
 
   return (
@@ -88,7 +89,7 @@ export default function AppHeader() {
           ) : null}
 
           <Link
-            href="/checkout"
+            href="/cart"
             aria-current={cartActive ? "page" : undefined}
             className={`relative inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
               cartActive ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-100"

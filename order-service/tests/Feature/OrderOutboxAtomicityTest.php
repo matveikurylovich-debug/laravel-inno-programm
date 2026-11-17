@@ -21,6 +21,7 @@ it('persists the created order and outbox row together', function () {
     ]);
 
     $response = $this->withToken(orderJwt(email: 'user@example.com'))
+        ->withHeader('Idempotency-Key', 'outbox-create')
         ->postJson('/api/orders', [
             'store_id' => 1,
             'location_id' => 1,
@@ -52,6 +53,7 @@ it('rolls the order back when the outbox write fails', function () {
     });
 
     $this->withToken(orderJwt(email: 'user@example.com'))
+        ->withHeader('Idempotency-Key', 'outbox-rollback')
         ->postJson('/api/orders', [
             'store_id' => 1,
             'location_id' => 1,

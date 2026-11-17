@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\RefundCancelledOrder;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ProductSnapshot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redis;
 use InvalidArgumentException;
 
 class OrderService
@@ -94,6 +94,13 @@ class OrderService
     public function cancelOrder(Order $order, ?string $reason = null): Order
     {
         return DB::transaction(function () use ($order, $reason): Order {
+            $order = Order::query()->lockForUpdate()->findOrFail($order->id);
+            if ($order->status === 'cancelled') {
+                return $order->load('items');
+            }
+            if (! in_array($order->status, ['created', 'stock_reserved', 'payment_pending', 'paid', 'confirmed'], true)) {
+                throw new InvalidArgumentException('Отмена заказа разрешена только до момента shipped');
+            }
             $previousStatus = $order->status;
 
             $order->update([
@@ -101,16 +108,18 @@ class OrderService
                 'cancel_reason' => $reason ?? 'Cancelled by user',
             ]);
 
-            if (in_array($previousStatus, ['stock_reserved', 'payment_pending'], true)) {
-                $this->outbox->record(
-                    'stock.release_requested',
-                    'Order',
-                    (string) $order->id,
-                    [
-                        'order_id' => $order->id,
-                        'store_id' => $order->store_id,
-                    ],
-                );
+            $this->outbox->record(
+                'stock.release_requested',
+                'Order',
+                (string) $order->id,
+                [
+                    'order_id' => $order->id,
+                    'store_id' => $order->store_id,
+                ],
+            );
+
+            if ($order->payment_status === 'paid') {
+                RefundCancelledOrder::dispatch((string) $order->id)->onConnection('database')->onQueue('payments');
             }
 
             $this->outbox->record(
@@ -132,22 +141,9 @@ class OrderService
     public function deleteOrder(Order $order): void
     {
         DB::transaction(function () use ($order): void {
-            if (in_array($order->status, ['stock_reserved', 'payment_pending'], true)) {
-                $this->outbox->record(
-                    'stock.release_requested',
-                    'Order',
-                    (string) $order->id,
-                    [
-                        'order_id' => $order->id,
-                        'store_id' => $order->store_id,
-                    ],
-                );
-            }
-
+            $order = $this->cancelOrder($order);
             $order->delete();
         });
-
-        Redis::del("order:saga:{$order->id}");
     }
 
     /**
@@ -165,7 +161,7 @@ class OrderService
 
         DB::transaction(function () use ($orderId, $paymentIntent): void {
             /** @var Order|null $order */
-            $order = Order::query()->whereKey($orderId)->lockForUpdate()->first();
+            $order = Order::withTrashed()->whereKey($orderId)->lockForUpdate()->first();
 
             if ($order === null) {
                 Log::warning("Stripe succeeded: заказ {$orderId} не найден");
@@ -177,7 +173,16 @@ class OrderService
                 return;
             }
 
+            if ($order->payment_status === 'refunded') {
+                return;
+            }
             $this->updatePaymentFromIntent($order, $paymentIntent, 'succeeded');
+            if ($order->status === 'cancelled') {
+                $order->update(['payment_status' => 'paid']);
+                RefundCancelledOrder::dispatch((string) $order->id)->onConnection('database')->onQueue('payments');
+
+                return;
+            }
 
             $order->update([
                 'status' => 'paid',
@@ -219,7 +224,7 @@ class OrderService
 
         DB::transaction(function () use ($orderId, $paymentIntent): void {
             /** @var Order|null $order */
-            $order = Order::query()->whereKey($orderId)->lockForUpdate()->first();
+            $order = Order::withTrashed()->whereKey($orderId)->lockForUpdate()->first();
 
             if ($order === null) {
                 Log::warning("Stripe payment_failed: заказ {$orderId} не найден");

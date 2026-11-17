@@ -19,7 +19,7 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Uid\Uuid;
 
 #[Route('/recommendations', name: 'api_recommendations_')]
-final class ChatController
+final class ChatController extends \Symfony\Bundle\FrameworkBundle\Controller\AbstractController
 {
     public function __construct(
         private readonly RecommendationEngine $recommendationEngine,
@@ -64,7 +64,7 @@ final class ChatController
         $result = $this->recommendationEngine->processUserMessage(
             $conversation,
             $dto->message,
-            $dto->store_id,
+            $conversation->getStoreId(),
         );
 
         return new JsonResponse([

@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'cookie_secure' => env('SESSION_SECURE_COOKIE', true),
     'keys' => [
         'access' => env('JWT_ACCESS_SECRET'),
         'refresh' => env('JWT_REFRESH_SECRET'),

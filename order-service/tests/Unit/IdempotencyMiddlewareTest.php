@@ -42,6 +42,19 @@ beforeEach(function () use (&$store) {
         });
 });
 
+it('rejects order creation without an idempotency key', function () {
+    $middleware = new IdempotencyMiddleware;
+    $request = Request::create('/api/orders', 'POST');
+    $request->attributes->set('auth_user_id', 7);
+
+    $response = $middleware->handle($request, function () {
+        return response()->json(['created' => true], 201);
+    });
+
+    expect($response->getStatusCode())->toBe(400)
+        ->and($response->getContent())->toContain('Idempotency-Key required');
+});
+
 it('replays the cached response for a second request with the same key', function () {
     $middleware = new IdempotencyMiddleware;
     $calls = 0;

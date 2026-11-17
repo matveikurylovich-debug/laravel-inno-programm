@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Redis;
 
 class Order extends Model
 {
-    use HasUuids;
+    use HasUuids, \Illuminate\Database\Eloquent\SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -64,6 +64,7 @@ class Order extends Model
             'data' => array_merge([
                 'order_id' => $this->id,
                 'total_amount' => $this->total_amount,
+                'currency' => $this->currency,
             ], $data),
         ];
     }

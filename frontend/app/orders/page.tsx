@@ -28,7 +28,7 @@ export default function OrdersPage() {
   }
 
   async function deleteOrder(id: string) {
-    if (!window.confirm("Удалить заказ из списка?")) {
+    if (!window.confirm("Отменить заказ и убрать из списка? Оплата будет возвращена.")) {
       return;
     }
 

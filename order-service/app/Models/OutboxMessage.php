@@ -17,6 +17,8 @@ class OutboxMessage extends Model
         'retry_count',
         'next_retry_at',
         'published_at',
+        'kafka_published_at',
+        'analytics_published_at',
         'error_message',
     ];
 

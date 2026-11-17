@@ -39,10 +39,9 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams({ from, to, granularity });
-    setLoading(true);
-    setError("");
+    let active = true;
 
-    Promise.all([
+    void Promise.all([
       apiFetch(`/api/analytics/users?${params}`),
       apiFetch(`/api/analytics/orders?${params}`),
       apiFetch(`/api/analytics/search?${params}`),
@@ -53,12 +52,28 @@ export default function AnalyticsPage() {
             throw new Error(await readError(response));
           }
         }
-        setUsers((await usersResponse.json()) as UsersReport);
-        setOrders((await ordersResponse.json()) as OrdersReport);
-        setSearch((await searchResponse.json()) as SearchReport);
+        const reports = await Promise.all([
+          usersResponse.json() as Promise<UsersReport>,
+          ordersResponse.json() as Promise<OrdersReport>,
+          searchResponse.json() as Promise<SearchReport>,
+        ]);
+        if (active) {
+          setUsers(reports[0]);
+          setOrders(reports[1]);
+          setSearch(reports[2]);
+          setError("");
+        }
       })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Не удалось загрузить аналитику"))
-      .finally(() => setLoading(false));
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Не удалось загрузить аналитику");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [from, to, granularity]);
 
   const maxUsers = Math.max(1, ...(users?.series ?? []).map((point) => point.count));

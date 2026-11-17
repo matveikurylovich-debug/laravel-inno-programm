@@ -12,18 +12,18 @@ class ConsumeAuthNotificationsCommand extends Command
 
     protected $description = 'Запуск консьюмера Kafka для обработки auth-уведомлений';
 
-    public function handle(AuthNotificationHandler $handler)
+    public function handle(AuthNotificationHandler $handler): int
     {
 
         $this->info('Starting Kafka consumer for auth notifications...');
 
-        $consumer = Kafka::consumer(['auth.notifications'])
+        Kafka::consumer(['auth.notifications'])
             ->withConsumerGroupId('notification-service-group')
             ->withAutoCommit()
             ->withHandler($handler)
             ->build()
             ->consume();
 
-        return 0;
+        return self::SUCCESS;
     }
 }

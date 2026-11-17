@@ -107,6 +107,8 @@ func (s *Store) insertSearch(ctx context.Context, event domain.Event) error {
 	return batch.Send()
 }
 
+// пакеты go для sql
+
 func (s *Store) Users(ctx context.Context, rng analytics.Range) (analytics.UsersReport, error) {
 	var total uint64
 	if err := s.conn.QueryRow(ctx, `

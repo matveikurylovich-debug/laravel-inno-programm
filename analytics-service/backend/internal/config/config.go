@@ -3,6 +3,8 @@ package config
 import "os"
 
 type Config struct {
+	JWTAccessSecret    string
+	JWTIssuer          string
 	HTTPPort           string
 	ClickHouseAddr     string
 	ClickHouseDB       string
@@ -14,6 +16,8 @@ type Config struct {
 
 func Load() Config {
 	return Config{
+		JWTAccessSecret:    os.Getenv("JWT_ACCESS_SECRET"),
+		JWTIssuer:          env("JWT_ISSUER", "https://localhost"),
 		HTTPPort:           env("HTTP_PORT", "8080"),
 		ClickHouseAddr:     env("CLICKHOUSE_ADDR", "analytics-clickhouse:9000"),
 		ClickHouseDB:       env("CLICKHOUSE_DB", "analytics"),

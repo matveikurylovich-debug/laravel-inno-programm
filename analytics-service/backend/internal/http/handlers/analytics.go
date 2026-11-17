@@ -48,7 +48,7 @@ func rangeFrom(r *http.Request) analytics.Range {
 
 func write(w http.ResponseWriter, payload any, err error) {
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Report unavailable"})
 		return
 	}
 

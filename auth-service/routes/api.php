@@ -57,3 +57,5 @@ Route::middleware('jwt.auth')->group(function () {
             ->where('path', '.*');
     });
 });
+
+Route::get('catalog-admin/access', fn () => response()->noContent())->middleware(['jwt.auth', 'role:admin']);
