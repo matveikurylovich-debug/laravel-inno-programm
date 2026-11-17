@@ -149,6 +149,27 @@ class NotificationHandlerTest extends TestCase
         Kafka::assertPublishedOn('order.notifications.dlq');
     }
 
+    public function test_non_mail_order_events_are_ignored(): void
+    {
+        Mail::fake();
+
+        $this->handleOrder([
+            'event' => 'order.created',
+            'user_id' => 4,
+            'email' => 'buyer@example.com',
+            'order_id' => 15,
+            'data' => ['order_id' => 15],
+        ]);
+        $this->handleOrder([
+            'event' => 'stock.release_requested',
+            'order_id' => 15,
+            'store_id' => 1,
+        ]);
+
+        Mail::assertNothingSent();
+        $this->assertSame(0, NotificationLog::query()->count());
+    }
+
     private function handleAuth(array $body): void
     {
         (new AuthNotificationHandler)($this->message($body));
@@ -163,6 +184,7 @@ class NotificationHandlerTest extends TestCase
     {
         $message = Mockery::mock(ConsumerMessage::class);
         $message->shouldReceive('getBody')->andReturn($body);
+        $message->shouldReceive('getHeaders')->andReturn([]);
 
         return $message;
     }

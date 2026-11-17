@@ -10,6 +10,7 @@ use App\Services\TwoFactorService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
@@ -51,17 +52,21 @@ class AuthController extends Controller
     {
         $data = $request->validated();
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'phone' => $data['phone'],
-            'password' => $data['password'],
-        ]);
+        $user = DB::transaction(function () use ($data): User {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'phone' => $data['phone'],
+                'password' => $data['password'],
+            ]);
 
-        Role::findOrCreate('customer', 'web');
-        $user->assignRole('customer');
+            Role::findOrCreate('customer', 'web');
+            $user->assignRole('customer');
 
-        event(new Registered($user));
+            event(new Registered($user));
+
+            return $user;
+        });
 
         return $this->tokenResponse($user, 201);
     }

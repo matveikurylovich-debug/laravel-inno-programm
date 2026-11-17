@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use OpenApi\Attributes as OA;
 use Throwable;
 
@@ -82,7 +83,7 @@ class GatewayController extends Controller
             $user = $request->user();
             if ($user === null || ! $user->hasRole('admin')) {
                 return response([
-                    'error' => 'Недостаточно прав. Действие доступно только роли admin.'
+                    'error' => 'Недостаточно прав. Действие доступно только роли admin.',
                 ], 403, ['Content-Type' => 'application/json']);
             }
         }
@@ -245,7 +246,7 @@ class GatewayController extends Controller
             $suffix = $cleanPath;
         }
 
-        return $this->proxy($request, $this->target($base, $suffix));
+        return $this->proxy($request, $this->target($base, $suffix), (int) config('services.gateway.chat_timeout', 180));
     }
 
     private function target(?string $baseUrl, ?string $path): string
@@ -259,41 +260,42 @@ class GatewayController extends Controller
     /**
      * Базовый метод ретрансляции HTTP-запроса.
      */
-    private function proxy(Request $request, string $targetUrl): Response
+    private function proxy(Request $request, string $targetUrl, int $timeout = 30): Response
     {
         try {
             // Формируем набор заголовков для пересылки
             $headers = array_filter([
-                'Authorization'   => $request->header('Authorization'),
+                'Authorization' => $request->header('Authorization'),
                 'Idempotency-Key' => $request->header('Idempotency-Key'),
-                'Content-Type'    => $request->header('Content-Type', 'application/json'),
-                'Accept'          => $request->header('Accept', 'application/json'),
+                'Content-Type' => $request->header('Content-Type', 'application/json'),
+                'Accept' => $request->header('Accept', 'application/json'),
                 'X-Forwarded-For' => $request->ip(),
             ]);
 
             // Выполняем внутренний сетевой запрос
             $upstreamResponse = Http::withoutVerifying()
                 ->withoutRedirecting()
-                ->timeout(15)
+                ->connectTimeout(5)
+                ->timeout($timeout)
                 ->withHeaders($headers)
                 ->send($request->method(), $targetUrl, [
                     'query' => $request->query(),
-                    'body'  => $request->getContent(),
+                    'body' => $request->getContent(),
                 ]);
 
             return response(
                 $upstreamResponse->body(),
                 $upstreamResponse->status(),
                 [
-                    'Content-Type'        => $upstreamResponse->header('Content-Type') ?? 'application/json',
-                    'X-Gateway-Proxied'   => 'true',
+                    'Content-Type' => $upstreamResponse->header('Content-Type'),
+                    'X-Gateway-Proxied' => 'true',
                 ]
             );
         } catch (Throwable $e) {
+            Log::warning('Gateway upstream failed', ['exception' => $e::class]);
+
             return response([
-                'error'   => 'Upstream Service Unavailable',
-                'details' => $e->getMessage(),
-                'target'  => $targetUrl,
+                'error' => 'Upstream Service Unavailable',
             ], 502, ['Content-Type' => 'application/json']);
         }
     }

@@ -2,41 +2,24 @@
 
 namespace App\Services;
 
-use App\Services\Analytics\AnalyticsEventPublisher;
-use Junges\Kafka\Facades\Kafka;
-use Junges\Kafka\Message\Message;
+use App\Jobs\PublishSearchEvent;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Throwable;
 
 class SearchEventProducer
 {
-    /**
-     * @param  array<string, mixed>  $filters
-     */
-    public function __construct(private readonly AnalyticsEventPublisher $analytics) {}
-
     public function performed(string $query, array $filters, int $resultsCount, int $tookMs): void
     {
-        $this->analytics->publish('search.performed', [
-            'query' => $query,
-            'filters' => $filters,
-            'results_count' => $resultsCount,
-            'took_ms' => $tookMs,
-            'occurred_at' => now()->toIso8601String(),
-        ]);
-
-        Kafka::publish()
-            ->onTopic((string) config('kafka.topics.search_events', 'search.events'))
-            ->withMessage(new Message(
-                headers: ['event-type' => 'search.performed', 'source' => 'search-service'],
-                body: [
-                    'event' => 'search.performed',
-                    'query' => $query,
-                    'filters' => $filters,
-                    'results_count' => $resultsCount,
-                    'took_ms' => $tookMs,
-                    'timestamp' => now()->toIso8601String(),
-                ],
-                partition: -1,
-            ))
-            ->send();
+        $payload = ['event_id' => (string) Str::uuid(), 'event' => 'search.performed', 'query' => $query,
+            'filters' => $filters, 'results_count' => $resultsCount, 'took_ms' => $tookMs,
+            'occurred_at' => now()->toIso8601String()];
+        foreach (['kafka', 'rabbitmq'] as $destination) {
+            try {
+                PublishSearchEvent::dispatch($payload, $destination)->onConnection('redis')->onQueue('search-events');
+            } catch (Throwable $exception) {
+                Log::warning('Search telemetry could not be queued', ['event_id' => $payload['event_id'], 'destination' => $destination]);
+            }
+        }
     }
 }

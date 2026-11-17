@@ -10,19 +10,20 @@ class ConsumeOrderNotificationsCommand extends Command
 {
     protected $signature = 'kafka:consume-orders';
 
-    protected $description = 'Consume order notifications from Kafka topic [order.notifications]';
+    protected $description = 'Consume order notifications from Kafka topic [order.events]';
 
     public function handle(OrderNotificationHandler $handler): int
     {
-        $this->info('Starting Kafka consumer for order notifications...');
+        $topic = (string) config('kafka.topics.order_events', 'order.events');
+        $this->info("Starting Kafka consumer for order notifications on [{$topic}]...");
 
-        $consumer = Kafka::consumer(['order.notifications'])
+        Kafka::consumer([$topic])
             ->withConsumerGroupId('order-notification-service-group')
             ->withAutoCommit()
             ->withHandler($handler)
             ->build()
             ->consume();
 
-        return 0;
+        return self::SUCCESS;
     }
 }

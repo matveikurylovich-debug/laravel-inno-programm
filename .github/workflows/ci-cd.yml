@@ -1,144 +1,180 @@
-name: CI/CD Production Pipeline
-
-# Триггеры: пуш в любые ветки, открытие Pull Request в main, либо ручной запуск
+name: Platform CI and stage deployment
 on:
   push:
-    branches: [ main, develop, 'feature/**' ]
+    branches: [main, develop, 'feature/**', 'codex/**']
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  # ==========================================
-  # 1. ЭТАП CI: синтаксис всего монорепо
-  # ==========================================
-  ci-syntax:
-    name: PHP Syntax (CI)
+  configuration:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Validate PHP Syntax across Microservices
+      - uses: actions/checkout@v4
+      - run: ./start.sh --prepare-env
+      - run: docker compose config --quiet && bash -n start.sh stop.sh
+      - name: Reject committed secrets
         run: |
-          echo "Запуск синтаксической проверки микросервисов..."
-          find . -name "*.php" ! -path "*/vendor/*" -print0 | xargs -0 -n 1 -P 4 php -l
-
-  # ==========================================
-  # 2. ЭТАП CI: Pint, PHPStan, Pest / PHPUnit
-  # ==========================================
-  ci-test:
-    name: ${{ matrix.service }} (Pint / PHPStan / Tests)
+          set -euo pipefail
+          bad=()
+          while IFS= read -r -d '' name; do
+            [[ -z "$name" || ! -f "$name" ]] && continue
+            [[ "$name" == *.lock || "$name" == *composer.lock || "$name" == *package-lock.json || "$name" == */public/* ]] && continue
+            if [[ "$name" != */certs/* ]] && grep -qE '-----BEGIN (OPENSSH|RSA|EC) PRIVATE KEY-----' "$name"; then
+              bad+=("$name")
+            fi
+            base="${name##*/}"
+            if [[ "$base" == .env || "$base" == .env.dev || "$base" == .env.example ]]; then
+              if grep -qE '^(JWT_ACCESS_SECRET|JWT_REFRESH_SECRET|APP_SECRET|GEMINI_API_KEY)=.+' "$name"; then
+                bad+=("$name")
+              fi
+            fi
+          done < <(git ls-files -z)
+          if ((${#bad[@]})); then
+            printf 'Secrets found in: %s\n' "$(printf '%s\n' "${bad[@]}" | sort -u | paste -sd ', ' -)"
+            exit 1
+          fi
+          echo 'No committed application secrets or SSH private keys found.'
+  php:
     runs-on: ubuntu-latest
-    needs: [ci-syntax]
     strategy:
       fail-fast: false
       matrix:
-        service:
-          - auth-service
-          - order-service
-          - catalog-service
-          - search-service
-          - notification-service
-
+        service: [auth-service, catalog-service, order-service, search-service, notification-service]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: testing
+          POSTGRES_PASSWORD: testing
+        ports: ['5432:5432']
+        options: --health-cmd='pg_isready -U testing' --health-interval=5s --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+      mongodb:
+        image: mongo:7.0
+        ports: ['27017:27017']
     defaults:
       run:
         working-directory: ${{ matrix.service }}
-
     env:
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: testing
+      DB_USERNAME: testing
+      DB_PASSWORD: testing
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      MONGODB_URI: mongodb://127.0.0.1:27017
+      JWT_ACCESS_SECRET: ci-only-access-key-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-only-refresh-key-at-least-32-characters
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
       MAIL_MAILER: array
-
+      FRONTEND_URL: http://localhost:3000
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_sqlite, sqlite3, bcmath, redis, mongodb, zip
-          coverage: none
+          php-version: '8.5'
+          extensions: mbstring, xml, intl, pdo_pgsql, pdo_sqlite, bcmath, redis, mongodb, rdkafka, zip, gd
           tools: composer:v2
-
-      - name: Cache Composer
-        uses: actions/cache@v4
-        with:
-          path: ${{ matrix.service }}/vendor
-          key: composer-${{ matrix.service }}-${{ hashFiles(format('{0}/composer.lock', matrix.service)) }}
-          restore-keys: |
-            composer-${{ matrix.service }}-
-
-      - name: Prepare Laravel environment
-        run: |
-          cp .env.example .env
-          composer install --prefer-dist --no-interaction --no-progress --optimize-autoloader
-          php artisan key:generate --force
-
-      - name: Pint (code style)
-        run: vendor/bin/pint --test
-
-      - name: PHPStan (static analysis)
-        if: hashFiles(format('{0}/phpstan.neon', matrix.service)) != '' || hashFiles(format('{0}/phpstan.neon.dist', matrix.service)) != ''
-        run: vendor/bin/phpstan analyse --memory-limit=1G
-
-      - name: Pest / PHPUnit
-        run: |
-          if [ -x vendor/bin/pest ]; then
-            echo "Прогон Pest..."
-            vendor/bin/pest --compact
-          else
-            echo "Прогон PHPUnit (php artisan test)..."
-            php artisan test --compact
-          fi
-
-  # ==========================================
-  # 3. ЭТАП CD: Доставка и развёртывание на Stage
-  # ==========================================
-  cd-deploy:
-    name: Delivery to Stage VM (CD)
+          coverage: none
+      - run: cp .env.example .env && composer install --no-interaction --prefer-dist
+      - run: vendor/bin/pint --test
+      - run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+      - run: |
+          if [ -x vendor/bin/pest ]; then vendor/bin/pest; else vendor/bin/phpunit; fi
+  recommendation:
     runs-on: ubuntu-latest
-    needs: [ci-syntax, ci-test]
-    # Условие: деплоим только при пуше в main или ручном вызове, но не из PR и feature-веток
-    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
-
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: recommendation_test
+          POSTGRES_USER: testing
+          POSTGRES_PASSWORD: testing
+        ports: ['5432:5432']
+        options: --health-cmd='pg_isready -U testing' --health-interval=5s --health-retries=20
+    defaults:
+      run:
+        working-directory: recommendation-service
+    env:
+      APP_ENV: test
+      APP_SECRET: ci-only-app-secret
+      DATABASE_URL: postgresql://testing:testing@127.0.0.1:5432/recommendation?serverVersion=16
+      JWT_ACCESS_SECRET: ci-only-access-key-at-least-32-characters
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure SSH key
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, intl, rdkafka
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: php bin/console doctrine:migrations:migrate --no-interaction
+      - run: php bin/console lint:container
+      - run: php bin/phpunit
+  analytics:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analytics-service/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: analytics-service/backend/go.mod
+          cache-dependency-path: analytics-service/backend/go.sum
+      - run: go vet ./...
+      - run: go test -race ./...
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [configuration, php, recommendation, analytics, frontend]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment: stage
+    concurrency: stage-deploy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_stage
-          chmod 600 ~/.ssh/id_stage
-          ssh-keyscan -H ${{ secrets.STAGE_IP }} >> ~/.ssh/known_hosts
-
-      - name: Sync codebase via Rsync
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_stage
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_stage ~/.ssh/known_hosts
+      - name: Deploy code without overwriting runtime data and secrets
+        env:
+          STAGE_USER: ${{ secrets.STAGE_USER }}
+          STAGE_IP: ${{ secrets.STAGE_IP }}
         run: |
-          rsync -avz --delete \
-            --exclude '.git' \
-            --exclude 'node_modules' \
-            --exclude 'vendor' \
-            --exclude '.secrets' \
-            -e "ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.STAGE_USER }}@${{ secrets.STAGE_IP }}:~/app/
-
-      - name: Orchestrate Containers on Stage
-        run: |
-          ssh -i ~/.ssh/id_stage ${{ secrets.STAGE_USER }}@${{ secrets.STAGE_IP }} "bash -c '
-            cd ~/app
-            chmod +x start.sh stop.sh 2>/dev/null || true
-            ./stop.sh 2>/dev/null || true
-            ./start.sh
-          '"
+          rsync -az --delete --exclude .git --exclude node_modules --exclude vendor \
+            --exclude .env --exclude '.env.local' --exclude '.env.*.local' --exclude .secrets \
+            --exclude storage --exclude var --exclude infra/certs --exclude .local \
+            -e 'ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes' ./ "$STAGE_USER@$STAGE_IP:~/app/"
+          ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes "$STAGE_USER@$STAGE_IP" 'cd ~/app && START_ENV=stage ./start.sh'

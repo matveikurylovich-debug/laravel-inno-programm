@@ -6,11 +6,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/auth/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
+        destination: `${process.env.AUTH_INTERNAL_URL ?? "http://127.0.0.1:8000"}/api/:path*`,
       },
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
+        destination: `${process.env.AUTH_INTERNAL_URL ?? "http://127.0.0.1:8000"}/api/:path*`,
       },
     ];
   },

@@ -17,13 +17,13 @@ interface ProductIndex
 
     public function renameCategory(int $categoryId, string $name): void;
 
+    public function clearCategory(int $categoryId): void;
+
     /**
      * @param  array<string, mixed>  $query
-     * @return array<string, miкxed>
+     * @return array<string, mixed>
      */
     public function search(array $query): array;
 
     public function setup(bool $force = false): void;
 }
-
-

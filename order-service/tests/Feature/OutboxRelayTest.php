@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\OutboxMessage;
+use App\Services\Analytics\AnalyticsEventPublisher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Junges\Kafka\Contracts\MessageProducer;
@@ -76,6 +77,7 @@ it('publishes a due retry', function () {
         'error_message' => 'broker down',
     ]);
 
+    $this->mock(AnalyticsEventPublisher::class)->shouldReceive('publish')->once();
     mockOutboxKafka(fail: false);
 
     $this->artisan('order:outbox-relay', ['--once' => true])->assertSuccessful();
@@ -102,4 +104,21 @@ it('marks a message failed after the retry limit', function () {
     expect($message->status)->toBe('failed')
         ->and($message->retry_count)->toBe(5)
         ->and($message->next_retry_at)->toBeNull();
+});
+
+it('does not resend Kafka after RabbitMQ fails and retries the same analytics event', function () {
+    $message = pendingOutboxMessage();
+    mockOutboxKafka(fail: false);
+    $this->mock(AnalyticsEventPublisher::class)->shouldReceive('publish')
+        ->once()->andThrow(new RuntimeException('RabbitMQ unavailable'));
+    $this->artisan('order:outbox-relay', ['--once' => true])->assertSuccessful();
+    expect($message->fresh()->kafka_published_at)->not->toBeNull();
+    expect($message->fresh()->status)->toBe('pending');
+
+    $message->refresh()->update(['next_retry_at' => now()->subSecond()]);
+    Kafka::shouldReceive('publish')->never();
+    $this->mock(AnalyticsEventPublisher::class)->shouldReceive('publish')->once()
+        ->with('order.created', Mockery::on(fn (array $payload) => $payload['event_id'] === 'order-outbox-'.$message->id), true);
+    $this->artisan('order:outbox-relay', ['--once' => true])->assertSuccessful();
+    expect($message->fresh()->status)->toBe('published');
 });

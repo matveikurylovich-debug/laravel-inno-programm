@@ -83,4 +83,8 @@ return [
      | Kafka message id key name
      */
     'message_id_key' => env('MESSAGE_ID_KEY', 'laravel-kafka::message-id'),
+
+    'topics' => [
+        'order_events' => env('KAFKA_TOPIC_ORDER_EVENTS', 'order.events'),
+    ],
 ];

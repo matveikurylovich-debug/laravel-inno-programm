@@ -45,7 +45,7 @@ class ResolveCurrentStore
             return null;
         }
 
-        $secret = config('jwt.secret') ?? env('JWT_ACCESS_SECRET');
+        $secret = config('jwt.secret');
 
         if (! is_string($secret) || $secret === '') {
             return null;

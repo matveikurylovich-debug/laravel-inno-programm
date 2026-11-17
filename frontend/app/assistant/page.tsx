@@ -1,5 +1,7 @@
 "use client";
 
+import { currentUser } from "@/app/lib/auth";
+
 import Link from "next/link";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import AppHeader from "@/app/components/AppHeader";
@@ -98,12 +100,10 @@ export default function AssistantPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!localStorage.getItem("access_token")) {
-      window.location.href = "/login";
-      return;
-    }
-
-    setReady(true);
+    currentUser().then((user) => {
+      if (!user) { window.location.href = "/login"; return; }
+      setReady(true);
+    }).catch(() => undefined);
     apiFetch("/api/catalog/v1/stores")
       .then(async (response) => {
         if (!response.ok) {

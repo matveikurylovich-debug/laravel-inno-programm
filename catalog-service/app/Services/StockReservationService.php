@@ -145,7 +145,7 @@ class StockReservationService
     {
         return DB::transaction(function () use ($orderId) {
             $reservations = StockReservation::where('order_id', $orderId)
-                ->where('status', 'reserved')
+                ->whereIn('status', ['reserved', 'confirmed'])
                 ->lockForUpdate()
                 ->get();
 
@@ -157,7 +157,11 @@ class StockReservationService
                 $stock = $this->lockedReservationStock($reservation);
 
                 if ($stock) {
-                    $stock->decrement('reserved_quantity', $reservation->quantity);
+                    if ($reservation->status === 'confirmed') {
+                        $stock->increment('quantity', $reservation->quantity);
+                    } else {
+                        $stock->decrement('reserved_quantity', $reservation->quantity);
+                    }
                 }
 
                 $reservation->update(['status' => 'released']);

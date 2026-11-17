@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\BrowserSession;
 use App\Http\Middleware\JwtMiddleware;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->api(prepend: [BrowserSession::class]);
         $middleware->alias([
             'jwt.auth' => JwtMiddleware::class,
             'role' => RoleMiddleware::class,

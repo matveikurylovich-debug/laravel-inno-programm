@@ -25,7 +25,8 @@ class CatalogEventsConsumer
             match ($event) {
                 'product.created', 'product.updated' => $this->upsert($body),
                 'product.deleted' => $this->delete($body),
-                'category.updated' => $this->renameCategory($body),
+                'category.created', 'category.updated' => $this->renameCategory($body),
+                'category.deleted' => $this->clearCategory($body),
                 'stock.changed' => $this->stock($body),
                 default => null,
             };
@@ -77,6 +78,20 @@ class CatalogEventsConsumer
         }
 
         $this->index->renameCategory($categoryId, $name);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function clearCategory(array $payload): void
+    {
+        $categoryId = (int) ($payload['category_id'] ?? 0);
+
+        if ($categoryId === 0) {
+            return;
+        }
+
+        $this->index->clearCategory($categoryId);
     }
 
     /**

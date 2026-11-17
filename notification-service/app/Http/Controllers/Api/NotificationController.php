@@ -118,7 +118,7 @@ class NotificationController extends Controller
     {
         $log = NotificationLog::find($id);
 
-        if (! $log) {
+        if (! $log instanceof NotificationLog) {
             return response()->json([
                 'message' => "Уведомление с ID [{$id}] не найдено.",
             ], 404);
@@ -149,7 +149,7 @@ class NotificationController extends Controller
     {
         $log = NotificationLog::find($id);
 
-        if (! $log) {
+        if (! $log instanceof NotificationLog) {
             return response()->json([
                 'message' => "Уведомление с ID [{$id}] не найдено.",
             ], 404);
@@ -173,7 +173,9 @@ class NotificationController extends Controller
                 'is_dlq' => false,
             ]);
 
-            return new NotificationResource($log->fresh());
+            $freshLog = $log->fresh();
+
+            return new NotificationResource($freshLog instanceof NotificationLog ? $freshLog : $log);
         } catch (Throwable $e) {
             $log->update([
                 'status' => NotificationLog::STATUS_FAILED,
@@ -189,7 +191,7 @@ class NotificationController extends Controller
 
     private function resend(NotificationLog $log): void
     {
-        $payload = is_array($log->payload) ? $log->payload : [];
+        $payload = $log->payload;
         $event = $payload['event'] ?? $log->event;
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
         $email = $log->recipient ?: ($log->recipient_email ?: ($payload['email'] ?? null));

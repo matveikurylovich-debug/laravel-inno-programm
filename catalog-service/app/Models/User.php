@@ -35,6 +35,6 @@ class User extends Authenticatable implements FilamentUser
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        return request()->attributes->get('catalog_admin_verified') === true;
     }
 }

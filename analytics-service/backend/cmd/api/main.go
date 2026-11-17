@@ -35,7 +35,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           handlers.New(handlers.Reports{Users: store.Users, Orders: store.Orders, Search: store.Search}),
+		Handler:           handlers.RequireReportsAccess(handlers.New(handlers.Reports{Users: store.Users, Orders: store.Orders, Search: store.Search}), cfg.JWTAccessSecret, cfg.JWTIssuer),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

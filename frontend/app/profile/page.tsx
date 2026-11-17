@@ -29,15 +29,10 @@ export default function ProfilePage() {
   const [deletePending, setDeletePending] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
     apiFetch("/api/auth/me")
       .then(async (response) => {
         if (!response.ok) {
+          if (response.status === 401) window.location.href = "/login";
           return;
         }
 
@@ -69,7 +64,7 @@ export default function ProfilePage() {
     }
 
     const body = (await response.json()) as { user: AuthUser };
-    localStorage.setItem("user_name", body.user.name);
+
     setProfileMessage("Сохранено.");
   }
 

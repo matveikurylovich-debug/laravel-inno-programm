@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Contracts\ProductIndex;
+use App\Jobs\PublishSearchEvent;
 use App\Kafka\Consumers\CatalogEventsConsumer;
 use App\Kafka\Consumers\StockEventsConsumer;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
 use Junges\Kafka\Contracts\ConsumerMessage;
 use Junges\Kafka\Contracts\MessageConsumer;
@@ -43,6 +45,25 @@ class SearchApiTest extends TestCase
         ]), \Mockery::mock(MessageConsumer::class));
     }
 
+    public function test_category_created_and_deleted_update_facets(): void
+    {
+        $index = \Mockery::mock(ProductIndex::class);
+        $index->shouldReceive('renameCategory')->once()->with(5, 'Phones');
+        $index->shouldReceive('clearCategory')->once()->with(5);
+        $this->app->instance(ProductIndex::class, $index);
+
+        $consumer = app(CatalogEventsConsumer::class);
+        $consumer($this->message([
+            'event' => 'category.created',
+            'category_id' => 5,
+            'category_name' => 'Phones',
+        ]), \Mockery::mock(MessageConsumer::class));
+        $consumer($this->message([
+            'event' => 'category.deleted',
+            'category_id' => 5,
+        ]), \Mockery::mock(MessageConsumer::class));
+    }
+
     public function test_stock_event_updates_availability(): void
     {
         $index = \Mockery::mock(ProductIndex::class);
@@ -58,6 +79,7 @@ class SearchApiTest extends TestCase
 
     public function test_search_is_public_returns_facets_and_publishes_event(): void
     {
+        Queue::fake([PublishSearchEvent::class]);
         $raw = [
             'hits' => [
                 'total' => ['value' => 1],
@@ -92,7 +114,8 @@ class SearchApiTest extends TestCase
 
         $this->getJson('/api/search?q=phone')->assertOk();
 
-        Kafka::assertPublishedOn('search.events');
+        Queue::assertPushed(PublishSearchEvent::class, 4);
+        Queue::assertPushed(PublishSearchEvent::class, fn ($job) => $job->destination === 'kafka' && $job->payload['query'] === 'phone');
     }
 
     public function test_catalog_consumer_command_reads_fake_kafka(): void

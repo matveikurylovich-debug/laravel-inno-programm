@@ -2,8 +2,10 @@
 
 namespace App\Http\Resources;
 
+use App\Models\NotificationLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use LogicException;
 
 class NotificationResource extends JsonResource
 {
@@ -27,24 +29,30 @@ class NotificationResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $recipient = $this->recipient ?? $this->recipient_email;
+        $notification = $this->resource;
+
+        if (! $notification instanceof NotificationLog) {
+            throw new LogicException('NotificationResource requires a NotificationLog model.');
+        }
+
+        $recipient = $notification->recipient ?? $notification->recipient_email;
 
         return [
             // Превращаем системный ObjectId MongoDB в обычную строку
-            'id' => (string) $this->_id,
-            'event' => (string) $this->event,
-            'channel' => (string) $this->channel,
+            'id' => (string) $notification->_id,
+            'event' => (string) $notification->event,
+            'channel' => (string) $notification->channel,
             'recipient' => $recipient !== null ? (string) $recipient : null,
-            'status' => (string) $this->status,
-            'attempts' => (int) $this->attempts,
-            'is_dlq' => (bool) $this->is_dlq,
-            'error_message' => $this->error_message !== null ? (string) $this->error_message : null,
-            'payload' => is_array($this->payload) ? $this->payload : null,
+            'status' => (string) $notification->status,
+            'attempts' => (int) $notification->attempts,
+            'is_dlq' => (bool) $notification->is_dlq,
+            'error_message' => $notification->error_message,
+            'payload' => $notification->payload,
 
             // Приводим даты к единому международному стандарту ISO 8601
-            'sent_at' => $this->sent_at?->toIso8601String(),
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at?->toIso8601String(),
+            'sent_at' => $notification->sent_at?->toIso8601String(),
+            'created_at' => $notification->created_at?->toIso8601String(),
+            'updated_at' => $notification->updated_at?->toIso8601String(),
         ];
     }
 }

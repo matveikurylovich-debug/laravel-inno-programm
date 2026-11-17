@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-echo "Остановка Auth Service..."
-(cd auth-service && ./vendor/bin/sail down)
-
-echo "Остановка Notification Service..."
-(cd notification-service && ./vendor/bin/sail down)
-
-echo "Остановка Catalog Service..."
-(cd catalog-service && docker compose down)
-
-echo "Остановка Order Service..."
-(cd order-service && docker compose down)
-
-echo "Остановка Search Service..."
-(cd search-service && docker compose down)
-
-echo "Все контейнеры остановлены."
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+docker compose --profile tools down

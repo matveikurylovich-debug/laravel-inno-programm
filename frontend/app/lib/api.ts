@@ -1,3 +1,5 @@
+let refreshInFlight: Promise<number> | null = null;
+
 export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
@@ -7,23 +9,24 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}): Pro
     headers.set("Content-Type", "application/json");
   }
 
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
+  headers.set("X-Browser-Session", "1");
+  const send = () => fetch(endpoint, { ...options, headers, credentials: "same-origin" });
+  let response = await send();
+  const authenticationEndpoint = /\/api\/auth\/(login|register|refresh|two-factor|forgot-password|reset-password)/.test(endpoint);
+  if (response.status === 401 && !authenticationEndpoint && typeof window !== "undefined") {
+    if (!refreshInFlight) {
+      refreshInFlight = fetch("/api/auth/refresh", {
+        method: "POST", credentials: "same-origin", headers: { "Accept": "application/json", "X-Browser-Session": "1" },
+      }).then((result) => result.status).finally(() => { refreshInFlight = null; });
     }
-  }
-
-  const response = await fetch(endpoint, {
-    ...options,
-    headers,
-  });
-
-  if (response.status === 401 && typeof window !== "undefined") {
-    clearSession();
-
-    const path = window.location.pathname;
-    if (path !== "/login" && path !== "/register" && !path.startsWith("/reset-password") && path !== "/forgot-password" && path !== "/two-factor") {
+    const refreshStatus = await refreshInFlight;
+    if (refreshStatus >= 200 && refreshStatus < 300) {
+      response = await send();
+    } else if (refreshStatus !== 401) {
+      return new Response(JSON.stringify({ error: "Сервис авторизации временно недоступен" }), { status: 503 });
+    }
+    if (response.status === 401 && endpoint !== "/api/auth/me") {
+      clearSession();
       window.location.href = "/login";
     }
   }

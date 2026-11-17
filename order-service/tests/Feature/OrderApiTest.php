@@ -84,6 +84,7 @@ it('creates an order from a snapshot and records outbox', function () {
     apiSnapshot();
 
     $response = $this->withToken(orderJwt(email: 'user@example.com'))
+        ->withHeader('Idempotency-Key', (string) Str::uuid())
         ->postJson('/api/orders', [
             'store_id' => 1,
             'location_id' => 1,
@@ -113,6 +114,7 @@ it('creates an order from a snapshot and records outbox', function () {
 
 it('rejects an order when the snapshot is missing', function () {
     $this->withToken(orderJwt(email: 'user@example.com'))
+        ->withHeader('Idempotency-Key', (string) Str::uuid())
         ->postJson('/api/orders', [
             'store_id' => 1,
             'location_id' => 1,
@@ -156,6 +158,7 @@ it('hides another customers order', function () {
     apiSnapshot();
 
     $orderId = $this->withToken(orderJwt(5, email: 'user@example.com'))
+        ->withHeader('Idempotency-Key', (string) Str::uuid())
         ->postJson('/api/orders', [
             'store_id' => 1,
             'location_id' => 1,

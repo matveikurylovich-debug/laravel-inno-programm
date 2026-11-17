@@ -2,36 +2,25 @@
 
 namespace App\Listeners;
 
-use App\Services\Analytics\AnalyticsEventPublisher;
-use App\Services\Kafka\AuthNotificationProducer;
+use App\Jobs\PublishRegistrationEvent;
+use App\Models\User;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Support\Facades\Log;
-use Throwable;
+use Illuminate\Support\Str;
 
 class SendKafkaRegistrationNotification
 {
-    public function __construct(
-        protected AuthNotificationProducer $producer,
-        protected AnalyticsEventPublisher $analytics,
-    ) {}
-
     public function handle(Registered $event): void
     {
-        $user = $event->user;
-
-        try {
-            $this->producer->sendUserRegistered(
-                userId: $user->id,
-                email: $user->email,
-                name: $user->name
-            );
-        } catch (Throwable $e) {
-            Log::error('Ошибка публикации события регистрации в Kafka: ' . $e->getMessage());
+        if (! $event->user instanceof User) {
+            return;
         }
 
-        $this->analytics->publish('user.registered', [
-            'user_id' => (int) $user->id,
-            'occurred_at' => now()->toIso8601String(),
-        ]);
+        $user = $event->user;
+        $payload = ['event_id' => (string) Str::uuid(), 'user_id' => $user->id, 'email' => $user->email,
+            'name' => $user->name, 'occurred_at' => now()->toIso8601String()];
+        foreach (['kafka', 'rabbitmq'] as $destination) {
+            // The database queue uses the registration transaction: this is the durable outbox.
+            PublishRegistrationEvent::dispatch($payload, $destination)->onConnection('database')->onQueue('auth-events');
+        }
     }
 }

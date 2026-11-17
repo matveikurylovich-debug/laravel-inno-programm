@@ -34,21 +34,25 @@ class Product extends Model
         'available_stock',
     ];
 
+    /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
+    /** @return HasMany<ProductImage, $this> */
     public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class)->orderBy('position');
     }
 
+    /** @return HasOne<ProductImage, $this> */
     public function primaryImage(): HasOne
     {
         return $this->hasOne(ProductImage::class)->where('is_primary', true);
     }
 
+    /** @return HasMany<Stock, $this> */
     public function stock(): HasMany
     {
         return $this->hasMany(Stock::class);

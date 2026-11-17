@@ -1,0 +1,10 @@
+/.env
+/.secrets
+/.local/
+/infra/certs/*
+!infra/certs/.gitkeep
+**/.env.local
+**/.env.*.local
+**/vendor/
+**/node_modules/
+**/.next/

@@ -2,3 +2,8 @@
 var
 vendor
 node_modules
+.env
+.env.*
+!.env.example
+.phpunit.cache
+tests

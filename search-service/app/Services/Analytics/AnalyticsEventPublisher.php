@@ -12,10 +12,14 @@ class AnalyticsEventPublisher
     /**
      * @param  array<string, mixed>  $body
      */
-    public function publish(string $event, array $body): void
+    public function publish(string $event, array $body, bool $strict = false): void
     {
         $url = (string) config('services.analytics_broker.url');
         if ($url === '') {
+            if ($strict) {
+                throw new \RuntimeException('Analytics broker is not configured');
+            }
+
             return;
         }
 
@@ -30,6 +34,11 @@ class AnalyticsEventPublisher
             $channel = $connection->channel();
             $exchange = (string) config('services.analytics_broker.exchange', 'analytics.events');
             $channel->exchange_declare($exchange, 'topic', false, true, false);
+            $channel->queue_declare('analytics.events', false, true, false, false);
+            foreach (['user.registered', 'order.created', 'order.paid', 'order.cancelled', 'search.performed'] as $routingKey) {
+                $channel->queue_bind('analytics.events', $exchange, $routingKey);
+            }
+            $channel->confirm_select();
             $channel->basic_publish(
                 new AMQPMessage(
                     json_encode(array_merge(['event' => $event], $body), JSON_THROW_ON_ERROR),
@@ -38,9 +47,13 @@ class AnalyticsEventPublisher
                 $exchange,
                 $event,
             );
+            $channel->wait_for_pending_acks_returns(5);
             $channel->close();
             $connection->close();
         } catch (Throwable $e) {
+            if ($strict) {
+                throw $e;
+            }
             Log::warning('Не удалось опубликовать событие аналитики: '.$e->getMessage(), ['event' => $event]);
         }
     }

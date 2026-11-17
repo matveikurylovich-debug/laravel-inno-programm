@@ -23,10 +23,31 @@ class OrderNotificationHandler
 
     private const DLQ_TOPIC = 'order.notifications.dlq';
 
+    /** @var list<string> */
+    private const MAIL_EVENTS = [
+        'order.paid',
+        'order.confirmed',
+        'order.cancelled',
+    ];
+
     public function __invoke(ConsumerMessage $message): void
     {
         $payload = $message->getBody();
-        $event = $payload['event'] ?? 'unknown.order.event';
+        if (is_string($payload)) {
+            $payload = json_decode($payload, true);
+        }
+        if (is_object($payload)) {
+            $payload = (array) $payload;
+        }
+        if (! is_array($payload)) {
+            return;
+        }
+
+        $event = $payload['event'] ?? $message->getHeaders()['event-type'] ?? 'unknown.order.event';
+        if (! in_array($event, self::MAIL_EVENTS, true)) {
+            return;
+        }
+
         $userId = $payload['user_id'] ?? null;
         $email = $payload['email'] ?? null;
         $data = $payload['data'] ?? [];
@@ -80,7 +101,7 @@ class OrderNotificationHandler
         }
 
         // 4. Попытки исчерпаны: публикация в DLQ и статус failed
-        $errorMessage = $lastException?->getMessage() ?? 'Max retry attempts exceeded for order event';
+        $errorMessage = $lastException->getMessage();
 
         Log::error("Order Kafka Consumer permanently failed for event [{$event}]. Routing to DLQ.", [
             'payload' => $payload,
@@ -129,19 +150,18 @@ class OrderNotificationHandler
 
         Mail::to($email)->send($mailable);
 
-        $title = match ($event) {
+        $titles = [
             'order.paid' => 'Заказ оплачен',
             'order.confirmed' => 'Заказ подтвержден',
             'order.cancelled' => 'Заказ отменен',
-            default => 'Обновление заказа',
-        };
-
-        $messageText = match ($event) {
+        ];
+        $messages = [
             'order.paid' => "Заказ #{$orderId} успешно оплачен.",
             'order.confirmed' => "Заказ #{$orderId} собирается на складе.",
             'order.cancelled' => "Заказ #{$orderId} отменен.",
-            default => "Обновлен статус заказа #{$orderId}.",
-        };
+        ];
+        $title = $titles[$event];
+        $messageText = $messages[$event];
 
         if ($userId) {
             event(new RealtimeNotificationEvent(

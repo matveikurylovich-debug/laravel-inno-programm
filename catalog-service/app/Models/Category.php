@@ -19,11 +19,13 @@ class Category extends Model
         'position',
     ];
 
+    /** @return BelongsTo<Category, $this> */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'parent_id');
     }
 
+    /** @return HasMany<Category, $this> */
     public function children(): HasMany
     {
         return $this->hasMany(Category::class, 'parent_id')->orderBy('position');
@@ -32,11 +34,13 @@ class Category extends Model
     /**
      * Рекурсивная загрузка всех потомков для построения дерева.
      */
+    /** @return HasMany<Category, $this> */
     public function allChildren(): HasMany
     {
         return $this->children()->with('allChildren');
     }
 
+    /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CatalogAdminAuth;
 use App\Http\Middleware\JwtMiddleware;
 use App\Http\Middleware\ResolveCurrentStore;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->encryptCookies(except: ['access_token', 'refresh_token']);
+        $middleware->web(append: [CatalogAdminAuth::class]);
         $middleware->alias([
             'jwt.auth' => JwtMiddleware::class,
         ]);

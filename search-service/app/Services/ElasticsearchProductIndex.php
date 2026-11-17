@@ -70,6 +70,21 @@ class ElasticsearchProductIndex implements ProductIndex
         ]);
     }
 
+    public function clearCategory(int $categoryId): void
+    {
+        $this->client->updateByQuery([
+            'index' => $this->indexName(),
+            'conflicts' => 'proceed',
+            'body' => [
+                'query' => ['term' => ['category_id' => $categoryId]],
+                'script' => [
+                    'source' => 'ctx._source.category_id = null; ctx._source.category_name = params.name',
+                    'params' => ['name' => ''],
+                ],
+            ],
+        ]);
+    }
+
     public function search(array $query): array
     {
         $response = $this->client->search([

@@ -83,7 +83,7 @@ class AuthNotificationHandler
         }
 
         // 5. Попытки исчерпаны: перевод в failed и отправка в топик DLQ
-        $errorMessage = $lastException?->getMessage() ?? 'Max retry attempts exceeded';
+        $errorMessage = $lastException->getMessage();
 
         Log::error("Kafka Consumer permanently failed for event [{$event}]. Routing to DLQ.", [
             'payload' => $payload,
@@ -132,21 +132,20 @@ class AuthNotificationHandler
         Mail::to($email)->send($mailable);
 
         // 3. Заголовки и тексты для Pusher
-        $title = $data['title'] ?? match ($event) {
+        $titles = [
             'user.registered' => 'Регистрация',
             'auth.password_reset' => 'Сброс пароля',
             'auth.two_factor_code' => 'Код безопасности',
             'auth.profile_update_confirm' => 'Обновление профиля',
-            default => 'Уведомление',
-        };
-
-        $message = $data['message'] ?? match ($event) {
+        ];
+        $messages = [
             'user.registered' => 'Добро пожаловать в сервис!',
             'auth.password_reset' => 'Ссылка для сброса пароля отправлена на почту.',
             'auth.two_factor_code' => 'Код подтверждения отправлен на почту.',
             'auth.profile_update_confirm' => 'Подтвердите изменение профиля кодом.',
-            default => "Событие {$event} успешно обработано.",
-        };
+        ];
+        $title = $data['title'] ?? $titles[$event];
+        $message = $data['message'] ?? $messages[$event];
 
         // 4. Отправка Realtime события в Pusher
         if ($userId) {

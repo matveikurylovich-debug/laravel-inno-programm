@@ -24,10 +24,10 @@ function SearchResults() {
   const query = params.get("q") ?? "";
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [error, setError] = useState("");
-  const [text, setText] = useState(query);
+  const [editedText, setEditedText] = useState<string | null>(null);
+  const text = editedText ?? query;
 
   useEffect(() => {
-    setText(query);
     const search = new URLSearchParams();
     if (query) {
       search.set("q", query);
@@ -59,7 +59,7 @@ function SearchResults() {
       <AppHeader />
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <form onSubmit={submit} className="flex gap-2">
-          <input className="input" value={text} onChange={(event) => setText(event.target.value)} aria-label="Поиск" placeholder="Найти товар" />
+          <input className="input" value={text} onChange={(event) => setEditedText(event.target.value)} aria-label="Поиск" placeholder="Найти товар" />
           <button type="submit" className="btn btn-primary">Найти</button>
         </form>
         {error ? <p className="alert alert-error mt-4">{error}</p> : null}

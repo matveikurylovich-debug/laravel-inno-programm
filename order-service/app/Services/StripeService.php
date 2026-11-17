@@ -26,6 +26,17 @@ class StripeService
         $this->client = new StripeClient($secretKey);
     }
 
+    public function refund(Payment $payment): void
+    {
+        $refund = $this->client->refunds->create(
+            ['payment_intent' => $payment->stripe_payment_intent_id],
+            ['idempotency_key' => 'cancel-order-'.$payment->order_id],
+        );
+        if ($refund->status !== 'succeeded') {
+            throw new RuntimeException('Refund has not completed');
+        }
+    }
+
     /**
      * Создает PaymentIntent в Stripe и сохраняет запись Payment в БД.
      */
