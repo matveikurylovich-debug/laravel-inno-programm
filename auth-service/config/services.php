@@ -41,7 +41,7 @@ return [
         'notifications' => env('NOTIFICATION_SERVICE_URL', 'https://notification_nginx/api'),
         'search' => env('SEARCH_SERVICE_URL', 'https://search-nginx/api'),
         'recommendations' => env('RECOMMENDATION_SERVICE_URL', 'https://recommendation-nginx'),
-        'analytics' => env('ANALYTICS_SERVICE_URL', 'https://analytics-nginx/analytics'),
+        'analytics' => env('ANALYTICS_SERVICE_URL', 'http://analytics-back:8080/analytics'),
     ],
 
     'analytics_broker' => [

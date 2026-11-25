@@ -3,59 +3,78 @@
 # into the image, so start.sh runs composer install into the host tree for the IDE.
 services:
   auth-app:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./auth-service:/var/www/html
   auth-events:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./auth-service:/var/www/html
   catalog-service:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./catalog-service:/var/www/html
   catalog-order-consumer:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./catalog-service:/var/www/html
   order-service:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./order-service:/var/www/html
   order-outbox-relay:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./order-service:/var/www/html
   order-catalog-consumer:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./order-service:/var/www/html
   order-inventory-consumer:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./order-service:/var/www/html
   order-payments:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./order-service:/var/www/html
   search-app:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./search-service:/var/www/html
   search-catalog-consumer:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./search-service:/var/www/html
   search-stock-consumer:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./search-service:/var/www/html
   search-events:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./search-service:/var/www/html
   notification-app:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./notification-service:/var/www/html
   notification-worker:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./notification-service:/var/www/html
   notification-order-worker:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./notification-service:/var/www/html
   recommendation-app:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./recommendation-service:/var/www/html
   recommendation-worker:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./recommendation-service:/var/www/html
   recommendation-cleanup:
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     volumes:
       - ./recommendation-service:/var/www/html

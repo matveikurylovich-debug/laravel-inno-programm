@@ -1,4 +1,4 @@
-FROM php:8.5-fpm
+FROM php:8.5.12-fpm-trixie
 
 WORKDIR /var/www/html
 
@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libicu-dev \
         librdkafka-dev \
         libssl-dev \
-    && docker-php-ext-install pdo_pgsql pgsql zip gd intl bcmath pcntl sockets opcache \
+    && docker-php-ext-install -j"$(nproc)" pdo_pgsql pgsql zip gd intl bcmath pcntl sockets \
     && pecl install redis rdkafka mongodb \
-    && docker-php-ext-enable redis rdkafka mongodb opcache \
+    && docker-php-ext-enable redis rdkafka mongodb \
+    && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && printf '%s\n' 'expose_php=Off' 'display_errors=Off' > "$PHP_INI_DIR/conf.d/zz-base.ini" \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer

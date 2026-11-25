@@ -1,6 +1,17 @@
-# InnoTrainne Framework Laravel project
+# InnoTrainne
 
-Монорепозиторий микросервисной архитектуры:
+Монорепозиторий магазина: auth, catalog, order, search, notification, recommendation, analytics и frontend.
 
-* **[auth-service](./auth-service)** — сервис аутентификации (Laravel 11, Breeze, JWT, Redis Blacklist & Token Rotation).
-* **[notification-service](./notification-service)** — сервис уведомлений (Kafka Consumer, Pusher WebSockets, MongoDB, Mailhog).
+## Запуск с нуля
+
+Нужны Docker, Docker Compose и [mkcert](https://github.com/FiloSottile/mkcert#installation).
+
+```bash
+git clone <url-репозитория> shop
+cd shop
+./start.sh
+```
+
+Скрипт собирает базовый образ `ecommerce-php-base:8.5`, генерирует локальный TLS-сертификат в `infra/certs` и поднимает стек. Сайт: `https://localhost`.
+
+Повторный запуск той же командой. Остановка: `./stop.sh`.

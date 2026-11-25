@@ -180,6 +180,7 @@ jobs:
           STAGE_IP: ${{ secrets.STAGE_IP }}
         run: |
           rsync -az --delete --exclude .git --exclude node_modules --exclude vendor \
+            --include '/recommendation-service/.env' \
             --exclude .env --exclude '.env.local' --exclude '.env.*.local' --exclude .secrets \
             --exclude storage --exclude var --exclude infra/certs --exclude .local \
             -e 'ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes' ./ "$STAGE_USER@$STAGE_IP:~/app/"
