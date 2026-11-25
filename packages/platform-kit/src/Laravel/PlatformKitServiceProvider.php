@@ -10,6 +10,7 @@ use Ecommerce\PlatformKit\Token\JwksClient;
 use Ecommerce\PlatformKit\Token\TokenInfrastructureException;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 final class PlatformKitServiceProvider extends ServiceProvider
@@ -33,6 +34,7 @@ final class PlatformKitServiceProvider extends ServiceProvider
     {
         $this->registerInfrastructureRendering();
         $this->assertVerificationConfig();
+        $this->registerPermissionGate();
 
         $this->app->make('auth')->extend('jwt', function ($app, string $_name, array $config) {
             $guard = new JwtGuard(function (Request $request) use ($app) {
@@ -78,6 +80,25 @@ final class PlatformKitServiceProvider extends ServiceProvider
             logger()->error('JWT infrastructure failure', ['exception' => $exception]);
 
             return response()->json(['message' => 'Server Error'], 500);
+        });
+    }
+
+    private function registerPermissionGate(): void
+    {
+        Gate::before(function (mixed $user, string $ability): ?bool {
+            if (! PermissionMap::isKnown($ability) || ! is_object($user)) {
+                return null;
+            }
+
+            $roles = [];
+            if ($user instanceof JwtUser) {
+                $roles = $user->roles();
+            } elseif (method_exists($user, 'getRoleNames')) {
+                $names = $user->getRoleNames();
+                $roles = is_array($names) ? $names : $names->all();
+            }
+
+            return PermissionMap::allows($roles, $ability);
         });
     }
 

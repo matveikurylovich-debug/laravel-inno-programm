@@ -8,6 +8,8 @@ use App\Http\Requests\CreateOrderRequest;
 use App\Models\Order;
 use App\Services\OrderService;
 use Ecommerce\PlatformKit\Laravel\JwtUser;
+use Ecommerce\PlatformKit\Laravel\PermissionMap;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -15,6 +17,8 @@ use OpenApi\Attributes as OA;
 
 class OrderController extends Controller
 {
+    use AuthorizesRequests;
+
     public function __construct(
         private readonly OrderService $orders,
     ) {}
@@ -31,15 +35,17 @@ class OrderController extends Controller
     )]
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Order::class);
         $userId = (int) $request->user()?->getAuthIdentifier();
 
         $query = Order::with(['items', 'payment'])->latest();
 
-        if (! $this->hasRole($request, 'admin', 'analyst')) {
+        if (! $this->hasPermission($request, 'orders.view-any')) {
             $query->where('user_id', $userId);
         }
 
         $orders = $query->paginate(15);
+        $orders->getCollection()->each(fn (Order $order) => $this->concealBuyer($request, $order));
 
         return response()->json($orders);
     }
@@ -143,14 +149,10 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $isOwner = (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
-        $isAdmin = $this->hasRole($request, 'admin', 'analyst');
-
-        if (! $isOwner && ! $isAdmin) {
-            return response()->json([
-                'error' => 'Forbidden',
-                'details' => 'Недостаточно прав для просмотра заказа',
-            ], 403);
+        $this->authorize('view', $order);
+        $this->concealBuyer($request, $order);
+        if ($this->isOwner($request, $order) && $order->payment !== null) {
+            $order->payment->makeVisible('stripe_client_secret');
         }
 
         return response()->json([
@@ -184,15 +186,7 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $isOwner = (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
-        $isAdmin = $this->hasRole($request, 'admin');
-
-        if (! $isOwner && ! $isAdmin) {
-            return response()->json([
-                'error' => 'Forbidden',
-                'details' => 'Недостаточно прав для отмены заказа',
-            ], 403);
-        }
+        $this->authorize('cancel', $order);
 
         try {
             $order = $this->orders->cancelOrder($order);
@@ -230,15 +224,7 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $isOwner = (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
-        $isAdmin = $this->hasRole($request, 'admin');
-
-        if (! $isOwner && ! $isAdmin) {
-            return response()->json([
-                'error' => 'Forbidden',
-                'details' => 'Недостаточно прав для удаления заказа',
-            ], 403);
-        }
+        $this->authorize('delete', $order);
 
         try {
             $this->orders->deleteOrder($order);
@@ -249,19 +235,24 @@ class OrderController extends Controller
         return response()->json(null, 204);
     }
 
-    private function hasRole(Request $request, string ...$roles): bool
+    private function hasPermission(Request $request, string $permission): bool
     {
         $user = $request->user();
-        if (! $user instanceof JwtUser) {
-            return false;
-        }
 
-        foreach ($roles as $role) {
-            if ($user->hasRole($role)) {
-                return true;
-            }
-        }
+        return $user instanceof JwtUser && PermissionMap::allows($user->roles(), $permission);
+    }
 
-        return false;
+    private function isOwner(Request $request, Order $order): bool
+    {
+        return (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
+    }
+
+    private function concealBuyer(Request $request, Order $order): void
+    {
+        $user = $request->user();
+        $analyst = $user instanceof JwtUser && $user->hasRole('analyst') && ! $user->hasRole('admin');
+        if ($analyst && ! $this->isOwner($request, $order)) {
+            $order->makeHidden('email');
+        }
     }
 }

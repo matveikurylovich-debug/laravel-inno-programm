@@ -47,7 +47,7 @@ class CatalogApiTest extends TestCase
 
         $this->withToken($this->token('customer'))
             ->postJson('/api/v1/stores', ['name' => 'New'])
-            ->assertCreated();
+            ->assertForbidden();
     }
 
     public function test_admin_creates_store_category_and_product(): void
