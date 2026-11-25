@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cac066dd8f9de3801f5724844118325b",
+    "content-hash": "e8a75527393d7282e5e49f7ad84662da",
     "packages": [
         {
             "name": "beberlei/assert",
@@ -590,6 +590,56 @@
                 }
             ],
             "time": "2025-10-31T18:51:33+00:00"
+        },
+        {
+            "name": "ecommerce/platform-kit",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "../packages/platform-kit",
+                "reference": "8ec96576f440e34cf7f26ab3ae2f782910f05996"
+            },
+            "require": {
+                "firebase/php-jwt": "^7.0",
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Ecommerce\\PlatformKit\\Laravel\\PlatformKitServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Ecommerce\\PlatformKit\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Ecommerce\\PlatformKit\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ],
+                "check": [
+                    "@test"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Shared access-token verification and the Laravel JWT guard.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "egulias/email-validator",

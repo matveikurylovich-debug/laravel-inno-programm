@@ -53,6 +53,7 @@ class RefreshLifecycleTest extends TestCase
                 'password' => 'new-password-1',
                 'password_confirmation' => 'new-password-1',
             ])->assertOk();
+        $this->app['auth']->forgetGuards();
 
         $this->withHeader('Authorization', 'Bearer '.$issued['access_token'])
             ->getJson('/api/me')

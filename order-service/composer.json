@@ -16,7 +16,8 @@
         "laravel/tinker": "^3.0",
         "mateusjunges/laravel-kafka": "^2.11",
         "php-amqplib/php-amqplib": "^3.7",
-        "stripe/stripe-php": "^22.0"
+        "stripe/stripe-php": "^22.0",
+        "ecommerce/platform-kit": "^1.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -87,6 +88,7 @@
             "@test"
         ],
         "analyse": "phpstan analyse --memory-limit=1G --no-progress",
+        "check": ["@lint", "@analyse", "@test"],
         "refactor": "bash ../scripts/ci/rector-dry-run.sh"
     },
     "extra": {
@@ -104,5 +106,14 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../packages/platform-kit",
+            "options": {
+                "symlink": true
+            }
+        }
+    ]
 }

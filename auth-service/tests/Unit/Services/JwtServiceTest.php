@@ -4,9 +4,7 @@ namespace Tests\Unit\Services;
 
 use App\Models\User;
 use App\Services\JwtService;
-use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
-use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Role;
@@ -65,7 +63,7 @@ class JwtServiceTest extends TestCase
         // Имитируем подделку: меняем последний символ токена
         $tamperedToken = substr($tokens['access_token'], 0, -1).'x';
 
-        $this->expectException(SignatureInvalidException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->jwtService->decodeAccessToken($tamperedToken);
     }
 
@@ -87,7 +85,7 @@ class JwtServiceTest extends TestCase
 
         $expiredToken = JWT::encode($expiredPayload, config('jwt.keys.access'), config('jwt.algo'));
 
-        $this->expectException(ExpiredException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->jwtService->decodeAccessToken($expiredToken);
     }
 
@@ -100,7 +98,7 @@ class JwtServiceTest extends TestCase
         $tokens = $this->jwtService->generateTokenPair($user);
 
         // Refresh подписан другим секретом — access decoder отклонит по подписи
-        $this->expectException(SignatureInvalidException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $this->jwtService->decodeAccessToken($tokens['refresh_token']);
     }

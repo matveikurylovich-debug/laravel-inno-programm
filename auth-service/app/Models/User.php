@@ -20,6 +20,8 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable, SoftDeletes;
 
+    protected string $guard_name = 'web';
+
     /**
      * Get the attributes that should be cast.
      *

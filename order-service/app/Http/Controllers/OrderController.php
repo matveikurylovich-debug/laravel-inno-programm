@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CreateOrderRequest;
 use App\Models\Order;
 use App\Services\OrderService;
+use Ecommerce\PlatformKit\Laravel\JwtUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -30,12 +31,11 @@ class OrderController extends Controller
     )]
     public function index(Request $request): JsonResponse
     {
-        $userRole = (string) $request->attributes->get('auth_role', 'customer');
-        $userId = (int) $request->attributes->get('auth_user_id');
+        $userId = (int) $request->user()?->getAuthIdentifier();
 
         $query = Order::with(['items', 'payment'])->latest();
 
-        if (! in_array($userRole, ['admin', 'analyst'], true)) {
+        if (! $this->hasRole($request, 'admin', 'analyst')) {
             $query->where('user_id', $userId);
         }
 
@@ -88,7 +88,8 @@ class OrderController extends Controller
     )]
     public function store(CreateOrderRequest $request): JsonResponse
     {
-        $email = $request->attributes->get('auth_email');
+        $user = $request->user();
+        $email = $user instanceof JwtUser ? $user->claims->email : null;
 
         if (! is_string($email) || $email === '') {
             return response()->json([
@@ -99,7 +100,7 @@ class OrderController extends Controller
 
         try {
             $order = $this->orders->createOrder(
-                (int) $request->attributes->get('auth_user_id'),
+                (int) $user->getAuthIdentifier(),
                 (int) $request->validated('store_id'),
                 (int) $request->validated('location_id'),
                 $email,
@@ -142,8 +143,8 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $isOwner = (string) $order->user_id === (string) $request->attributes->get('auth_user_id');
-        $isAdmin = in_array($request->attributes->get('auth_role'), ['admin', 'analyst'], true);
+        $isOwner = (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
+        $isAdmin = $this->hasRole($request, 'admin', 'analyst');
 
         if (! $isOwner && ! $isAdmin) {
             return response()->json([
@@ -183,8 +184,8 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $isOwner = (string) $order->user_id === (string) $request->attributes->get('auth_user_id');
-        $isAdmin = $request->attributes->get('auth_role') === 'admin';
+        $isOwner = (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
+        $isAdmin = $this->hasRole($request, 'admin');
 
         if (! $isOwner && ! $isAdmin) {
             return response()->json([
@@ -229,8 +230,8 @@ class OrderController extends Controller
             ], 404);
         }
 
-        $isOwner = (string) $order->user_id === (string) $request->attributes->get('auth_user_id');
-        $isAdmin = $request->attributes->get('auth_role') === 'admin';
+        $isOwner = (string) $order->user_id === (string) $request->user()?->getAuthIdentifier();
+        $isAdmin = $this->hasRole($request, 'admin');
 
         if (! $isOwner && ! $isAdmin) {
             return response()->json([
@@ -246,5 +247,21 @@ class OrderController extends Controller
         }
 
         return response()->json(null, 204);
+    }
+
+    private function hasRole(Request $request, string ...$roles): bool
+    {
+        $user = $request->user();
+        if (! $user instanceof JwtUser) {
+            return false;
+        }
+
+        foreach ($roles as $role) {
+            if ($user->hasRole($role)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

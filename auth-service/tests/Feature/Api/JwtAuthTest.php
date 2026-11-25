@@ -91,9 +91,7 @@ class JwtAuthTest extends TestCase
     public function test_protected_route_rejects_missing_or_invalid_tokens(): void
     {
         // Запрос без токена
-        $this->getJson('/api/me')
-            ->assertStatus(401)
-            ->assertJson(['error' => 'Заголовок Authorization: Bearer отсутствует']);
+        $this->getJson('/api/me')->assertUnauthorized();
 
         // Запрос с фальшивым/битым токеном
         $this->withHeader('Authorization', 'Bearer invalid.token.payload')
@@ -155,12 +153,11 @@ class JwtAuthTest extends TestCase
         $logoutResponse->assertStatus(200);
 
         // Попытка снова сделать запрос с тем же access-токеном
+        $this->app['auth']->forgetGuards();
         $retryResponse = $this->withHeader('Authorization', "Bearer {$accessToken}")
             ->getJson('/api/me');
 
-        // Middleware должен заблокировать по Redis Blacklist
-        $retryResponse->assertStatus(401)
-            ->assertJson(['error' => 'Токен отозван (находится в блэклисте).']);
+        $retryResponse->assertUnauthorized();
     }
 
     public function test_register_assigns_customer_role_and_dispatches_event(): void

@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Auth\RedisRevocationInspector;
 use App\Contracts\AuthService;
 use App\Enums\RoleName;
 use App\Listeners\RevokeSessionsAfterPasswordReset;
 use App\Models\User;
 use App\Services\JwtService;
+use Ecommerce\PlatformKit\Laravel\RevocationInspector;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -22,6 +24,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->requireJwtSecret();
+        config(['platform-kit.resolve_eloquent_user' => true]);
+        $this->app->singleton(RevocationInspector::class, RedisRevocationInspector::class);
         $this->app->singleton(JwtService::class);
         $this->app->singleton(AuthService::class, fn ($app) => $app->make(JwtService::class));
     }

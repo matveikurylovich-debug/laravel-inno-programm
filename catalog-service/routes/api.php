@@ -19,7 +19,7 @@ Route::prefix('v1')->middleware(ResolveCurrentStore::class)->group(function () {
     Route::get('stores', [StoreController::class, 'index']);
 
     // 2. Запись: нужен access-токен. Роль admin проверяет auth-service на gateway.
-    Route::middleware(['jwt.auth'])->group(function () {
+    Route::middleware(['auth:api'])->group(function () {
         // Магазины
         Route::post('stores', [StoreController::class, 'store']);
         Route::match(['put', 'patch'], 'stores/{store}', [StoreController::class, 'update']);
