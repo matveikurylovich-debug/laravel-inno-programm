@@ -15,6 +15,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(Client::class, function (): Client {
             return ClientBuilder::create()
                 ->setHosts(config('elasticsearch.hosts'))
+                ->setHttpClientOptions([
+                    'timeout' => (float) config('elasticsearch.timeout', 2),
+                    'connect_timeout' => (float) config('elasticsearch.connect_timeout', 1),
+                ])
                 ->build();
         });
 

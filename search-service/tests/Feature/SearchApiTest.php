@@ -16,6 +16,33 @@ use Tests\TestCase;
 
 class SearchApiTest extends TestCase
 {
+    public function test_inactive_product_is_removed_from_the_index(): void
+    {
+        $index = \Mockery::mock(ProductIndex::class);
+        $index->shouldReceive('delete')->once()->with('15');
+        $index->shouldReceive('upsert')->never();
+        $this->app->instance(ProductIndex::class, $index);
+
+        app(CatalogEventsConsumer::class)($this->message([
+            'event' => 'product.updated',
+            'product_id' => 15,
+            'name' => 'Phone',
+            'is_active' => false,
+        ]), \Mockery::mock(MessageConsumer::class));
+    }
+
+    public function test_deep_page_is_rejected_and_unavailable_search_is_503(): void
+    {
+        $this->getJson('/api/search?page=10001')->assertStatus(422)->assertJsonValidationErrors('page');
+
+        $index = \Mockery::mock(ProductIndex::class);
+        $index->shouldReceive('search')->once()->andThrow(new \Elastic\Transport\Exception\NoNodeAvailableException('down'));
+        $this->app->instance(ProductIndex::class, $index);
+        Redis::shouldReceive('get')->once()->andReturnNull();
+
+        $this->getJson('/api/search?q=phone')->assertStatus(503);
+    }
+
     public function test_catalog_event_indexes_product_by_external_id(): void
     {
         $index = \Mockery::mock(ProductIndex::class);

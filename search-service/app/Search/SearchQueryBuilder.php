@@ -14,6 +14,7 @@ class SearchQueryBuilder
         $perPage = min(100, max(1, (int) ($params['per_page'] ?? 20)));
 
         return [
+            'timeout' => '2s',
             'from' => ($page - 1) * $perPage,
             'size' => $perPage,
             'sort' => $this->sort((string) ($params['sort'] ?? 'relevance')),
@@ -54,7 +55,7 @@ class SearchQueryBuilder
                         'multi_match' => [
                             'query' => $query,
                             'fields' => ['name^3', 'description', 'category_name.text^2'],
-                            'fuzziness' => 1,
+                            'fuzziness' => 'AUTO',
                         ],
                     ],
                     [
@@ -80,7 +81,7 @@ class SearchQueryBuilder
                                             'match' => [
                                                 'attributes.value.text' => [
                                                     'query' => $query,
-                                                    'fuzziness' => 1,
+                                                    'fuzziness' => 'AUTO',
                                                 ],
                                             ],
                                         ],

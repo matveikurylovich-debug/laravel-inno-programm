@@ -48,6 +48,12 @@ class CatalogEventsConsumer
             return;
         }
 
+        if (array_key_exists('is_active', $payload) && filter_var($payload['is_active'], FILTER_VALIDATE_BOOLEAN) === false) {
+            $this->index->delete($id);
+
+            return;
+        }
+
         $this->index->upsert($id, $this->documents->fromProductEvent($payload));
     }
 
