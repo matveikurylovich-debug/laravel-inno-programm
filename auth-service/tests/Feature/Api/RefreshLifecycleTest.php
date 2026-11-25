@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Redis;
 use Tests\TestCase;
 
 class RefreshLifecycleTest extends TestCase
@@ -19,6 +20,14 @@ class RefreshLifecycleTest extends TestCase
         $rotated = $this->postJson('/api/refresh', [
             'refresh_token' => $issued['refresh_token'],
         ])->assertOk();
+
+        $replayed = $this->postJson('/api/refresh', [
+            'refresh_token' => $issued['refresh_token'],
+        ])->assertOk();
+        $this->assertSame($rotated->json('refresh_token'), $replayed->json('refresh_token'));
+
+        $payload = app(JwtService::class)->readRefreshToken($issued['refresh_token']);
+        Redis::del('jwt:refresh:grace:'.$user->id.':'.$payload->jti);
 
         $this->postJson('/api/refresh', [
             'refresh_token' => $issued['refresh_token'],

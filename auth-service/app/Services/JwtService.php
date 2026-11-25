@@ -179,6 +179,44 @@ class JwtService implements AuthService
     }
 
     /**
+     * @return array{access_token: string, refresh_token: string, token_type: string, expires_in: int}
+     */
+    public function rotateRefreshToken(string $token): array
+    {
+        $decoded = $this->readRefreshToken($token);
+        $userId = (int) $decoded->sub;
+        $jti = (string) $decoded->jti;
+        $graceKey = $this->graceKey($userId, $jti);
+        $removed = (int) Redis::del($this->refreshKey($userId, $jti));
+        Redis::srem($this->userSetKey($userId), $jti);
+
+        if ($removed === 1) {
+            $user = User::query()->findOrFail($userId);
+            $pair = $this->generateTokenPair($user);
+            Redis::setex($graceKey, (int) config('jwt.refresh_grace_seconds', 30), json_encode($pair));
+
+            return $pair;
+        }
+
+        $cached = Redis::get($graceKey);
+        if (is_string($cached) && $cached !== '') {
+            $pair = json_decode($cached, true);
+            if (is_array($pair) && isset($pair['access_token'], $pair['refresh_token'])) {
+                return $pair;
+            }
+        }
+
+        $this->revokeAllForUser($userId);
+
+        throw new InvalidArgumentException('Повторное использование refresh-токена.');
+    }
+
+    private function graceKey(int $userId, string $jti): string
+    {
+        return "jwt:refresh:grace:{$userId}:{$jti}";
+    }
+
+    /**
      * Удаление использованного или отозванного Refresh-токена из Redis
      */
     public function revokeRefreshToken(int $userId, string $jti): void
