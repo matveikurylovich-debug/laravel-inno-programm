@@ -184,14 +184,9 @@ class NotificationApiTest extends TestCase
 
     private function asRole(string $role): static
     {
-        $token = JWT::encode([
-            'iss' => 'http://localhost:8000',
-            'sub' => 1,
-            'roles' => [$role],
-            'type' => 'access',
-            'iat' => time(),
-            'exp' => time() + 900,
-        ], $this->secret, 'HS256');
+        $pem = (string) file_get_contents(dirname(__DIR__, 4).'/packages/platform-kit/tests/fixtures/access-private.pem');
+        $token = (new \Ecommerce\PlatformKit\Token\AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
+            ->issue(1, [$role]);
 
         return $this->withHeader('Authorization', 'Bearer '.$token);
     }

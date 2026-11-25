@@ -1,10 +1,15 @@
 package config
 
-import "os"
+import (
+	"errors"
+	"os"
+)
 
 type Config struct {
-	JWTAccessSecret    string
+	JWKSURL            string
+	JWKSJSON           string
 	JWTIssuer          string
+	JWTAudience        string
 	HTTPPort           string
 	ClickHouseAddr     string
 	ClickHouseDB       string
@@ -16,8 +21,10 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		JWTAccessSecret:    os.Getenv("JWT_ACCESS_SECRET"),
-		JWTIssuer:          env("JWT_ISSUER", "https://localhost"),
+		JWKSURL:            os.Getenv("JWT_JWKS_URL"),
+		JWKSJSON:           os.Getenv("JWT_JWKS_JSON"),
+		JWTIssuer:          env("JWT_ISSUER", "http://auth-app"),
+		JWTAudience:        env("JWT_AUDIENCE", "ecommerce"),
 		HTTPPort:           env("HTTP_PORT", "8080"),
 		ClickHouseAddr:     env("CLICKHOUSE_ADDR", "analytics-clickhouse:9000"),
 		ClickHouseDB:       env("CLICKHOUSE_DB", "analytics"),
@@ -26,6 +33,14 @@ func Load() Config {
 		RabbitURL:          env("RABBITMQ_URL", "amqp://guest:guest@analytics-rabbitmq:5672/"),
 		RabbitExchange:     env("RABBITMQ_EXCHANGE", "analytics.events"),
 	}
+}
+
+func (c Config) Validate() error {
+	if c.JWTIssuer == "" || c.JWTAudience == "" || (c.JWKSURL == "" && c.JWKSJSON == "") {
+		return errors.New("JWT_ISSUER, JWT_AUDIENCE and JWT_JWKS_URL are required")
+	}
+
+	return nil
 }
 
 func env(key, fallback string) string {

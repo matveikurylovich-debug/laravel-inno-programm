@@ -21,6 +21,7 @@ class CreateOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'email' => ['required', 'email'],
             'store_id' => ['required', 'integer', 'min:1'],
             'location_id' => ['required', 'integer', 'min:1'],
             'items' => ['required', 'array', 'min:1'],

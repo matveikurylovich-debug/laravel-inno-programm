@@ -6,6 +6,7 @@ namespace Ecommerce\PlatformKit\Laravel;
 
 use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
 use Ecommerce\PlatformKit\Token\InvalidTokenException;
+use Ecommerce\PlatformKit\Token\JwksClient;
 use Ecommerce\PlatformKit\Token\TokenInfrastructureException;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Request;
@@ -18,9 +19,10 @@ final class PlatformKitServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../../config/platform-kit.php', 'platform-kit');
 
         $this->app->singleton(AccessTokenVerifier::class, function (): AccessTokenVerifier {
-            return new AccessTokenVerifier(
-                secret: (string) config('platform-kit.access_secret'),
-                algorithm: (string) config('platform-kit.algorithm', 'HS256'),
+            return AccessTokenVerifier::fromJwks(
+                $this->jwksJson(),
+                (string) config('platform-kit.issuer'),
+                (string) config('platform-kit.audience'),
             );
         });
 
@@ -30,7 +32,7 @@ final class PlatformKitServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerInfrastructureRendering();
-        $this->assertAccessSecret();
+        $this->assertVerificationConfig();
 
         $this->app->make('auth')->extend('jwt', function ($app, string $_name, array $config) {
             $guard = new JwtGuard(function (Request $request) use ($app) {
@@ -79,22 +81,40 @@ final class PlatformKitServiceProvider extends ServiceProvider
         });
     }
 
-    private function assertAccessSecret(): void
+    private function assertVerificationConfig(): void
     {
-        if ($this->app->runningUnitTests()) {
+        if ($this->app->runningUnitTests() || $this->app->runningInConsole()) {
             return;
         }
 
-        $command = $_SERVER['argv'][1] ?? '';
-        $tooling = ['package:discover', 'config:clear', 'config:cache', 'key:generate', 'about', 'list', 'test'];
-        $argv0 = (string) ($_SERVER['argv'][0] ?? '');
-        if (in_array($command, $tooling, true) || str_contains($argv0, 'phpstan')) {
-            return;
+        $path = (string) config('platform-kit.jwks_path');
+        $url = (string) config('platform-kit.jwks_url');
+        $issuer = (string) config('platform-kit.issuer');
+        $audience = (string) config('platform-kit.audience');
+        if (($path === '' || ! is_file($path)) && $url === '') {
+            throw new TokenInfrastructureException('JWT JWKS path or URL must be configured.');
+        }
+        if ($issuer === '' || $audience === '') {
+            throw new TokenInfrastructureException('JWT issuer and audience must be configured.');
+        }
+    }
+
+    private function jwksJson(): string
+    {
+        $path = (string) config('platform-kit.jwks_path');
+        if ($path !== '') {
+            if (! is_file($path)) {
+                throw new TokenInfrastructureException('JWT JWKS file is missing.');
+            }
+
+            return (string) file_get_contents($path);
         }
 
-        $secret = (string) config('platform-kit.access_secret', '');
-        if (strlen($secret) < 32) {
-            throw new TokenInfrastructureException('JWT access secret must be at least 32 bytes.');
+        $cache = (string) config('platform-kit.jwks_cache');
+        if ($cache === '') {
+            $cache = storage_path('framework/cache/jwks.json');
         }
+
+        return (new JwksClient((string) config('platform-kit.jwks_url'), $cache))->json();
     }
 }

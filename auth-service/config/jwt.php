@@ -8,12 +8,18 @@ return [
         'refresh' => env('JWT_REFRESH_COOKIE', 'refresh_token'),
     ],
     'keys' => [
-        'access' => env('JWT_ACCESS_SECRET'),
         'refresh' => env('JWT_REFRESH_SECRET'),
     ],
+    'private_key_path' => env('JWT_ACCESS_PRIVATE_KEY_PATH'),
+    'public_key_path' => env('JWT_ACCESS_PUBLIC_KEY_PATH'),
+    'previous_public_key_path' => env('JWT_ACCESS_PREVIOUS_PUBLIC_KEY_PATH'),
+    'kid' => env('JWT_ACCESS_KID', 'auth-1'),
+    'previous_kid' => env('JWT_ACCESS_PREVIOUS_KID'),
+    'issuer' => env('JWT_ISSUER', 'http://auth-app'),
+    'audience' => env('JWT_AUDIENCE', 'ecommerce'),
     'ttl' => [
         'access' => (int) env('JWT_ACCESS_TTL', 900),
         'refresh' => (int) env('JWT_REFRESH_TTL', 1209600),
     ],
-    'algo' => 'HS256',
+    'algo' => 'RS256',
 ];

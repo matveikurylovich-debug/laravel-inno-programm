@@ -17,9 +17,10 @@ final readonly class AccessClaims
         public TokenType $type,
         public int $exp,
         public int $iat,
+        public string $jti,
+        public int $nbf,
         public ?int $storeId = null,
         public ?string $email = null,
-        public ?string $role = null,
     ) {}
 
     public static function fromPayload(stdClass $payload): self
@@ -33,14 +34,19 @@ final readonly class AccessClaims
             throw InvalidTokenException::malformed();
         }
 
+        if (! isset($payload->jti) || ! is_string($payload->jti) || $payload->jti === '') {
+            throw InvalidTokenException::malformed();
+        }
+        if (! isset($payload->nbf) || ! is_numeric($payload->nbf)) {
+            throw InvalidTokenException::malformed();
+        }
+
         $roles = [];
         if (isset($payload->roles)) {
             $raw = is_array($payload->roles) ? $payload->roles : (array) $payload->roles;
             foreach ($raw as $role) {
                 $roles[] = (string) $role;
             }
-        } elseif (isset($payload->role)) {
-            $roles[] = (string) $payload->role;
         }
 
         return new self(
@@ -49,9 +55,10 @@ final readonly class AccessClaims
             type: $type,
             exp: (int) ($payload->exp ?? 0),
             iat: (int) ($payload->iat ?? 0),
+            jti: $payload->jti,
+            nbf: (int) $payload->nbf,
             storeId: isset($payload->store_id) && is_numeric($payload->store_id) ? (int) $payload->store_id : null,
             email: isset($payload->email) && is_string($payload->email) && $payload->email !== '' ? $payload->email : null,
-            role: isset($payload->role) && is_string($payload->role) && $payload->role !== '' ? $payload->role : ($roles[0] ?? null),
         );
     }
 }

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,11 +15,15 @@ import (
 	"analytics-service/internal/broker/rabbitmq"
 	"analytics-service/internal/config"
 	"analytics-service/internal/http/handlers"
+	"analytics-service/internal/http/middleware"
 	"analytics-service/internal/storage/clickhouse"
 )
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	store, err := clickhouse.Open(cfg)
 	if err != nil {
@@ -35,7 +41,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.HTTPPort,
-		Handler:           handlers.RequireReportsAccess(handlers.New(handlers.Reports{Users: store.Users, Orders: store.Orders, Search: store.Search}), cfg.JWTAccessSecret, cfg.JWTIssuer),
+		Handler:           middleware.RequireReportsAccess(handlers.New(handlers.Reports{Users: store.Users, Orders: store.Orders, Search: store.Search}), mustKeys(cfg), cfg.JWTIssuer, cfg.JWTAudience),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -50,4 +56,25 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+func mustKeys(cfg config.Config) map[string]*rsa.PublicKey {
+	document := []byte(cfg.JWKSJSON)
+	if cfg.JWKSJSON == "" {
+		response, err := http.Get(cfg.JWKSURL)
+		if err != nil {
+			log.Fatalf("jwks: %v", err)
+		}
+		defer response.Body.Close()
+		document, err = io.ReadAll(response.Body)
+		if err != nil || response.StatusCode >= 300 {
+			log.Fatalf("jwks: status %d", response.StatusCode)
+		}
+	}
+	keys, err := middleware.KeysFromJWKS(document)
+	if err != nil {
+		log.Fatalf("jwks: %v", err)
+	}
+
+	return keys
 }

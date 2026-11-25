@@ -2,6 +2,7 @@
 /.secrets
 **/*.key
 **/*.pem
+!packages/platform-kit/tests/fixtures/*.pem
 **/certs/*.key
 /.local/
 /infra/certs/*

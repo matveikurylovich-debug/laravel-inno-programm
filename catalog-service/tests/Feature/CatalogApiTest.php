@@ -6,7 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Stock;
 use App\Models\Store;
-use Firebase\JWT\JWT;
+use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -176,11 +176,9 @@ class CatalogApiTest extends TestCase
 
     private function token(string $role): string
     {
-        return JWT::encode([
-            'sub' => 1,
-            'role' => $role,
-            'type' => 'access',
-            'exp' => time() + 3600,
-        ], (string) config('jwt.secret'), 'HS256');
+        $pem = (string) file_get_contents(dirname(__DIR__, 3).'/packages/platform-kit/tests/fixtures/access-private.pem');
+
+        return (new AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
+            ->issue(1, [$role]);
     }
 }

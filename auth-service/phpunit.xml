@@ -24,6 +24,12 @@
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="JWT_ACCESS_SECRET" value="testing-jwt-access-secret-32b-min"/>
+        <env name="JWT_JWKS_PATH" value="../packages/platform-kit/tests/fixtures/jwks.json" force="true"/>
+        <env name="JWT_ISSUER" value="http://auth-app" force="true"/>
+        <env name="JWT_AUDIENCE" value="ecommerce" force="true"/>
+        <env name="JWT_ACCESS_PRIVATE_KEY_PATH" value="../packages/platform-kit/tests/fixtures/access-private.pem" force="true"/>
+        <env name="JWT_ACCESS_PUBLIC_KEY_PATH" value="../packages/platform-kit/tests/fixtures/access-public.pem" force="true"/>
+        <env name="JWT_ACCESS_KID" value="test-1" force="true"/>
         <env name="JWT_REFRESH_SECRET" value="testing-jwt-refresh-secret-32b!!"/>
         <env name="DB_CONNECTION" value="sqlite" force="false"/>
         <env name="DB_DATABASE" value=":memory:" force="false"/>

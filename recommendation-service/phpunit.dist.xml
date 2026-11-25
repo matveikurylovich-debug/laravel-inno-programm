@@ -14,6 +14,9 @@
         <ini name="display_errors" value="1" />
         <ini name="error_reporting" value="-1" />
         <server name="APP_ENV" value="test" force="true" />
+        <server name="JWT_JWKS_PATH" value="../packages/platform-kit/tests/fixtures/jwks.json" force="true" />
+        <server name="JWT_ISSUER" value="http://auth-app" force="true" />
+        <server name="JWT_AUDIENCE" value="ecommerce" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
     </php>
 

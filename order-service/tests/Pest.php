@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Firebase\JWT\JWT;
+use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Redis;
 use Tests\PostgresPersistenceTestCase;
@@ -21,13 +21,10 @@ pest()->extend(PostgresPersistenceTestCase::class)
 
 function orderJwt(int $userId = 1, string $role = 'customer', ?string $email = null): string
 {
-    return JWT::encode([
-        'sub' => $userId,
-        'email' => $email ?? "user{$userId}@example.com",
-        'role' => $role,
-        'type' => 'access',
-        'exp' => time() + 3600,
-    ], (string) config('jwt.access_secret'), 'HS256');
+    $pem = (string) file_get_contents(dirname(__DIR__, 2).'/packages/platform-kit/tests/fixtures/access-private.pem');
+
+    return (new AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
+        ->issue($userId, [$role]);
 }
 
 function mockRedis(): void

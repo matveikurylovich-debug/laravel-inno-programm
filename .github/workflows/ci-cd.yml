@@ -147,7 +147,9 @@ jobs:
       APP_ENV: test
       APP_SECRET: ci-only-app-secret
       DATABASE_URL: postgresql://testing:testing@127.0.0.1:5432/recommendation_test?serverVersion=16
-      JWT_ACCESS_SECRET: ci-only-access-key-at-least-32-characters
+      JWT_JWKS_PATH: ../packages/platform-kit/tests/fixtures/jwks.json
+      JWT_ISSUER: http://auth-app
+      JWT_AUDIENCE: ecommerce
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2

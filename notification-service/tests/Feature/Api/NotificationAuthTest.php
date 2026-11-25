@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Api;
 
-use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
+use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Route;
 use Tests\HttpTestCase;
@@ -14,27 +14,38 @@ class NotificationAuthTest extends HttpTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config([
-            'jwt.keys.access' => $this->secret,
-            'jwt.algo' => 'HS256',
-            'platform-kit.access_secret' => $this->secret,
-            'platform-kit.algorithm' => 'HS256',
-        ]);
-        $this->app->forgetInstance(AccessTokenVerifier::class);
+    }
+
+    private function signer(): AccessTokenSigner
+    {
+        $pem = (string) file_get_contents(dirname(__DIR__, 4).'/packages/platform-kit/tests/fixtures/access-private.pem');
+
+        return new AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce');
     }
 
     private function generateToken(array $roles = ['admin'], int $ttl = 900, string $type = 'access', ?string $customSecret = null): string
     {
-        $payload = [
-            'iss' => 'http://localhost:8000',
-            'sub' => 1,
-            'roles' => $roles,
-            'type' => $type,
-            'iat' => time(),
-            'exp' => time() + $ttl,
-        ];
+        $now = time();
+        if ($customSecret !== null) {
+            return JWT::encode([
+                'iss' => 'http://auth-app',
+                'aud' => 'ecommerce',
+                'sub' => 1,
+                'roles' => $roles,
+                'type' => $type,
+                'jti' => 'wrong-key',
+                'iat' => $now,
+                'nbf' => $now,
+                'exp' => $now + $ttl,
+            ], $customSecret, 'HS256');
+        }
 
-        return JWT::encode($payload, $customSecret ?? $this->secret, 'HS256');
+        return $this->signer()->issue(1, $roles, null, [
+            'type' => $type,
+            'iat' => $now,
+            'nbf' => $now,
+            'exp' => $now + $ttl,
+        ]);
     }
 
     public function test_access_denied_without_authorization_header(): void
@@ -148,20 +159,17 @@ class NotificationAuthTest extends HttpTestCase
             return response()->json(['status' => 'ok']);
         })->middleware(['auth:api', 'role:admin,analyst']);
 
-        $payload = [
-            'iss' => 'http://localhost:8000',
-            'sub' => 1,
+        $now = time();
+        $token = $this->signer()->issue(1, [], null, [
             'role' => 'Analyst',
-            'type' => 'access',
-            'iat' => time(),
-            'exp' => time() + 900,
-        ];
-        $token = JWT::encode($payload, $this->secret, 'HS256');
+            'roles' => null,
+            'iat' => $now,
+            'nbf' => $now,
+            'exp' => $now + 900,
+        ]);
 
-        $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/test-protected-single-role');
-
-        $response->assertStatus(200)
-            ->assertJson(['status' => 'ok']);
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/test-protected-single-role')
+            ->assertForbidden();
     }
 }

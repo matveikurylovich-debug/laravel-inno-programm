@@ -60,6 +60,17 @@ prepare_env() {
 }
 
 prepare_env
+
+jwt_dir=".secrets/jwt"
+mkdir -p "$jwt_dir"
+if [[ ! -f "$jwt_dir/current.pem" ]]; then
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$jwt_dir/current.pem"
+  openssl pkey -in "$jwt_dir/current.pem" -pubout -out "$jwt_dir/current.pub.pem"
+  chmod 600 "$jwt_dir/current.pem"
+fi
+export JWT_ACCESS_KID="${JWT_ACCESS_KID:-auth-1}"
+php scripts/jwt/write-jwks.php "$jwt_dir"
+
 if [[ "${1:-}" == "--prepare-env" ]]; then
   exit 0
 fi
