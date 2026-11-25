@@ -69,7 +69,8 @@ class NotificationApiTest extends TestCase
             ->getJson('/api/notifications/'.$log->_id)
             ->assertOk()
             ->assertJsonPath('data.event', 'user.registered')
-            ->assertJsonPath('data.payload.data.name', 'Ann');
+            ->assertJsonPath('data.recipient', 'ann@example.com')
+            ->assertJsonMissingPath('data.payload');
 
         $this->asRole('admin')
             ->getJson('/api/notifications/missing-id')
@@ -88,12 +89,13 @@ class NotificationApiTest extends TestCase
             ],
         ]);
 
-        $this->asRole('admin')
-            ->getJson('/api/notifications/'.$log->_id)
+        $response = $this->asRole('analyst')
+            ->getJson('/api/notifications?recipient=ann@example.com')
             ->assertOk()
-            ->assertJsonPath('data.payload.data.ttl_minutes', 5)
-            ->assertJsonMissingPath('data.payload.data.code')
-            ->assertJsonMissingPath('data.payload.data.reset_url');
+            ->assertJsonMissingPath('data.0.payload');
+
+        $this->assertStringNotContainsString('123456', $response->getContent());
+        $this->assertStringNotContainsString('reset-password/token', $response->getContent());
     }
 
     public function test_replay_refuses_to_resend_a_stored_secret(): void
@@ -108,6 +110,16 @@ class NotificationApiTest extends TestCase
 
         $this->asRole('admin')
             ->postJson('/api/notifications/'.$log->_id.'/replay')
+            ->assertStatus(422);
+
+        $reset = $this->log('auth.password_reset', 'failed', 'ann@example.com', now(), [
+            'event' => 'auth.password_reset',
+            'email' => 'ann@example.com',
+            'data' => ['reset_url' => 'http://localhost:3000/reset-password/token'],
+        ], true);
+
+        $this->asRole('admin')
+            ->postJson('/api/notifications/'.$reset->_id.'/replay')
             ->assertStatus(422);
 
         Mail::assertNothingSent();
@@ -125,7 +137,7 @@ class NotificationApiTest extends TestCase
             ],
         ]);
 
-        $this->artisan('notifications:redact-secrets')->assertSuccessful();
+        $this->artisan('notifications:purge-secrets')->assertSuccessful();
 
         $fresh = NotificationLog::query()->find($log->_id);
         $this->assertNotNull($fresh);

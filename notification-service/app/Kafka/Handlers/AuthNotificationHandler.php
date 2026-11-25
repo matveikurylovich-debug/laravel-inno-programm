@@ -2,13 +2,12 @@
 
 namespace App\Kafka\Handlers;
 
-use App\Events\RealtimeNotificationEvent;
 use App\Mail\Auth\PasswordResetMail;
 use App\Mail\Auth\ProfileUpdateConfirmMail;
 use App\Mail\Auth\TwoFactorCodeMail;
 use App\Mail\Auth\UserRegisteredMail;
 use App\Models\NotificationLog;
-use App\Support\SensitivePayload;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
@@ -30,11 +29,11 @@ class AuthNotificationHandler
         // 1. Извлечение payload из ConsumerMessage
         $rawPayload = $message->getBody();
         $rawPayload = is_array($rawPayload) ? $rawPayload : [];
-        $payload = SensitivePayload::redact($rawPayload);
+        $data = is_array($rawPayload['data'] ?? null) ? $rawPayload['data'] : [];
+        $payload = Arr::except($rawPayload, ['data.code', 'data.reset_url']);
         $event = $payload['event'] ?? 'UnknownEvent';
         $userId = $payload['user_id'] ?? null;
         $email = $payload['email'] ?? null;
-        $data = is_array($rawPayload['data'] ?? null) ? $rawPayload['data'] : [];
 
         // 2. Первичный аудит в MongoDB со статусом pending и attempts = 0
         $log = NotificationLog::create([
@@ -62,7 +61,7 @@ class AuthNotificationHandler
 
             try {
                 // Маршрутизация сценариев (Mailable + Pusher Event)
-                $this->dispatchScenario($event, $userId, $email, $data);
+                $this->dispatchScenario($event, $email, $data);
 
                 // 4. Успех: фиксация статуса sent
                 $log->update([
@@ -106,7 +105,7 @@ class AuthNotificationHandler
     /**
      * Маршрутизация сценариев через match-выражение
      */
-    private function dispatchScenario(string $event, mixed $userId, ?string $email, array $data): void
+    private function dispatchScenario(string $event, ?string $email, array $data): void
     {
         // 1. Сборка нужного Mailable под конструкторы
         $mailable = match ($event) {
@@ -133,33 +132,6 @@ class AuthNotificationHandler
         }
 
         Mail::to($email)->send($mailable);
-
-        // 3. Заголовки и тексты для Pusher
-        $titles = [
-            'user.registered' => 'Регистрация',
-            'auth.password_reset' => 'Сброс пароля',
-            'auth.two_factor_code' => 'Код безопасности',
-            'auth.profile_update_confirm' => 'Обновление профиля',
-        ];
-        $messages = [
-            'user.registered' => 'Добро пожаловать в сервис!',
-            'auth.password_reset' => 'Ссылка для сброса пароля отправлена на почту.',
-            'auth.two_factor_code' => 'Код подтверждения отправлен на почту.',
-            'auth.profile_update_confirm' => 'Подтвердите изменение профиля кодом.',
-        ];
-        $title = $data['title'] ?? $titles[$event];
-        $message = $data['message'] ?? $messages[$event];
-
-        // 4. Отправка Realtime события в Pusher
-        if ($userId) {
-            event(new RealtimeNotificationEvent(
-                userId: $userId,
-                type: $event,
-                title: $title,
-                message: $message,
-                data: SensitivePayload::redact($data)
-            ));
-        }
     }
 
     /**

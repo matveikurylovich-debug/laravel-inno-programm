@@ -5,6 +5,7 @@ import Link from "next/link";
 import Brand from "@/app/components/Brand";
 import { apiFetch, readError } from "@/app/lib/api";
 import { destinationFor, persistAuth } from "@/app/lib/auth";
+import { currentChallengeId, rememberChallengeId } from "@/app/lib/two-factor-challenge";
 import type { AuthResponse, TwoFactorChallenge } from "@/app/lib/types";
 
 function TwoFactorForm() {
@@ -16,7 +17,7 @@ function TwoFactorForm() {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    setChallengeId(sessionStorage.getItem("two_factor_challenge_id") ?? "");
+    setChallengeId(currentChallengeId());
     setReady(true);
   }, []);
 
@@ -55,7 +56,7 @@ function TwoFactorForm() {
     }
 
     const payload = (await response.json()) as TwoFactorChallenge;
-    sessionStorage.setItem("two_factor_challenge_id", payload.challenge_id);
+    rememberChallengeId(payload.challenge_id);
     setChallengeId(payload.challenge_id);
     setMessage("Новый код отправлен на почту.");
   }

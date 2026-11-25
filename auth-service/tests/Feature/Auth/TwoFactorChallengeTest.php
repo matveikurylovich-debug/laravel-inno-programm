@@ -1,59 +1,75 @@
 <?php
 
+use App\Events\TwoFactorCodeRequested;
+use App\Models\User;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
+
 beforeEach(function () {
-    $this->markTestSkipped('Breeze/Inertia session UI removed. Authentication is covered by JWT API tests.');
+    Cache::flush();
 });
 
-use App\Models\User;
-use App\Services\Kafka\AuthNotificationProducer;
-use Illuminate\Support\Facades\Cache;
+test('resend without a live challenge is rejected', function () {
+    $this->postJson('/api/two-factor/resend', [
+        'user_id' => 1,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('challenge_id');
 
-use function Pest\Laravel\mock;
+    $this->postJson('/api/two-factor/resend', [
+        'challenge_id' => str_repeat('a', 40),
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('challenge_id');
+});
 
-test('login stores a two factor code and publishes it', function () {
+test('the sixth wrong code burns the challenge', function () {
     $user = User::factory()->create();
+    $code = null;
+    Event::listen(TwoFactorCodeRequested::class, function (TwoFactorCodeRequested $event) use (&$code): void {
+        $code = $event->code;
+    });
 
-    $producer = mock(AuthNotificationProducer::class);
-    $producer->shouldReceive('sendTwoFactorCode')
-        ->once()
-        ->withArgs(function (int|string $userId, string $email, string $code, int $ttlMinutes) use ($user) {
-            return (string) $userId === (string) $user->id
-                && $email === $user->email
-                && preg_match('/^\d{6}$/', $code) === 1
-                && $ttlMinutes === 5;
-        });
-
-    $this->post('/login', [
+    $challengeId = $this->postJson('/api/login', [
         'email' => $user->email,
         'password' => 'password',
-    ])->assertRedirect(route('dashboard', absolute: false));
+    ])->assertOk()->json('challenge_id');
 
-    expect(Cache::get("2fa_code_{$user->id}"))->toMatch('/^\d{6}$/');
+    $wrong = $code === '111111' ? '222222' : '111111';
+
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $this->postJson('/api/two-factor/verify', [
+            'challenge_id' => $challengeId,
+            'code' => $wrong,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('code');
+    }
+
+    $this->postJson('/api/two-factor/verify', [
+        'challenge_id' => $challengeId,
+        'code' => $wrong,
+    ])->assertStatus(429);
+
+    $this->postJson('/api/two-factor/verify', [
+        'challenge_id' => $challengeId,
+        'code' => $code,
+    ])->assertStatus(429);
 });
 
-test('valid two factor code authenticates the user', function () {
+test('the fourth resend is rejected', function () {
     $user = User::factory()->create();
-    Cache::put("2fa_code_{$user->id}", '123456', now()->addMinutes(5));
 
-    $this->postJson(route('two-factor.verify'), [
-        'user_id' => $user->id,
-        'code' => '123456',
-    ])->assertOk()
-        ->assertJsonPath('user.id', $user->id);
+    $challengeId = $this->postJson('/api/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ])->assertOk()->json('challenge_id');
 
-    $this->assertAuthenticatedAs($user);
-    expect(Cache::get("2fa_code_{$user->id}"))->toBeNull();
-});
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+        $this->postJson('/api/two-factor/resend', [
+            'challenge_id' => $challengeId,
+        ])->assertOk()
+            ->assertJsonPath('challenge_id', $challengeId);
+    }
 
-test('invalid two factor code is rejected', function () {
-    $user = User::factory()->create();
-    Cache::put("2fa_code_{$user->id}", '123456', now()->addMinutes(5));
-
-    $this->postJson(route('two-factor.verify'), [
-        'user_id' => $user->id,
-        'code' => '000000',
-    ])->assertUnprocessable()
-        ->assertJsonValidationErrors('code');
-
-    $this->assertGuest();
+    $this->postJson('/api/two-factor/resend', [
+        'challenge_id' => $challengeId,
+    ])->assertStatus(429);
 });

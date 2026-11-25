@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Notifications;
 
-use App\Events\RealtimeNotificationEvent;
 use App\Kafka\Handlers\AuthNotificationHandler;
 use App\Kafka\Handlers\OrderNotificationHandler;
 use App\Mail\Auth\PasswordResetMail;
@@ -12,7 +11,6 @@ use App\Mail\Order\OrderCancelledMail;
 use App\Mail\Order\OrderConfirmedMail;
 use App\Mail\Order\OrderPaidMail;
 use App\Models\NotificationLog;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Junges\Kafka\Contracts\ConsumerMessage;
 use Junges\Kafka\Facades\Kafka;
@@ -26,7 +24,6 @@ class NotificationHandlerTest extends TestCase
         parent::setUp();
 
         NotificationLog::query()->delete();
-        Event::fake([RealtimeNotificationEvent::class]);
     }
 
     protected function tearDown(): void
@@ -57,7 +54,6 @@ class NotificationHandlerTest extends TestCase
         $this->assertSame(NotificationLog::STATUS_SENT, $log->status);
         $this->assertSame(1, (int) $log->attempts);
         $this->assertNotNull($log->sent_at);
-        Event::assertDispatched(RealtimeNotificationEvent::class);
     }
 
     public function test_password_reset_and_two_factor_mails_are_sent(): void
@@ -86,14 +82,6 @@ class NotificationHandlerTest extends TestCase
             $data = is_array($log->payload['data'] ?? null) ? $log->payload['data'] : [];
             $this->assertArrayNotHasKey('code', $data);
             $this->assertArrayNotHasKey('reset_url', $data);
-        }
-
-        $dispatched = Event::dispatched(RealtimeNotificationEvent::class);
-        $this->assertCount(2, $dispatched);
-        foreach ($dispatched as $item) {
-            $event = $item[0];
-            $this->assertArrayNotHasKey('code', $event->data);
-            $this->assertArrayNotHasKey('reset_url', $event->data);
         }
     }
 

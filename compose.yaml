@@ -829,6 +829,7 @@ services:
       DB_HOST: mongodb
       DB_PORT: '27017'
       DB_DATABASE: notification_service
+      BROADCAST_CONNECTION: "null"
     networks:
     - backend
     depends_on:
@@ -870,6 +871,7 @@ services:
       DB_HOST: mongodb
       DB_PORT: '27017'
       DB_DATABASE: notification_service
+      BROADCAST_CONNECTION: "null"
     networks:
     - backend
     depends_on:
@@ -904,6 +906,7 @@ services:
       DB_HOST: mongodb
       DB_PORT: '27017'
       DB_DATABASE: notification_service
+      BROADCAST_CONNECTION: "null"
     networks:
     - backend
     depends_on:

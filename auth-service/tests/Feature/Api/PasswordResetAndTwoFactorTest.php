@@ -54,10 +54,11 @@ class PasswordResetAndTwoFactorTest extends TestCase
         $this->assertIsArray($cached);
         $this->assertArrayNotHasKey('code', $cached);
 
+        $this->assertSame(40, strlen((string) $challengeId));
+
         Event::assertDispatched(TwoFactorCodeRequested::class, function (TwoFactorCodeRequested $event) use ($cached) {
             return preg_match('/^\d{6}$/', $event->code) === 1
-                && Hash::check($event->code, $cached['code_hash'])
-                && $event->code !== $cached['code_hash'];
+                && hash_equals($cached['code_hash'], hash('sha256', $event->code));
         });
     }
 
@@ -113,20 +114,22 @@ class PasswordResetAndTwoFactorTest extends TestCase
 
         $this->postJson('/api/two-factor/verify', [
             'challenge_id' => $challenge['challenge_id'],
+            'code' => $wrong,
+        ])->assertStatus(429);
+
+        $this->postJson('/api/two-factor/verify', [
+            'challenge_id' => $challenge['challenge_id'],
             'code' => $challenge['code'],
-        ])->assertUnprocessable();
+        ])->assertStatus(429);
 
         $this->assertNull(Cache::get('2fa_challenge_'.$challenge['challenge_id']));
 
         $replacement = $this->twoFactorChallenge($user);
-        $resent = $this->postJson('/api/two-factor/resend', [
+        $this->postJson('/api/two-factor/resend', [
             'challenge_id' => $replacement['challenge_id'],
         ])->assertOk()
+            ->assertJsonPath('challenge_id', $replacement['challenge_id'])
             ->assertJsonMissingPath('user_id');
-
-        $this->assertIsString($resent->json('challenge_id'));
-        $this->assertNotSame($replacement['challenge_id'], $resent->json('challenge_id'));
-        $this->assertNull(Cache::get('2fa_challenge_'.$replacement['challenge_id']));
     }
 
     public function test_invalidate_password_resets_clears_outstanding_links(): void

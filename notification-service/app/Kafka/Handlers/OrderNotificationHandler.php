@@ -2,12 +2,11 @@
 
 namespace App\Kafka\Handlers;
 
-use App\Events\RealtimeNotificationEvent;
 use App\Mail\Order\OrderCancelledMail;
 use App\Mail\Order\OrderConfirmedMail;
 use App\Mail\Order\OrderPaidMail;
 use App\Models\NotificationLog;
-use App\Support\SensitivePayload;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
@@ -52,7 +51,7 @@ class OrderNotificationHandler
         $userId = $payload['user_id'] ?? null;
         $email = $payload['email'] ?? null;
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $payload = SensitivePayload::redact($payload);
+        $payload = Arr::except($payload, ['data.code', 'data.reset_url']);
 
         // 1. Первичная фиксация в MongoDB (pending, attempts = 0)
         $log = NotificationLog::create([
@@ -79,7 +78,7 @@ class OrderNotificationHandler
             $log->increment('attempts');
 
             try {
-                $this->dispatchScenario($event, $userId, $email, $data);
+                $this->dispatchScenario($event, $email, $data);
 
                 // 3. Успех
                 $log->update([
@@ -120,7 +119,7 @@ class OrderNotificationHandler
         ]);
     }
 
-    private function dispatchScenario(string $event, mixed $userId, ?string $email, array $data): void
+    private function dispatchScenario(string $event, ?string $email, array $data): void
     {
         $orderId = $data['order_id'] ?? null;
 
@@ -151,29 +150,6 @@ class OrderNotificationHandler
         }
 
         Mail::to($email)->send($mailable);
-
-        $titles = [
-            'order.paid' => 'Заказ оплачен',
-            'order.confirmed' => 'Заказ подтвержден',
-            'order.cancelled' => 'Заказ отменен',
-        ];
-        $messages = [
-            'order.paid' => "Заказ #{$orderId} успешно оплачен.",
-            'order.confirmed' => "Заказ #{$orderId} собирается на складе.",
-            'order.cancelled' => "Заказ #{$orderId} отменен.",
-        ];
-        $title = $titles[$event];
-        $messageText = $messages[$event];
-
-        if ($userId) {
-            event(new RealtimeNotificationEvent(
-                userId: $userId,
-                type: $event,
-                title: $title,
-                message: $messageText,
-                data: SensitivePayload::redact($data)
-            ));
-        }
     }
 
     private function publishToDlq(array $payload, string $errorMessage, int $attempts): void

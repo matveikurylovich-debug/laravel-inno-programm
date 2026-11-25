@@ -5,15 +5,17 @@ namespace App\Services;
 use App\Events\TwoFactorCodeRequested;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class TwoFactorService
 {
     public const TTL_MINUTES = 5;
 
     public const MAX_ATTEMPTS = 5;
+
+    public const MAX_RESENDS = 3;
 
     /**
      * @return array{challenge_id: string, expires_in: int}
@@ -22,20 +24,22 @@ class TwoFactorService
     {
         $previous = Cache::get($this->userIndexKey($user->id));
         if (is_string($previous) && $previous !== '') {
-            Cache::forget($this->challengeKey($previous));
+            $this->forget($previous, $user->id);
         }
 
-        $challengeId = (string) Str::uuid();
-        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $challengeId = Str::random(40);
+        $code = (string) random_int(100000, 999999);
         $expiresAt = now()->addMinutes(self::TTL_MINUTES)->getTimestamp();
+        $ttl = $expiresAt - time();
 
-        $this->store($challengeId, [
+        Cache::put($this->challengeKey($challengeId), [
             'user_id' => $user->id,
-            'code_hash' => Hash::make($code),
-            'attempts' => 0,
+            'code_hash' => hash('sha256', $code),
             'expires_at' => $expiresAt,
-        ]);
-        Cache::put($this->userIndexKey($user->id), $challengeId, $expiresAt - time());
+        ], $ttl);
+        Cache::put($this->attemptsKey($challengeId), 0, $ttl);
+        Cache::put($this->resendKey($challengeId), 0, $ttl);
+        Cache::put($this->userIndexKey($user->id), $challengeId, $ttl);
 
         event(new TwoFactorCodeRequested($user, $code, self::TTL_MINUTES));
 
@@ -47,6 +51,10 @@ class TwoFactorService
 
     public function verify(string $challengeId, string $code): User
     {
+        if (Cache::get($this->lockedKey($challengeId))) {
+            throw new HttpException(429, 'Превышено число попыток. Войдите заново.');
+        }
+
         $payload = $this->payload($challengeId);
         if ($payload === null) {
             throw ValidationException::withMessages([
@@ -54,31 +62,22 @@ class TwoFactorService
             ]);
         }
 
-        if ($payload['attempts'] >= self::MAX_ATTEMPTS) {
-            $this->forget($challengeId, $payload['user_id']);
+        $attempts = (int) Cache::increment($this->attemptsKey($challengeId));
+        if ($attempts > self::MAX_ATTEMPTS) {
+            $this->lock($challengeId, $payload['user_id']);
 
-            throw ValidationException::withMessages([
-                'code' => 'Превышено число попыток. Войдите заново.',
-            ]);
+            throw new HttpException(429, 'Превышено число попыток. Войдите заново.');
         }
 
-        if (! Hash::check($code, $payload['code_hash'])) {
-            $payload['attempts']++;
-            if ($payload['attempts'] >= self::MAX_ATTEMPTS) {
-                $this->forget($challengeId, $payload['user_id']);
-            } else {
-                $this->store($challengeId, $payload);
-            }
-
+        if (! hash_equals($payload['code_hash'], hash('sha256', $code))) {
             throw ValidationException::withMessages([
                 'code' => 'Неверный или просроченный код безопасности.',
             ]);
         }
 
-        $userId = $payload['user_id'];
-        $this->forget($challengeId, $userId);
+        $this->forget($challengeId, $payload['user_id']);
 
-        return User::query()->findOrFail($userId);
+        return User::query()->findOrFail($payload['user_id']);
     }
 
     /**
@@ -86,6 +85,10 @@ class TwoFactorService
      */
     public function resend(string $challengeId): array
     {
+        if (Cache::get($this->lockedKey($challengeId))) {
+            throw new HttpException(429, 'Превышено число попыток. Войдите заново.');
+        }
+
         $payload = $this->payload($challengeId);
         if ($payload === null) {
             throw ValidationException::withMessages([
@@ -93,20 +96,26 @@ class TwoFactorService
             ]);
         }
 
-        $user = User::query()->find($payload['user_id']);
-        if (! $user instanceof User) {
-            $this->forget($challengeId, $payload['user_id']);
-
-            throw ValidationException::withMessages([
-                'challenge_id' => 'Сначала войдите по паролю.',
-            ]);
+        $resent = (int) Cache::increment($this->resendKey($challengeId));
+        if ($resent > self::MAX_RESENDS) {
+            throw new HttpException(429, 'Слишком много повторных отправок. Войдите заново.');
         }
 
-        return $this->challenge($user);
+        $code = (string) random_int(100000, 999999);
+        $payload['code_hash'] = hash('sha256', $code);
+        $this->store($challengeId, $payload);
+
+        $user = User::query()->findOrFail($payload['user_id']);
+        event(new TwoFactorCodeRequested($user, $code, self::TTL_MINUTES));
+
+        return [
+            'challenge_id' => $challengeId,
+            'expires_in' => max(1, $payload['expires_at'] - time()),
+        ];
     }
 
     /**
-     * @return array{user_id: int, code_hash: string, attempts: int, expires_at: int}|null
+     * @return array{user_id: int, code_hash: string, expires_at: int}|null
      */
     private function payload(string $challengeId): ?array
     {
@@ -124,13 +133,12 @@ class TwoFactorService
         return [
             'user_id' => (int) $payload['user_id'],
             'code_hash' => (string) $payload['code_hash'],
-            'attempts' => (int) ($payload['attempts'] ?? 0),
             'expires_at' => (int) $payload['expires_at'],
         ];
     }
 
     /**
-     * @param  array{user_id: int, code_hash: string, attempts: int, expires_at: int}  $payload
+     * @param  array{user_id: int, code_hash: string, expires_at: int}  $payload
      */
     private function store(string $challengeId, array $payload): void
     {
@@ -142,9 +150,17 @@ class TwoFactorService
         Cache::put($this->challengeKey($challengeId), $payload, $seconds);
     }
 
+    private function lock(string $challengeId, int $userId): void
+    {
+        $this->forget($challengeId, $userId);
+        Cache::put($this->lockedKey($challengeId), true, now()->addMinutes(self::TTL_MINUTES));
+    }
+
     private function forget(string $challengeId, int $userId): void
     {
         Cache::forget($this->challengeKey($challengeId));
+        Cache::forget($this->attemptsKey($challengeId));
+        Cache::forget($this->resendKey($challengeId));
         if (Cache::get($this->userIndexKey($userId)) === $challengeId) {
             Cache::forget($this->userIndexKey($userId));
         }
@@ -153,6 +169,21 @@ class TwoFactorService
     private function challengeKey(string $challengeId): string
     {
         return '2fa_challenge_'.$challengeId;
+    }
+
+    private function attemptsKey(string $challengeId): string
+    {
+        return '2fa_attempts_'.$challengeId;
+    }
+
+    private function resendKey(string $challengeId): string
+    {
+        return '2fa_resend_'.$challengeId;
+    }
+
+    private function lockedKey(string $challengeId): string
+    {
+        return '2fa_locked_'.$challengeId;
     }
 
     private function userIndexKey(int $userId): string

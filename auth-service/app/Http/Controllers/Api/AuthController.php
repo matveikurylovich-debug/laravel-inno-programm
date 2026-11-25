@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Contracts\AuthService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\ResendTwoFactorRequest;
+use App\Http\Requests\Auth\VerifyTwoFactorRequest;
 use App\Models\User;
 use App\Services\TwoFactorService;
 use Illuminate\Auth\Events\Registered;
@@ -122,7 +124,7 @@ class AuthController extends Controller
             content: new OA\JsonContent(
                 required: ['challenge_id', 'code'],
                 properties: [
-                    new OA\Property(property: 'challenge_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'challenge_id', type: 'string', minLength: 40, maxLength: 40),
                     new OA\Property(property: 'code', type: 'string', minLength: 6, maxLength: 6),
                 ]
             )
@@ -130,16 +132,12 @@ class AuthController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'Токены выданы'),
             new OA\Response(response: 422, description: 'Неверный код'),
+            new OA\Response(response: 429, description: 'Слишком много попыток'),
         ]
     )]
-    public function verifyTwoFactor(Request $request): JsonResponse
+    public function verifyTwoFactor(VerifyTwoFactorRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'challenge_id' => ['required', 'uuid'],
-            'code' => ['required', 'string', 'size:6'],
-        ]);
-
-        $user = $this->twoFactorService->verify($data['challenge_id'], $data['code']);
+        $user = $this->twoFactorService->verify($request->string('challenge_id')->toString(), $request->string('code')->toString());
 
         return $this->tokenResponse($user);
     }
@@ -153,22 +151,19 @@ class AuthController extends Controller
             content: new OA\JsonContent(
                 required: ['challenge_id'],
                 properties: [
-                    new OA\Property(property: 'challenge_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'challenge_id', type: 'string', minLength: 40, maxLength: 40),
                 ]
             )
         ),
         responses: [
             new OA\Response(response: 200, description: 'Новый код отправлен'),
             new OA\Response(response: 422, description: 'Нет активной проверки пароля'),
+            new OA\Response(response: 429, description: 'Слишком много повторных отправок'),
         ]
     )]
-    public function resendTwoFactor(Request $request): JsonResponse
+    public function resendTwoFactor(ResendTwoFactorRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'challenge_id' => ['required', 'uuid'],
-        ]);
-
-        $challenge = $this->twoFactorService->resend($data['challenge_id']);
+        $challenge = $this->twoFactorService->resend($request->string('challenge_id')->toString());
 
         return response()->json([
             'two_factor' => true,

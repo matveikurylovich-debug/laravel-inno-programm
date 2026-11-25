@@ -2,13 +2,16 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Brand from "@/app/components/Brand";
 import { apiFetch, readError } from "@/app/lib/api";
+import { rememberChallengeId } from "@/app/lib/two-factor-challenge";
 import type { TwoFactorChallenge } from "@/app/lib/types";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -29,8 +32,8 @@ export default function LoginPage() {
     }
 
     const data = (await response.json()) as TwoFactorChallenge;
-    sessionStorage.setItem("two_factor_challenge_id", data.challenge_id);
-    window.location.href = "/two-factor";
+    rememberChallengeId(data.challenge_id);
+    router.push("/two-factor");
   }
 
   return (

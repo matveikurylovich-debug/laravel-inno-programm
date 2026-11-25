@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 
 class RedactNotificationSecretsCommand extends Command
 {
-    protected $signature = 'notifications:redact-secrets';
+    protected $signature = 'notifications:purge-secrets';
 
     protected $description = 'Удаляет коды 2FA и ссылки сброса пароля из сохранённых уведомлений';
 
