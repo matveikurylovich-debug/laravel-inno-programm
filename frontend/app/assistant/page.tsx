@@ -3,9 +3,10 @@
 import { currentUser } from "@/app/lib/auth";
 
 import Link from "next/link";
-import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import AppHeader from "@/app/components/AppHeader";
 import { apiFetch, readError } from "@/app/lib/api";
+import { productHref } from "@/app/lib/assistant.mjs";
 
 type Store = { id: number; name: string };
 
@@ -22,58 +23,6 @@ type ChatTurn = {
   text: string;
   products?: SuggestedProduct[];
 };
-
-function productHref(url: string): string {
-  const match = url.match(/\/products\/(\d+)/);
-  if (match) {
-    return `/catalog/products/${match[1]}`;
-  }
-
-  return url.startsWith("/") ? url : `/${url}`;
-}
-
-function plainChunk(chunk: string): string {
-  return chunk.replace(/(^|\s)\*(?=\s|$)/g, "$1").replace(/[ \t]{2,}/g, " ");
-}
-
-function ReplyText({ text }: { text: string }) {
-  const pattern = /\*\*\[([^\]]+)\]\(([^)]+)\)\*\*|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*/g;
-  const nodes: ReactNode[] = [];
-  let last = 0;
-  let key = 0;
-
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index ?? 0;
-    if (index > last) {
-      nodes.push(plainChunk(text.slice(last, index)));
-    }
-
-    if (match[1] && match[2]) {
-      nodes.push(
-        <Link key={key} href={productHref(match[2])} className="font-medium underline">
-          {match[1]}
-        </Link>,
-      );
-    } else if (match[3] && match[4]) {
-      nodes.push(
-        <Link key={key} href={productHref(match[4])} className="font-medium underline">
-          {match[3]}
-        </Link>,
-      );
-    } else if (match[5]) {
-      nodes.push(<strong key={key}>{match[5]}</strong>);
-    }
-
-    key += 1;
-    last = index + match[0].length;
-  }
-
-  if (last < text.length) {
-    nodes.push(plainChunk(text.slice(last)));
-  }
-
-  return <>{nodes}</>;
-}
 
 function money(value: string | number): string {
   const number = Number(value);
@@ -231,13 +180,13 @@ export default function AssistantPage() {
                     turn.role === "user" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-800"
                   }`}
                 >
-                  {turn.role === "assistant" ? <ReplyText text={turn.text} /> : turn.text}
+                  <span className={turn.role === "assistant" ? "whitespace-pre-line" : undefined}>{turn.text}</span>
                 </div>
                 {turn.products && turn.products.length > 0 ? (
                   <ul className="mt-2 space-y-2">
                     {turn.products.map((product) => (
                       <li key={product.product_id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                        <Link href={`/catalog/products/${product.product_id}`} className="link text-sm">
+                        <Link href={productHref(product.product_id) ?? "#"} className="link text-sm">
                           {product.name}
                         </Link>
                         <p className="mt-1 text-xs text-slate-500">
@@ -261,7 +210,7 @@ export default function AssistantPage() {
             <input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              maxLength={1000}
+              maxLength={400}
               placeholder="Опишите, что ищете"
               className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
               disabled={pending || storeId === null}

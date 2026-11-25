@@ -10,7 +10,7 @@ final readonly class ChatRequestDto
 {
     public function __construct(
         #[Assert\NotBlank]
-        #[Assert\Length(max: 1000)]
+        #[Assert\Length(max: 400)]
         public string $message,
         #[Assert\NotBlank]
         #[Assert\Positive]
