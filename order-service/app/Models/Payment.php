@@ -20,6 +20,7 @@ class Payment extends Model
     ];
 
     protected $hidden = [
+        'stripe_client_secret',
         'raw_response',
     ];
 

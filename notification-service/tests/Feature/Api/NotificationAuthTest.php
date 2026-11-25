@@ -97,9 +97,8 @@ class NotificationAuthTest extends HttpTestCase
             $middleware = $route->gatherMiddleware();
 
             $this->assertContains('auth:api', $middleware);
-            $this->assertFalse(
-                collect($middleware)->contains(fn (string $item) => str_starts_with($item, 'role:')),
-            );
+            $expected = str_contains((string) $route->uri(), 'replay') ? 'can:notifications.replay' : 'can:notifications.read';
+            $this->assertContains($expected, $middleware);
         }
     }
 
@@ -112,7 +111,7 @@ class NotificationAuthTest extends HttpTestCase
     {
         Route::get('/api/test-protected', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['auth:api', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'can:notifications.read']);
 
         $token = $this->generateToken(roles: ['admin']);
 
@@ -127,7 +126,7 @@ class NotificationAuthTest extends HttpTestCase
     {
         Route::get('/api/test-protected-analyst', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['auth:api', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'can:notifications.read']);
 
         $token = $this->generateToken(roles: ['analyst']);
 
@@ -142,7 +141,7 @@ class NotificationAuthTest extends HttpTestCase
     {
         Route::get('/api/test-protected-case', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['auth:api', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'can:notifications.read']);
 
         $token = $this->generateToken(roles: ['Admin']);
 
@@ -153,11 +152,22 @@ class NotificationAuthTest extends HttpTestCase
             ->assertJson(['status' => 'ok']);
     }
 
+    public function test_analyst_cannot_replay(): void
+    {
+        Route::post('/api/test-replay', function () {
+            return response()->json(['status' => 'ok']);
+        })->middleware(['auth:api', 'can:notifications.replay']);
+
+        $this->withHeader('Authorization', 'Bearer '.$this->generateToken(['analyst']))
+            ->postJson('/api/test-replay')
+            ->assertForbidden();
+    }
+
     public function test_single_role_field_accepted(): void
     {
         Route::get('/api/test-protected-single-role', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['auth:api', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'can:notifications.read']);
 
         $now = time();
         $token = $this->signer()->issue(1, [], null, [

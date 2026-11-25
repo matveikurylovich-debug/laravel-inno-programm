@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Order;
 use App\Models\OutboxMessage;
+use App\Models\Payment;
 
 beforeEach(function () {
     mockRedis();
@@ -61,6 +62,30 @@ it('lets the owner delete an order and request stock release', function () {
             ->where('aggregate_id', $order->id)
             ->exists(),
     )->toBeTrue();
+});
+
+it('hides the payment secret and buyer email from an analyst', function () {
+    $order = accessOrder(6);
+    Payment::query()->create([
+        'order_id' => $order->id,
+        'stripe_payment_intent_id' => 'pi_secret',
+        'stripe_client_secret' => 'cs_secret',
+        'amount' => 10,
+        'currency' => 'usd',
+        'status' => 'pending',
+    ]);
+
+    $response = $this->withToken(orderJwt(9, 'analyst'))
+        ->getJson("/api/orders/{$order->id}")
+        ->assertOk();
+
+    expect($response->json('data.email'))->toBeNull()
+        ->and($response->json('data.payment.stripe_client_secret'))->toBeNull();
+
+    $this->withToken(orderJwt(6))
+        ->getJson("/api/orders/{$order->id}")
+        ->assertOk()
+        ->assertJsonPath('data.payment.stripe_client_secret', 'cs_secret');
 });
 
 it('forbids a customer from deleting someone elses order', function () {
