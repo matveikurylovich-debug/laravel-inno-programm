@@ -31,7 +31,8 @@ class SearchQueryBuilderTest extends TestCase
             ['name^3', 'description', 'category_name.text^2'],
             $text['should'][1]['multi_match']['fields'],
         );
-        $this->assertSame(1, $text['should'][1]['multi_match']['fuzziness']);
+        $this->assertSame('AUTO', $text['should'][1]['multi_match']['fuzziness']);
+        $this->assertSame('2s', $query['timeout']);
         $this->assertSame(
             ['name.syn^3', 'description.syn', 'category_name.syn^2'],
             $text['should'][2]['multi_match']['fields'],

@@ -37,7 +37,7 @@ class ProductDocument
             return (int) $payload['quantity'] > 0;
         }
 
-        return (bool) ($payload['is_in_stock'] ?? $payload['is_active'] ?? false);
+        return (bool) ($payload['is_in_stock'] ?? false);
     }
 
     /**

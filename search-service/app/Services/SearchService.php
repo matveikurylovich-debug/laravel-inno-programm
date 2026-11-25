@@ -5,7 +5,12 @@ namespace App\Services;
 use App\Contracts\ProductIndex;
 use App\Search\FacetParser;
 use App\Search\SearchQueryBuilder;
+use Elastic\Elasticsearch\Exception\ClientResponseException;
+use Elastic\Elasticsearch\Exception\ServerResponseException;
+use Elastic\Transport\Exception\NoNodeAvailableException;
 use Illuminate\Support\Facades\Redis;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 class SearchService
 {
@@ -35,7 +40,15 @@ class SearchService
         }
 
         $started = microtime(true);
-        $raw = $this->index->search($this->queries->build($params));
+        try {
+            $raw = $this->index->search($this->queries->build($params));
+        } catch (NoNodeAvailableException|ServerResponseException $exception) {
+            report($exception);
+            throw new ServiceUnavailableHttpException(null, 'Поиск недоступен', $exception);
+        } catch (ClientResponseException $exception) {
+            report($exception);
+            throw new HttpException(500, 'Ошибка поиска', $exception);
+        }
         $result = $this->facets->present($raw, $params);
         $tookMs = (int) round((microtime(true) - $started) * 1000);
 

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SearchRequest;
 use App\Services\SearchService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
 
 class SearchController extends Controller
@@ -29,19 +29,8 @@ class SearchController extends Controller
             new OA\Response(response: 422, description: 'Ошибка валидации'),
         ]
     )]
-    public function __invoke(Request $request, SearchService $search): JsonResponse
+    public function __invoke(SearchRequest $request, SearchService $search): JsonResponse
     {
-        $params = $request->validate([
-            'q' => ['nullable', 'string', 'max:200'],
-            'category_id' => ['nullable', 'integer'],
-            'price_min' => ['nullable', 'numeric', 'min:0'],
-            'price_max' => ['nullable', 'numeric', 'min:0'],
-            'in_stock' => ['nullable', 'boolean'],
-            'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'sort' => ['nullable', 'string', 'in:relevance,price_asc,price_desc'],
-        ]);
-
-        return response()->json($search->search($params));
+        return response()->json($search->search($request->validated()));
     }
 }
