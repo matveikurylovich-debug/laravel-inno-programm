@@ -4,9 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\NotificationResource;
-use App\Mail\Auth\PasswordResetMail;
-use App\Mail\Auth\ProfileUpdateConfirmMail;
-use App\Mail\Auth\TwoFactorCodeMail;
 use App\Mail\Auth\UserRegisteredMail;
 use App\Mail\Order\OrderCancelledMail;
 use App\Mail\Order\OrderConfirmedMail;
@@ -207,18 +204,6 @@ class NotificationController extends Controller
         $mailable = match ($event) {
             'user.registered' => new UserRegisteredMail(
                 name: $data['name'] ?? 'Пользователь',
-            ),
-            'auth.password_reset' => new PasswordResetMail(
-                resetUrl: $data['reset_url'] ?? '#',
-                expiresIn: (int) ($data['expires_in'] ?? 15),
-            ),
-            'auth.two_factor_code' => new TwoFactorCodeMail(
-                code: (string) ($data['code'] ?? '000000'),
-                ttlMinutes: (int) ($data['ttl_minutes'] ?? 5),
-            ),
-            'auth.profile_update_confirm' => new ProfileUpdateConfirmMail(
-                code: (string) ($data['code'] ?? '000000'),
-                field: $data['field'] ?? 'профиль',
             ),
             'order.paid' => new OrderPaidMail(
                 orderId: $data['order_id'] ?? '—',

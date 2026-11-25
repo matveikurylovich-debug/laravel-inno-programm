@@ -1,25 +1,20 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Brand from "@/app/components/Brand";
 import { apiFetch, readError } from "@/app/lib/api";
 import { destinationFor, persistAuth } from "@/app/lib/auth";
-import { currentChallengeId, rememberChallengeId } from "@/app/lib/two-factor-challenge";
+import { currentChallengeId, rememberChallengeId, subscribeChallengeId } from "@/app/lib/two-factor-challenge";
 import type { AuthResponse, TwoFactorChallenge } from "@/app/lib/types";
 
 function TwoFactorForm() {
-  const [challengeId, setChallengeId] = useState("");
-  const [ready, setReady] = useState(false);
+  const challengeId = useSyncExternalStore(subscribeChallengeId, currentChallengeId, () => "");
+  const clientReady = useSyncExternalStore(subscribeChallengeId, () => true, () => false);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
-
-  useEffect(() => {
-    setChallengeId(currentChallengeId());
-    setReady(true);
-  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -57,11 +52,10 @@ function TwoFactorForm() {
 
     const payload = (await response.json()) as TwoFactorChallenge;
     rememberChallengeId(payload.challenge_id);
-    setChallengeId(payload.challenge_id);
     setMessage("Новый код отправлен на почту.");
   }
 
-  if (!ready) {
+  if (!clientReady) {
     return <main className="state-screen">Загрузка...</main>;
   }
 

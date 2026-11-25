@@ -9,14 +9,37 @@ export type CartLine = {
 };
 
 const KEY = "cart";
+const EMPTY_CART: CartLine[] = [];
+let cachedRaw: string | null | undefined;
+let cachedLines: CartLine[] = EMPTY_CART;
+
+export function subscribeCart(onStoreChange: () => void): () => void {
+  window.addEventListener("cart-changed", onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener("cart-changed", onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
 
 export function readCart(): CartLine[] {
   if (typeof window === "undefined") {
-    return [];
+    return EMPTY_CART;
   }
 
+  const raw = localStorage.getItem(KEY);
+  if (cachedRaw === raw) {
+    return cachedLines;
+  }
+
+  cachedRaw = raw;
+  cachedLines = parseCart(raw);
+  return cachedLines;
+}
+
+function parseCart(raw: string | null): CartLine[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEY) ?? "[]") as unknown;
+    const parsed = JSON.parse(raw ?? "[]") as unknown;
     if (!Array.isArray(parsed)) {
       return [];
     }
@@ -33,7 +56,7 @@ export function readCart(): CartLine[] {
         && typeof line.quantity === "number";
     });
   } catch {
-    return [];
+    return EMPTY_CART;
   }
 }
 
