@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\RoleName;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -81,7 +82,7 @@ class GatewayController extends Controller
         // Мутирующие методы для каталога доступны только администраторам
         if (in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             $user = $request->user();
-            if ($user === null || ! $user->hasRole('admin')) {
+            if ($user === null || ! $user->hasRole(RoleName::Admin)) {
                 return response([
                     'error' => 'Недостаточно прав. Действие доступно только роли admin.',
                 ], 403, ['Content-Type' => 'application/json']);

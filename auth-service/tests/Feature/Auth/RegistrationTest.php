@@ -13,7 +13,7 @@ test('registration screen can be rendered', function () {
 });
 
 test('new users can register', function () {
-    Role::create(['name' => 'customer']);
+    Role::firstOrCreate(['name' => 'customer']);
 
     $response = $this->post('/register', [
         'name' => 'Test User',

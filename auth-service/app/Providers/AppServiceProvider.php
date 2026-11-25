@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\AuthService;
+use App\Enums\RoleName;
 use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +29,6 @@ class AppServiceProvider extends ServiceProvider
 
         Vite::prefetch(concurrency: 3);
 
-        Gate::define('access-admin', fn (User $user) => $user->hasRole('admin'));
+        Gate::define('access-admin', fn (User $user) => $user->hasRole(RoleName::Admin));
     }
 }
