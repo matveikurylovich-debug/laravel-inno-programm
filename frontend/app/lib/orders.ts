@@ -10,6 +10,7 @@ export type OrderItem = {
 export type OrderPayment = {
   status: string;
   stripe_client_secret: string | null;
+  publishable_key?: string | null;
 };
 
 export type Order = {

@@ -315,6 +315,9 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Run ./start.sh}
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
       APP_KEY: ${ORDER_APP_KEY:?Run ./start.sh}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       DB_CONNECTION: pgsql
       DB_HOST: order-postgres
       DB_PORT: '5432'
@@ -391,22 +394,23 @@ services:
     - backend
     restart: unless-stopped
   stripe-cli:
-    image: stripe/stripe-cli:latest
+    image: stripe/stripe-cli:v1.27.0
     environment:
-      STRIPE_API_KEY: ${STRIPE_API_KEY:-${STRIPE_SECRET_KEY:-}}
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY:-}
     command:
     - listen
+    - --events
+    - payment_intent.succeeded,payment_intent.payment_failed
     - --forward-to
     - https://order-nginx/webhooks/stripe
     - --skip-verify
+    - --print-secret
     depends_on:
       order-nginx:
         condition: service_started
     networks:
     - backend
     restart: unless-stopped
-    profiles:
-    - tools
   order-outbox-relay:
     image: ecommerce-order:latest
     restart: unless-stopped
@@ -422,6 +426,9 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Run ./start.sh}
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
       APP_KEY: ${ORDER_APP_KEY:?Run ./start.sh}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       DB_CONNECTION: pgsql
       DB_HOST: order-postgres
       DB_PORT: '5432'
@@ -461,6 +468,9 @@ services:
       ANALYTICS_RABBITMQ_URL: amqp://app:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@analytics-rabbitmq:5672/
       ANALYTICS_RABBITMQ_EXCHANGE: analytics.events
       APP_KEY: ${ORDER_APP_KEY:?Run ./start.sh}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       DB_CONNECTION: pgsql
       DB_HOST: order-postgres
       DB_PORT: '5432'
@@ -498,6 +508,9 @@ services:
       ANALYTICS_RABBITMQ_URL: amqp://app:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@analytics-rabbitmq:5672/
       ANALYTICS_RABBITMQ_EXCHANGE: analytics.events
       APP_KEY: ${ORDER_APP_KEY:?Run ./start.sh}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       DB_CONNECTION: pgsql
       DB_HOST: order-postgres
       DB_PORT: '5432'
@@ -1155,6 +1168,9 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Run ./start.sh}
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
       APP_KEY: ${ORDER_APP_KEY:?Run ./start.sh}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       DB_CONNECTION: pgsql
       DB_HOST: order-postgres
       DB_PORT: '5432'

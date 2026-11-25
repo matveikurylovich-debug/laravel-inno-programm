@@ -116,7 +116,12 @@ export default function OrderPage() {
             {waitingForPayment && clientSecret ? (
               <div className="mt-6 border-t border-slate-100 pt-4">
                 <h2 className="text-lg font-semibold">Оплата картой</h2>
-                <CardPayment orderId={order.id} clientSecret={clientSecret} onPaid={() => void load()} />
+                <CardPayment
+                  orderId={order.id}
+                  clientSecret={clientSecret}
+                  publishableKey={order.payment?.publishable_key ?? ""}
+                  onPaid={() => void load()}
+                />
               </div>
             ) : null}
           </article>
