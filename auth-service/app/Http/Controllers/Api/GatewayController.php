@@ -252,8 +252,13 @@ class GatewayController extends Controller
 
     private function target(?string $baseUrl, ?string $path): string
     {
-        $base = rtrim((string) $baseUrl, '/');
         $suffix = ltrim((string) $path, '/');
+        $decoded = rawurldecode($suffix);
+        foreach ($decoded === '' ? [] : explode('/', $decoded) as $segment) {
+            abort_if($segment === '.' || $segment === '..', 404);
+        }
+
+        $base = rtrim((string) $baseUrl, '/');
 
         return $suffix === '' ? $base : $base.'/'.$suffix;
     }
@@ -270,12 +275,14 @@ class GatewayController extends Controller
                 'Idempotency-Key' => $request->header('Idempotency-Key'),
                 'Content-Type' => $request->header('Content-Type', 'application/json'),
                 'Accept' => $request->header('Accept', 'application/json'),
-                'X-Forwarded-For' => $request->ip(),
+                'X-Forwarded-For' => implode(', ', $request->ips()),
+                'X-Forwarded-Proto' => $request->getScheme(),
             ]);
 
             // Выполняем внутренний сетевой запрос
             $upstreamResponse = Http::withoutVerifying()
                 ->withoutRedirecting()
+                ->withOptions(['curl' => [CURLOPT_PATH_AS_IS => true]])
                 ->connectTimeout(5)
                 ->timeout($timeout)
                 ->withHeaders($headers)

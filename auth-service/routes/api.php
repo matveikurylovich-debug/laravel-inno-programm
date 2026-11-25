@@ -7,13 +7,13 @@ use App\Http\Controllers\Api\GatewayController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('login', [AuthController::class, 'login']);
-Route::post('register', [AuthController::class, 'register']);
+Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('register', [AuthController::class, 'register'])->middleware('throttle:register');
 Route::post('refresh', [AuthController::class, 'refresh']);
-Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('reset-password', [AuthController::class, 'resetPassword']);
-Route::post('two-factor/verify', [AuthController::class, 'verifyTwoFactor']);
-Route::post('two-factor/resend', [AuthController::class, 'resendTwoFactor']);
+Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
+Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
+Route::post('two-factor/verify', [AuthController::class, 'verifyTwoFactor'])->middleware('throttle:two-factor');
+Route::post('two-factor/resend', [AuthController::class, 'resendTwoFactor'])->middleware('throttle:two-factor');
 
 // Поиск публичный: витрина ходит сюда без JWT.
 Route::match(['get', 'head'], 'search', [GatewayController::class, 'search']);

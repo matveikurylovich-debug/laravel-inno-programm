@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(
+            at: '172.28.0.0/16',
+            headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO,
+        );
         $middleware->api(prepend: [BrowserSession::class]);
         $middleware->alias([
             'jwt.auth' => JwtMiddleware::class,

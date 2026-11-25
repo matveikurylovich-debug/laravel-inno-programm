@@ -6,9 +6,13 @@ use App\Contracts\AuthService;
 use App\Enums\RoleName;
 use App\Models\User;
 use App\Services\JwtService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
@@ -32,6 +36,19 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         Gate::define('access-admin', fn (User $user) => $user->hasRole(RoleName::Admin));
+
+        RateLimiter::for('login', function (Request $request): Limit {
+            $email = Str::lower((string) $request->input('email'));
+
+            return Limit::perMinute(5)->by($email.'|'.$request->ip());
+        });
+        RateLimiter::for('two-factor', fn (Request $request): Limit => Limit::perMinute(30)->by((string) $request->ip()));
+        RateLimiter::for('password-reset', function (Request $request): Limit {
+            $email = Str::lower((string) $request->input('email'));
+
+            return Limit::perMinute(5)->by($email.'|'.$request->ip());
+        });
+        RateLimiter::for('register', fn (Request $request): Limit => Limit::perMinute(5)->by((string) $request->ip()));
     }
 
     private function requireJwtSecret(): void
