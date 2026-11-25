@@ -16,6 +16,7 @@ pest()->extend(TestCase::class)
     ->in('Unit');
 
 pest()->extend(PostgresPersistenceTestCase::class)
+    ->group('pgsql')
     ->in('Integration');
 
 function orderJwt(int $userId = 1, string $role = 'customer', ?string $email = null): string

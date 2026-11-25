@@ -74,7 +74,10 @@
         "lint": "pint --test",
         "lint:fix": "pint",
         "phpstan": "phpstan analyse --memory-limit=1G",
-        "test": "pest",
+        "test": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php artisan test"
+        ],
         "quality": [
             "@lint",
             "@phpstan",

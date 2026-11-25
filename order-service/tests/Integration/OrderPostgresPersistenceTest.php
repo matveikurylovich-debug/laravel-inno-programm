@@ -8,7 +8,7 @@ use App\Models\ProductSnapshot;
 
 it('writes the order and outbox to postgres', function () {
     expect(config('database.default'))->toBe('pgsql')
-        ->and(config('database.connections.pgsql.database'))->toBe('order_testing');
+        ->and(config('database.connections.pgsql.database'))->toBe(env('DB_DATABASE'));
 
     ProductSnapshot::query()->create([
         'product_id' => 10,

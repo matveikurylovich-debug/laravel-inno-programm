@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Junges\Kafka\Contracts\MessageProducer;
 use Junges\Kafka\Facades\Kafka;
+use Junges\Kafka\Factory;
 
 afterEach(function () {
     Carbon::setTestNow();
@@ -24,8 +25,14 @@ function pendingOutboxMessage(): OutboxMessage
     ]);
 }
 
+function useRealKafka(): void
+{
+    Kafka::swap(new Factory);
+}
+
 function mockOutboxKafka(bool $fail): void
 {
+    useRealKafka();
     $builder = Mockery::mock(MessageProducer::class);
     $builder->shouldReceive('onTopic')->once()->andReturnSelf();
     $builder->shouldReceive('withMessage')->once()->andReturnSelf();
@@ -60,6 +67,7 @@ it('does not publish a message before next_retry_at', function () {
         'next_retry_at' => now()->addMinute(),
     ]);
 
+    useRealKafka();
     Kafka::shouldReceive('publish')->never();
 
     $this->artisan('order:outbox-relay', ['--once' => true])->assertSuccessful();
@@ -116,6 +124,7 @@ it('does not resend Kafka after RabbitMQ fails and retries the same analytics ev
     expect($message->fresh()->status)->toBe('pending');
 
     $message->refresh()->update(['next_retry_at' => now()->subSecond()]);
+    useRealKafka();
     Kafka::shouldReceive('publish')->never();
     $this->mock(AnalyticsEventPublisher::class)->shouldReceive('publish')->once()
         ->with('order.created', Mockery::on(fn (array $payload) => $payload['event_id'] === 'order-outbox-'.$message->id), true);

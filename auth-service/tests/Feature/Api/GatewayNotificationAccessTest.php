@@ -5,7 +5,6 @@ namespace Tests\Feature\Api;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Redis;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -17,16 +16,9 @@ class GatewayNotificationAccessTest extends TestCase
     {
         parent::setUp();
 
-        Redis::flushall();
         Role::firstOrCreate(['name' => 'customer']);
         Role::firstOrCreate(['name' => 'admin']);
         Role::firstOrCreate(['name' => 'analyst']);
-    }
-
-    protected function tearDown(): void
-    {
-        Redis::flushall();
-        parent::tearDown();
     }
 
     public function test_analyst_cannot_read_notifications(): void

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Api;
 
-use App\Events\PasswordResetLinkRequested;
 use App\Events\TwoFactorCodeRequested;
 use App\Models\User;
 use App\Services\Kafka\AuthNotificationProducer;
@@ -11,7 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Redis;
+use Junges\Kafka\Facades\Kafka;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -23,14 +22,7 @@ class PasswordResetAndTwoFactorTest extends TestCase
     {
         parent::setUp();
 
-        Redis::flushall();
         Role::firstOrCreate(['name' => 'customer']);
-    }
-
-    protected function tearDown(): void
-    {
-        Redis::flushall();
-        parent::tearDown();
     }
 
     public function test_login_sends_two_factor_challenge_instead_of_tokens(): void
@@ -145,10 +137,25 @@ class PasswordResetAndTwoFactorTest extends TestCase
         $this->assertDatabaseCount('password_reset_tokens', 0);
     }
 
+    public function test_two_factor_code_is_published_with_required_fields(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('customer');
+        $challenge = $this->twoFactorChallenge($user);
+
+        Kafka::assertPublishedOn('auth.notifications', null, function ($message) use ($user, $challenge): bool {
+            $body = $message->getBody();
+
+            return ($body['event'] ?? null) === 'auth.two_factor_code'
+                && ($body['email'] ?? null) === $user->email
+                && (string) ($body['user_id'] ?? '') === (string) $user->id
+                && ($body['data']['code'] ?? null) === $challenge['code']
+                && is_int($body['data']['ttl_minutes'] ?? null);
+        });
+    }
+
     public function test_forgot_password_publishes_reset_link_with_frontend_url(): void
     {
-        Event::fake([PasswordResetLinkRequested::class]);
-
         $user = User::factory()->create();
         $user->assignRole('customer');
 
@@ -156,8 +163,16 @@ class PasswordResetAndTwoFactorTest extends TestCase
             'email' => $user->email,
         ])->assertOk();
 
-        Event::assertDispatched(PasswordResetLinkRequested::class, function (PasswordResetLinkRequested $event) use ($user) {
-            return $event->user->is($user) && $event->token !== '';
+        Kafka::assertPublishedOn('auth.notifications', null, function ($message) use ($user): bool {
+            $body = $message->getBody();
+            $resetUrl = $body['data']['reset_url'] ?? null;
+
+            return ($body['event'] ?? null) === 'auth.password_reset'
+                && ($body['email'] ?? null) === $user->email
+                && (string) ($body['user_id'] ?? '') === (string) $user->id
+                && is_string($resetUrl)
+                && str_contains($resetUrl, '/reset-password/')
+                && is_int($body['data']['expires_in'] ?? null);
         });
     }
 

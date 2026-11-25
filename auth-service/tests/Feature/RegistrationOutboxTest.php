@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\DB;
 use Junges\Kafka\Facades\Kafka;
 
 it('commits registration and two durable deliveries without contacting brokers', function () {
-    Kafka::shouldReceive('publish')->never();
     DB::transaction(function () {
         $user = User::factory()->create();
         event(new Registered($user));
@@ -14,6 +13,7 @@ it('commits registration and two durable deliveries without contacting brokers',
     $this->assertDatabaseCount('users', 1);
     $this->assertDatabaseCount('jobs', 2);
     expect(DB::table('jobs')->pluck('queue')->unique()->all())->toBe(['auth-events']);
+    Kafka::assertNothingPublished();
 });
 
 it('rolls back registration deliveries with the user', function () {

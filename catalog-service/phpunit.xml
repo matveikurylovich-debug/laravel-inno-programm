@@ -20,14 +20,19 @@
     <php>
         <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="/>
         <env name="APP_ENV" value="testing"/>
-        <env name="JWT_ACCESS_SECRET" value="catalog-test-secret-key-32b-min!!"/>
+        <env name="JWT_ACCESS_SECRET" value="testing-jwt-access-secret-32b-min"/>
+        <env name="JWT_REFRESH_SECRET" value="testing-jwt-refresh-secret-32b!!"/>
         <env name="JWT_ALGO" value="HS256"/>
+        <env name="REDIS_HOST" value="127.0.0.1"/>
+        <env name="REDIS_PORT" value="6379"/>
+        <env name="REDIS_DB" value="14"/>
+        <env name="REDIS_CACHE_DB" value="15"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="DB_CONNECTION" value="sqlite" force="false"/>
+        <env name="DB_DATABASE" value=":memory:" force="false"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

@@ -8,7 +8,6 @@ use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Redis;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -23,20 +22,11 @@ class JwtServiceTest extends TestCase
     {
         parent::setUp();
 
-        // Очищаем тестовый Redis
-        Redis::flushall();
-
         // Получаем экземпляр сервиса из контейнера Laravel
         $this->jwtService = app(JwtService::class);
 
         Role::firstOrCreate(['name' => 'customer']);
         Role::firstOrCreate(['name' => 'admin']);
-    }
-
-    protected function tearDown(): void
-    {
-        Redis::flushall();
-        parent::tearDown();
     }
 
     /**
