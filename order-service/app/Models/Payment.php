@@ -23,6 +23,10 @@ class Payment extends Model
         'raw_response',
     ];
 
+    protected $appends = [
+        'publishable_key',
+    ];
+
     protected $casts = [
         'amount' => 'float',
         'raw_response' => 'array',
@@ -31,5 +35,12 @@ class Payment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function getPublishableKeyAttribute(): ?string
+    {
+        $key = config('stripe.publishable');
+
+        return is_string($key) && $key !== '' ? $key : null;
     }
 }
