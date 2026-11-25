@@ -9,12 +9,28 @@ export COMPOSE_FILE=compose.yaml
 export IMAGE_TAG="$tag"
 export IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}"
 
+touch .env
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091
   source .env
   set +a
 fi
+
+persist_env() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
+persist_env COMPOSE_FILE compose.yaml
+persist_env IMAGE_REGISTRY "$IMAGE_REGISTRY"
+persist_env IMAGE_TAG "$tag"
+export COMPOSE_FILE=compose.yaml
+export IMAGE_TAG="$tag"
 
 previous=""
 if [[ -f .last-good-tag ]]; then
@@ -27,6 +43,7 @@ rollback() {
     exit 1
   fi
   echo "smoke failed, rolling back to ${previous}" >&2
+  persist_env IMAGE_TAG "$previous"
   export IMAGE_TAG="$previous"
   docker compose pull
   docker compose up -d --wait --wait-timeout 300
