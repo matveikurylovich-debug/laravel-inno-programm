@@ -101,8 +101,9 @@ class JwtService implements AuthService
 
         $token = JWT::encode($payload, $this->refreshSecret, $this->algo);
 
-        // Кладём в Redis: ключ живёт ровно столько, сколько сам токен
-        Redis::setex("jwt:refresh:{$user->id}:{$jti}", $this->refreshTtl, $token);
+        Redis::setex($this->refreshKey($user->id, $jti), $this->refreshTtl, '1');
+        Redis::sadd($this->userSetKey($user->id), $jti);
+        Redis::expire($this->userSetKey($user->id), $this->refreshTtl);
 
         return $token;
     }
@@ -122,6 +123,11 @@ class JwtService implements AuthService
             throw new InvalidArgumentException('Некорректный тип токена.');
         }
 
+        $notBefore = Redis::get($this->notBeforeKey((int) $decoded->sub));
+        if (is_string($notBefore) && $notBefore !== '' && (int) ($decoded->iat ?? 0) <= (int) $notBefore) {
+            throw new InvalidArgumentException('Сессия отозвана.');
+        }
+
         return $decoded;
     }
 
@@ -136,7 +142,7 @@ class JwtService implements AuthService
             throw new InvalidArgumentException('Некорректный тип токена.');
         }
 
-        $exists = Redis::exists("jwt:refresh:{$decoded->sub}:{$decoded->jti}");
+        $exists = Redis::exists($this->refreshKey((int) $decoded->sub, (string) $decoded->jti));
         if (! $exists) {
             throw new InvalidArgumentException('Refresh-токен недействителен или отозван.');
         }
@@ -144,12 +150,67 @@ class JwtService implements AuthService
         return $decoded;
     }
 
+    public function readRefreshToken(string $token): object
+    {
+        $decoded = JWT::decode($token, new Key($this->refreshSecret, $this->algo));
+
+        if (($decoded->type ?? null) !== 'refresh') {
+            throw new InvalidArgumentException('Некорректный тип токена.');
+        }
+
+        return $decoded;
+    }
+
+    public function consumeRefreshToken(string $token): object
+    {
+        $decoded = $this->readRefreshToken($token);
+        $userId = (int) $decoded->sub;
+        $jti = (string) $decoded->jti;
+        $removed = (int) Redis::del($this->refreshKey($userId, $jti));
+        Redis::srem($this->userSetKey($userId), $jti);
+
+        if ($removed === 1) {
+            return $decoded;
+        }
+
+        $this->revokeAllForUser($userId);
+
+        throw new InvalidArgumentException('Повторное использование refresh-токена.');
+    }
+
     /**
      * Удаление использованного или отозванного Refresh-токена из Redis
      */
     public function revokeRefreshToken(int $userId, string $jti): void
     {
-        Redis::del("jwt:refresh:{$userId}:{$jti}");
+        Redis::del($this->refreshKey($userId, $jti));
+        Redis::srem($this->userSetKey($userId), $jti);
+    }
+
+    public function revokeAllForUser(int $userId): void
+    {
+        $jtis = Redis::smembers($this->userSetKey($userId));
+        foreach (is_array($jtis) ? $jtis : [] as $jti) {
+            Redis::del($this->refreshKey($userId, (string) $jti));
+        }
+
+        Redis::del($this->userSetKey($userId));
+        Redis::setex($this->notBeforeKey($userId), $this->accessTtl, (string) time());
+    }
+
+    private function refreshKey(int $userId, string $jti): string
+    {
+        return "jwt:refresh:{$userId}:{$jti}";
+    }
+
+    private function userSetKey(int $userId): string
+    {
+        return "jwt:user:{$userId}:refresh";
+    }
+
+    private function notBeforeKey(int $userId): string
+    {
+        return "jwt:user:{$userId}:nbf";
     }
 
     /**

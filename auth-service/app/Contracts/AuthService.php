@@ -21,7 +21,13 @@ interface AuthService
 
     public function decodeRefreshToken(string $token): object;
 
+    public function readRefreshToken(string $token): object;
+
+    public function consumeRefreshToken(string $token): object;
+
     public function revokeRefreshToken(int $userId, string $jti): void;
+
+    public function revokeAllForUser(int $userId): void;
 
     public function blacklistAccessToken(string $token): void;
 

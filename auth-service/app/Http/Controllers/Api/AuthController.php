@@ -10,6 +10,7 @@ use App\Http\Requests\Auth\ResendTwoFactorRequest;
 use App\Http\Requests\Auth\VerifyTwoFactorRequest;
 use App\Models\User;
 use App\Services\TwoFactorService;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -237,6 +238,7 @@ class AuthController extends Controller
                 $user->forceFill([
                     'password' => $password,
                 ])->save();
+                event(new PasswordReset($user));
             }
         );
 
@@ -276,10 +278,8 @@ class AuthController extends Controller
         ]);
 
         try {
-            $payload = $this->authService->decodeRefreshToken($data['refresh_token']);
+            $payload = $this->authService->consumeRefreshToken($data['refresh_token']);
             $user = User::findOrFail($payload->sub);
-
-            $this->authService->revokeRefreshToken($user->id, $payload->jti);
 
             return response()->json($this->authService->generateTokenPair($user));
         } catch (Throwable) {
@@ -306,21 +306,41 @@ class AuthController extends Controller
     )]
     public function logout(Request $request): JsonResponse
     {
-        $accessToken = $request->bearerToken();
-        if ($accessToken) {
-            $this->authService->blacklistAccessToken($accessToken);
-        }
-
-        if ($refreshToken = $request->input('refresh_token')) {
+        $refreshToken = $request->input('refresh_token');
+        $refreshPayload = null;
+        if (is_string($refreshToken) && $refreshToken !== '') {
             try {
-                $payload = $this->authService->decodeRefreshToken($refreshToken);
-                $this->authService->revokeRefreshToken($payload->sub, $payload->jti);
+                $refreshPayload = $this->authService->readRefreshToken($refreshToken);
             } catch (Throwable) {
-                // Игнорируем ошибки при логауте
+                return response()->json(['error' => 'Недействительный refresh-токен'], 422);
+            }
+
+            $current = $request->user();
+            if ($current !== null && (int) $refreshPayload->sub !== (int) $current->id) {
+                return response()->json(['error' => 'Refresh-токен принадлежит другому пользователю'], 422);
             }
         }
 
+        if ($accessToken = $request->bearerToken()) {
+            $this->authService->blacklistAccessToken($accessToken);
+        }
+
+        if ($refreshPayload !== null) {
+            $this->authService->revokeRefreshToken((int) $refreshPayload->sub, (string) $refreshPayload->jti);
+        }
+
         return response()->json(['message' => 'Вы успешно вышли из системы']);
+    }
+
+    public function logoutAll(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $this->authService->revokeAllForUser((int) $user->id);
+        if ($token = $request->bearerToken()) {
+            $this->authService->blacklistAccessToken($token);
+        }
+
+        return response()->json(['message' => 'Все сессии завершены']);
     }
 
     #[OA\Get(

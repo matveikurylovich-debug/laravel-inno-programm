@@ -85,6 +85,7 @@ class AdminUserController extends Controller
 
         $role = RoleName::from($validated['role']);
         $user->syncRoles([$role]);
+        app(AuthService::class)->revokeAllForUser((int) $user->id);
 
         return response()->json([
             'user' => [
