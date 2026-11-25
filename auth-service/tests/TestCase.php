@@ -2,12 +2,38 @@
 
 namespace Tests;
 
+use App\Events\TwoFactorCodeRequested;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * @return array{challenge_id: string, code: string}
+     */
+    protected function twoFactorChallenge(User $user, string $password = 'password'): array
+    {
+        $code = null;
+        Event::listen(TwoFactorCodeRequested::class, function (TwoFactorCodeRequested $event) use (&$code): void {
+            $code = $event->code;
+        });
+
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => $password,
+        ])->assertOk();
+
+        $challengeId = $login->json('challenge_id');
+        $this->assertIsString($challengeId);
+        $this->assertIsString($code);
+
+        return [
+            'challenge_id' => $challengeId,
+            'code' => $code,
+        ];
+    }
+
     /**
      * Complete login including the two-factor challenge.
      *
@@ -15,17 +41,11 @@ abstract class TestCase extends BaseTestCase
      */
     protected function tokensFor(User $user, string $password = 'password'): array
     {
-        $this->postJson('/api/login', [
-            'email' => $user->email,
-            'password' => $password,
-        ])->assertOk();
-
-        $code = Cache::get("2fa_code_{$user->id}");
-        $this->assertNotEmpty($code);
+        $challenge = $this->twoFactorChallenge($user, $password);
 
         $response = $this->postJson('/api/two-factor/verify', [
-            'user_id' => $user->id,
-            'code' => $code,
+            'challenge_id' => $challenge['challenge_id'],
+            'code' => $challenge['code'],
         ])->assertOk();
 
         return [

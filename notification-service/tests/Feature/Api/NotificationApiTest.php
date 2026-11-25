@@ -76,6 +76,65 @@ class NotificationApiTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_api_does_not_return_codes_or_reset_links(): void
+    {
+        $log = $this->log('auth.two_factor_code', 'sent', 'ann@example.com', now(), [
+            'event' => 'auth.two_factor_code',
+            'email' => 'ann@example.com',
+            'data' => [
+                'code' => '123456',
+                'reset_url' => 'http://localhost:3000/reset-password/token',
+                'ttl_minutes' => 5,
+            ],
+        ]);
+
+        $this->asRole('admin')
+            ->getJson('/api/notifications/'.$log->_id)
+            ->assertOk()
+            ->assertJsonPath('data.payload.data.ttl_minutes', 5)
+            ->assertJsonMissingPath('data.payload.data.code')
+            ->assertJsonMissingPath('data.payload.data.reset_url');
+    }
+
+    public function test_replay_refuses_to_resend_a_stored_secret(): void
+    {
+        Mail::fake();
+
+        $log = $this->log('auth.two_factor_code', 'failed', 'ann@example.com', now(), [
+            'event' => 'auth.two_factor_code',
+            'email' => 'ann@example.com',
+            'data' => ['code' => '123456', 'ttl_minutes' => 5],
+        ], true);
+
+        $this->asRole('admin')
+            ->postJson('/api/notifications/'.$log->_id.'/replay')
+            ->assertStatus(422);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_redact_command_removes_stored_secrets(): void
+    {
+        $log = $this->log('auth.password_reset', 'sent', 'ann@example.com', now(), [
+            'event' => 'auth.password_reset',
+            'email' => 'ann@example.com',
+            'data' => [
+                'reset_url' => 'http://localhost:3000/reset-password/token',
+                'code' => '123456',
+                'expires_in' => 60,
+            ],
+        ]);
+
+        $this->artisan('notifications:redact-secrets')->assertSuccessful();
+
+        $fresh = NotificationLog::query()->find($log->_id);
+        $this->assertNotNull($fresh);
+        $data = is_array($fresh->payload['data'] ?? null) ? $fresh->payload['data'] : [];
+        $this->assertArrayNotHasKey('code', $data);
+        $this->assertArrayNotHasKey('reset_url', $data);
+        $this->assertSame(60, $data['expires_in'] ?? null);
+    }
+
     public function test_admin_can_replay_failed_notification(): void
     {
         Mail::fake();

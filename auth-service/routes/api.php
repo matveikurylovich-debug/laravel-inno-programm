@@ -45,14 +45,14 @@ Route::middleware('jwt.auth')->group(function () {
 
     Route::middleware('role:admin,analyst')->group(function () {
         Route::get('admin/users', [AdminUserController::class, 'index']);
-        Route::match(['get', 'head'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
-            ->where('path', '.*');
         Route::match(['get', 'head'], 'analytics/{path?}', [GatewayController::class, 'analytics'])
             ->where('path', '.*');
     });
 
     Route::middleware('role:admin')->group(function () {
         Route::patch('admin/users/{user}/role', [AdminUserController::class, 'updateRole']);
+        Route::match(['get', 'head'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
+            ->where('path', '.*');
         Route::match(['post', 'put', 'patch', 'delete'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
             ->where('path', '.*');
     });

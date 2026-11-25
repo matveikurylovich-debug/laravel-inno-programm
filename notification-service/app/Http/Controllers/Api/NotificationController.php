@@ -200,6 +200,10 @@ class NotificationController extends Controller
             throw new InvalidArgumentException('У записи нет email получателя.');
         }
 
+        if (in_array($event, ['auth.two_factor_code', 'auth.password_reset', 'auth.profile_update_confirm'], true)) {
+            throw new InvalidArgumentException('Секрет из этого уведомления не хранится и не переотправляется.');
+        }
+
         $mailable = match ($event) {
             'user.registered' => new UserRegisteredMail(
                 name: $data['name'] ?? 'Пользователь',

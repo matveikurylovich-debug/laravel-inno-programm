@@ -5,6 +5,8 @@ framework:
             kafka_catalog:
                 dsn: 'kafka://%env(KAFKA_BROKERS)%'
                 serializer: App\Serializer\CatalogEventSerializer
+                retry_strategy:
+                    max_retries: 0
                 options:
                     topic: '%env(KAFKA_CATALOG_TOPIC)%'
                     kafka_conf:

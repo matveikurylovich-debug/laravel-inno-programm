@@ -40,6 +40,7 @@ final class CatalogEventSerializer implements SerializerInterface
 
     public function encode(Envelope $envelope): array
     {
-        return ['body' => '', 'headers' => []];
+        // Пустое тело и пустые заголовки стирали RedeliveryStamp и зацикливали catalog.events.
+        throw new \LogicException('Повторная публикация '.$envelope->getMessage()::class.' в catalog.events отключена.');
     }
 }

@@ -46,7 +46,6 @@ class NotificationLog extends Model
     ];
 
     protected $casts = [
-        'payload' => 'array',
         'attempts' => 'integer',
         'is_dlq' => 'boolean',
         'sent_at' => 'datetime',

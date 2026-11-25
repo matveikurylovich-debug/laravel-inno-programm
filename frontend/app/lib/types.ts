@@ -15,7 +15,7 @@ export type AuthResponse = {
 
 export type TwoFactorChallenge = {
   two_factor: true;
-  user_id: number;
+  challenge_id: string;
   expires_in: number;
   message: string;
 };

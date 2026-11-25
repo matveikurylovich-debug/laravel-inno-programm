@@ -8,6 +8,7 @@ use App\Mail\Auth\ProfileUpdateConfirmMail;
 use App\Mail\Auth\TwoFactorCodeMail;
 use App\Mail\Auth\UserRegisteredMail;
 use App\Models\NotificationLog;
+use App\Support\SensitivePayload;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
@@ -27,11 +28,13 @@ class AuthNotificationHandler
     public function __invoke(ConsumerMessage $message): void
     {
         // 1. Извлечение payload из ConsumerMessage
-        $payload = $message->getBody();
+        $rawPayload = $message->getBody();
+        $rawPayload = is_array($rawPayload) ? $rawPayload : [];
+        $payload = SensitivePayload::redact($rawPayload);
         $event = $payload['event'] ?? 'UnknownEvent';
         $userId = $payload['user_id'] ?? null;
         $email = $payload['email'] ?? null;
-        $data = $payload['data'] ?? [];
+        $data = is_array($rawPayload['data'] ?? null) ? $rawPayload['data'] : [];
 
         // 2. Первичный аудит в MongoDB со статусом pending и attempts = 0
         $log = NotificationLog::create([
@@ -154,7 +157,7 @@ class AuthNotificationHandler
                 type: $event,
                 title: $title,
                 message: $message,
-                data: $data
+                data: SensitivePayload::redact($data)
             ));
         }
     }

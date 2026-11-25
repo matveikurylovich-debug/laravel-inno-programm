@@ -103,12 +103,12 @@ class AuthController extends Controller
             return response()->json(['error' => 'Неверный логин или пароль'], 401);
         }
 
-        $ttlMinutes = $this->twoFactorService->challenge($user);
+        $challenge = $this->twoFactorService->challenge($user);
 
         return response()->json([
             'two_factor' => true,
-            'user_id' => $user->id,
-            'expires_in' => $ttlMinutes * 60,
+            'challenge_id' => $challenge['challenge_id'],
+            'expires_in' => $challenge['expires_in'],
             'message' => 'Код подтверждения отправлен на почту.',
         ]);
     }
@@ -120,9 +120,9 @@ class AuthController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['user_id', 'code'],
+                required: ['challenge_id', 'code'],
                 properties: [
-                    new OA\Property(property: 'user_id', type: 'integer'),
+                    new OA\Property(property: 'challenge_id', type: 'string', format: 'uuid'),
                     new OA\Property(property: 'code', type: 'string', minLength: 6, maxLength: 6),
                 ]
             )
@@ -135,11 +135,11 @@ class AuthController extends Controller
     public function verifyTwoFactor(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'challenge_id' => ['required', 'uuid'],
             'code' => ['required', 'string', 'size:6'],
         ]);
 
-        $user = $this->twoFactorService->verify((int) $data['user_id'], $data['code']);
+        $user = $this->twoFactorService->verify($data['challenge_id'], $data['code']);
 
         return $this->tokenResponse($user);
     }
@@ -151,29 +151,29 @@ class AuthController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['user_id'],
+                required: ['challenge_id'],
                 properties: [
-                    new OA\Property(property: 'user_id', type: 'integer'),
+                    new OA\Property(property: 'challenge_id', type: 'string', format: 'uuid'),
                 ]
             )
         ),
         responses: [
             new OA\Response(response: 200, description: 'Новый код отправлен'),
+            new OA\Response(response: 422, description: 'Нет активной проверки пароля'),
         ]
     )]
     public function resendTwoFactor(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'challenge_id' => ['required', 'uuid'],
         ]);
 
-        $user = User::findOrFail($data['user_id']);
-        $ttlMinutes = $this->twoFactorService->challenge($user);
+        $challenge = $this->twoFactorService->resend($data['challenge_id']);
 
         return response()->json([
             'two_factor' => true,
-            'user_id' => $user->id,
-            'expires_in' => $ttlMinutes * 60,
+            'challenge_id' => $challenge['challenge_id'],
+            'expires_in' => $challenge['expires_in'],
             'message' => 'Новый код отправлен на почту.',
         ]);
     }

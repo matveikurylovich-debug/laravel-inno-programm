@@ -1,20 +1,24 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import Brand from "@/app/components/Brand";
-import { useSearchParams } from "next/navigation";
 import { apiFetch, readError } from "@/app/lib/api";
 import { destinationFor, persistAuth } from "@/app/lib/auth";
-import type { AuthResponse } from "@/app/lib/types";
+import type { AuthResponse, TwoFactorChallenge } from "@/app/lib/types";
 
 function TwoFactorForm() {
-  const searchParams = useSearchParams();
-  const userId = Number(searchParams.get("user_id") ?? "");
+  const [challengeId, setChallengeId] = useState("");
+  const [ready, setReady] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    setChallengeId(sessionStorage.getItem("two_factor_challenge_id") ?? "");
+    setReady(true);
+  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -23,7 +27,7 @@ function TwoFactorForm() {
 
     const response = await apiFetch("/api/auth/two-factor/verify", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, code }),
+      body: JSON.stringify({ challenge_id: challengeId, code }),
     });
 
     if (!response.ok) {
@@ -42,7 +46,7 @@ function TwoFactorForm() {
     setMessage("");
     const response = await apiFetch("/api/auth/two-factor/resend", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ challenge_id: challengeId }),
     });
 
     if (!response.ok) {
@@ -50,10 +54,17 @@ function TwoFactorForm() {
       return;
     }
 
+    const payload = (await response.json()) as TwoFactorChallenge;
+    sessionStorage.setItem("two_factor_challenge_id", payload.challenge_id);
+    setChallengeId(payload.challenge_id);
     setMessage("Новый код отправлен на почту.");
   }
 
-  if (!userId) {
+  if (!ready) {
+    return <main className="state-screen">Загрузка...</main>;
+  }
+
+  if (!challengeId) {
     return (
       <main className="auth-shell">
         <p className="auth-card text-center text-sm text-slate-600">

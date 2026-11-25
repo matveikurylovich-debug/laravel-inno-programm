@@ -7,6 +7,7 @@ use App\Mail\Order\OrderCancelledMail;
 use App\Mail\Order\OrderConfirmedMail;
 use App\Mail\Order\OrderPaidMail;
 use App\Models\NotificationLog;
+use App\Support\SensitivePayload;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use InvalidArgumentException;
@@ -50,7 +51,8 @@ class OrderNotificationHandler
 
         $userId = $payload['user_id'] ?? null;
         $email = $payload['email'] ?? null;
-        $data = $payload['data'] ?? [];
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $payload = SensitivePayload::redact($payload);
 
         // 1. Первичная фиксация в MongoDB (pending, attempts = 0)
         $log = NotificationLog::create([
@@ -169,7 +171,7 @@ class OrderNotificationHandler
                 type: $event,
                 title: $title,
                 message: $messageText,
-                data: $data
+                data: SensitivePayload::redact($data)
             ));
         }
     }

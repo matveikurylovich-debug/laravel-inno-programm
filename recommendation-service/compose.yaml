@@ -23,9 +23,10 @@ services:
                 condition: service_healthy
 
     recommendation-worker:
+        profiles: ["gemini"]
         image: recommendation-service:local
         container_name: recommendation-worker
-        command: php bin/console messenger:consume kafka_catalog --time-limit=3600 --memory-limit=256M -vv
+        command: ["sh", "-c", "if [ -z \"$$GEMINI_API_KEY\" ]; then echo 'GEMINI_API_KEY is empty; consumer idle.'; exec sleep infinity; fi; exec php bin/console messenger:consume kafka_catalog --time-limit=3600 --memory-limit=256M -vv"]
         restart: unless-stopped
         env_file:
             - .env
@@ -73,7 +74,7 @@ services:
         volumes:
             - .:/var/www/html:ro
             - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-            - ./docker/nginx/certs:/etc/nginx/certs:ro
+            - ../infra/certs:/etc/nginx/certs:ro
         networks:
             - recommendation
             - microservices-net

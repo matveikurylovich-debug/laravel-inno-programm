@@ -29,7 +29,8 @@ export default function LoginPage() {
     }
 
     const data = (await response.json()) as TwoFactorChallenge;
-    window.location.href = `/two-factor?user_id=${data.user_id}`;
+    sessionStorage.setItem("two_factor_challenge_id", data.challenge_id);
+    window.location.href = "/two-factor";
   }
 
   return (

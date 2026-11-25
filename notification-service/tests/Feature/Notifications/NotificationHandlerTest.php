@@ -81,6 +81,20 @@ class NotificationHandlerTest extends TestCase
         Mail::assertSent(PasswordResetMail::class);
         Mail::assertSent(TwoFactorCodeMail::class, fn (TwoFactorCodeMail $mail) => $mail->code === '123456');
         $this->assertSame(2, NotificationLog::query()->where('status', NotificationLog::STATUS_SENT)->count());
+
+        foreach (NotificationLog::query()->get() as $log) {
+            $data = is_array($log->payload['data'] ?? null) ? $log->payload['data'] : [];
+            $this->assertArrayNotHasKey('code', $data);
+            $this->assertArrayNotHasKey('reset_url', $data);
+        }
+
+        $dispatched = Event::dispatched(RealtimeNotificationEvent::class);
+        $this->assertCount(2, $dispatched);
+        foreach ($dispatched as $item) {
+            $event = $item[0];
+            $this->assertArrayNotHasKey('code', $event->data);
+            $this->assertArrayNotHasKey('reset_url', $event->data);
+        }
     }
 
     public function test_order_events_are_stored_and_mailed(): void

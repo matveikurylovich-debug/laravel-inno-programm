@@ -46,6 +46,13 @@ prepare_env() {
       cp "$example" "$target"
       chmod 600 "$target"
     fi
+    if [[ "$service" != analytics && -f "$target" ]]; then
+      if grep -q '^BROADCAST_CONNECTION=' "$target"; then
+        sed -i 's|^BROADCAST_CONNECTION=.*|BROADCAST_CONNECTION=null|' "$target"
+      else
+        printf '\nBROADCAST_CONNECTION=null\n' >> "$target"
+      fi
+    fi
   done
 }
 
@@ -92,7 +99,17 @@ done
 docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
 docker compose run --rm --no-deps search-app php artisan search:setup-index
 docker compose run --rm --no-deps catalog-service php artisan filament:upgrade
-docker compose up -d --wait --wait-timeout 240
+gemini_key=""
+if [[ -f .env ]]; then
+  gemini_key="$(grep -E '^GEMINI_API_KEY=' .env | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+fi
+if [[ -n "$gemini_key" ]]; then
+  docker compose --profile gemini up -d --wait --wait-timeout 240
+else
+  docker compose --profile gemini stop recommendation-worker >/dev/null 2>&1 || true
+  printf 'GEMINI_API_KEY is empty; recommendation-worker stays stopped.\n'
+  docker compose up -d --wait --wait-timeout 240
+fi
 if [[ "${1:-}" == --seed ]]; then
   docker compose exec -T catalog-service php artisan db:seed --force
   docker compose exec -T catalog-service php artisan catalog:reindex-products

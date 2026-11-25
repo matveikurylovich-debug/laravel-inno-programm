@@ -157,7 +157,7 @@ class GatewayController extends Controller
         summary: 'Gateway: notifications (GET)',
         security: [['bearerAuth' => []]],
         tags: ['Gateway'],
-        description: 'Роли admin, analyst',
+        description: 'Только admin',
         parameters: [
             new OA\Parameter(name: 'path', in: 'path', required: false, schema: new OA\Schema(type: 'string')),
         ],

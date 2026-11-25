@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\NotificationLog;
+use App\Support\SensitivePayload;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use LogicException;
@@ -36,6 +37,11 @@ class NotificationResource extends JsonResource
         }
 
         $recipient = $notification->recipient ?? $notification->recipient_email;
+        $payload = $notification->payload;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            $payload = is_array($decoded) ? $decoded : null;
+        }
 
         return [
             // Превращаем системный ObjectId MongoDB в обычную строку
@@ -47,7 +53,7 @@ class NotificationResource extends JsonResource
             'attempts' => (int) $notification->attempts,
             'is_dlq' => (bool) $notification->is_dlq,
             'error_message' => $notification->error_message,
-            'payload' => $notification->payload,
+            'payload' => is_array($payload) ? SensitivePayload::redact($payload) : null,
 
             // Приводим даты к единому международному стандарту ISO 8601
             'sent_at' => $notification->sent_at?->toIso8601String(),

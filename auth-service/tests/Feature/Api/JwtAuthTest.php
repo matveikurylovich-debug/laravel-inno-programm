@@ -5,7 +5,6 @@ namespace Tests\Feature\Api;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redis;
@@ -53,12 +52,14 @@ class JwtAuthTest extends TestCase
 
         $challenge->assertOk()
             ->assertJsonPath('two_factor', true)
-            ->assertJsonPath('user_id', $user->id)
+            ->assertJsonMissingPath('user_id')
             ->assertJsonMissingPath('access_token');
 
+        $issued = $this->twoFactorChallenge($user, 'secret123');
+
         $response = $this->postJson('/api/two-factor/verify', [
-            'user_id' => $user->id,
-            'code' => Cache::get("2fa_code_{$user->id}"),
+            'challenge_id' => $issued['challenge_id'],
+            'code' => $issued['code'],
         ]);
 
         $response->assertStatus(200)

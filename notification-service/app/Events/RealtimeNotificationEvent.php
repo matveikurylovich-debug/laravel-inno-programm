@@ -17,7 +17,7 @@ class RealtimeNotificationEvent implements ShouldBroadcastNow
      * @param  string  $type  Тип события: 'user.registered', 'auth.password_reset', 'auth.two_factor_code', 'auth.profile_update_confirm'
      * @param  string  $title  Заголовок алерта
      * @param  string  $message  Текст алерта
-     * @param  array  $data  Дополнительные данные (например, код или ссылка)
+     * @param  array  $data  Дополнительные данные без кодов и ссылок сброса пароля
      */
     public function __construct(
         public int|string $userId,

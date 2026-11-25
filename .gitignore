@@ -1,5 +1,6 @@
 /.env
 /.secrets
+**/*.key
 /.local/
 /infra/certs/*
 !infra/certs/.gitkeep
