@@ -30,6 +30,9 @@ prepare_env() {
     fi
   done
 
+  values[LOCAL_UID]="$(id -u)"
+  values[LOCAL_GID]="$(id -g)"
+
   [[ -v values[GEMINI_API_KEY] ]] || values[GEMINI_API_KEY]=""
 
   tmp="$(mktemp)"

@@ -1,5 +1,5 @@
-# Base image: docker build -t ecommerce-php-base:latest -f infra/php/Dockerfile infra/php
-FROM ecommerce-php-base:latest AS vendor
+# Base image: docker build -t ecommerce-php-base:8.5 -f infra/php/Dockerfile infra/php
+FROM ecommerce-php-base:8.5 AS vendor
 
 WORKDIR /var/www/html
 
@@ -13,13 +13,17 @@ RUN composer install \
         --no-scripts \
         --optimize-autoloader
 
-FROM ecommerce-php-base:latest
+FROM ecommerce-php-base:8.5
 
 WORKDIR /var/www/html
 
-COPY . .
-COPY --from=vendor /var/www/html/vendor ./vendor
+COPY --chown=www-data:www-data . .
+COPY --from=vendor --chown=www-data:www-data /var/www/html/vendor ./vendor
+COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 
 RUN mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views storage/logs \
     && composer dump-autoload --optimize --no-dev --no-scripts \
-    && APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= php artisan package:discover --ansi
+    && APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= php artisan package:discover --ansi \
+    && chown -R www-data:www-data storage bootstrap/cache
+
+USER www-data
