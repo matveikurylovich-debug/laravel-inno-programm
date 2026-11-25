@@ -194,12 +194,42 @@ jobs:
   images:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ecommerce-auth
+            context: auth-service
+            file: auth-service/Dockerfile
+          - image: ecommerce-catalog
+            context: catalog-service
+            file: catalog-service/Dockerfile
+          - image: ecommerce-order
+            context: order-service
+            file: order-service/Dockerfile
+          - image: ecommerce-search
+            context: search-service
+            file: search-service/Dockerfile
+          - image: ecommerce-notification
+            context: notification-service
+            file: notification-service/Dockerfile
+          - image: ecommerce-recommendation
+            context: recommendation-service
+            file: recommendation-service/Dockerfile
+          - image: ecommerce-frontend
+            context: frontend
+            file: frontend/Dockerfile
+          - image: ecommerce-analytics
+            context: analytics-service/backend
+            file: analytics-service/backend/Dockerfile
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
       - name: Login to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: docker/login-action@v3
@@ -214,13 +244,25 @@ jobs:
           chmod +x /usr/local/bin/hadolint
           find . \( -name Dockerfile -o -name 'Dockerfile.*' \) -not -path '*/vendor/*' -print0 \
             | xargs -0 hadolint --failure-threshold error
-      - name: Build images
-        run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]]; then
-            ./scripts/ci/build-images.sh --push
-          else
-            ./scripts/ci/build-images.sh
-          fi
+      - name: Build the PHP base image
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/php
+          tags: ecommerce-php-base:8.5
+          load: true
+          push: false
+          cache-from: type=gha,scope=php-base
+          cache-to: type=gha,scope=php-base,mode=max
+      - name: Build and publish service images
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          tags: ghcr.io/matveikurylovich-debug/${{ matrix.image }}:${{ github.sha }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          load: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 60
