@@ -20,6 +20,10 @@ cd shop
 
 После выката поиска в окно обслуживания пересоберите индекс, чтобы убрать уже попавшие туда неактивные товары: `docker compose exec search-app php artisan search:setup-index --force`, затем дождитесь повторной загрузки каталога из Kafka.
 
+## Маршрутизация
+
+Единственный вход — `infra/gateway`. Он отправляет `/api/catalog`, `/api/orders`, `/api/search`, `/api/recommendations`, `/api/notifications` и `/api/analytics` сразу в nginx сервиса. Защищённые location сначала вызывают `auth_request /_auth/verify` (`auth-nginx /api/gateway/verify`): токен проверяется, отозванный access не проходит. Права на запись и роли проверяет уже сам сервис. Cookie `__Host-access` на edge превращается в `Authorization: Bearer`. Чужой `Origin` у мутирующего cookie-запроса отклоняет middleware сессии в auth и в сервисах.
+
 ## Ротация ключа access-токена
 
 Access-токены подписывает только `auth-app` ключом RS256. Публичные ключи отдаёт `GET /api/internal/jwks`. В JWKS могут одновременно лежать два `kid`: текущий и предыдущий.

@@ -4,7 +4,6 @@ namespace Tests\Feature\Api;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -15,39 +14,23 @@ class GatewayNotificationAccessTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
         Role::firstOrCreate(['name' => 'customer']);
-        Role::firstOrCreate(['name' => 'admin']);
-        Role::firstOrCreate(['name' => 'analyst']);
     }
 
-    public function test_analyst_cannot_read_notifications(): void
+    public function test_verify_requires_a_token(): void
     {
-        Http::fake();
-
-        $analyst = User::factory()->create();
-        $analyst->assignRole('analyst');
-
-        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($analyst))
-            ->getJson('/api/notifications')
-            ->assertForbidden();
-
-        Http::assertNothingSent();
+        $this->getJson('/api/gateway/verify')->assertUnauthorized();
     }
 
-    public function test_admin_notification_read_is_proxied(): void
+    public function test_verify_accepts_a_live_access_token(): void
     {
-        Http::fake([
-            '*' => Http::response(['data' => []], 200),
-        ]);
+        $user = User::factory()->create();
+        $user->assignRole('customer');
+        $token = $this->tokenFor($user);
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-
-        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
-            ->getJson('/api/notifications')
-            ->assertOk();
-
-        Http::assertSent(fn ($request) => str_contains($request->url(), 'notifications'));
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/gateway/verify')
+            ->assertNoContent()
+            ->assertHeader('X-Access-Token', $token);
     }
 }
