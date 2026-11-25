@@ -87,7 +87,25 @@ class CatalogApiTest extends TestCase
             ->assertJsonPath('data.name', 'Tablet');
 
         $this->assertSame(3, Stock::query()->where('product_id', Product::query()->where('slug', 'tablet')->value('id'))->value('quantity'));
+        $created = \App\Models\CatalogOutbox::query()->where('event', 'product.created')->first();
+        $this->assertNotNull($created);
+        $this->assertTrue($created->payload['is_active']);
+        $this->assertSame(3, $created->payload['available']);
+        app(\App\Console\Commands\CatalogOutboxRelayCommand::class)->publishBatch(10);
         Kafka::assertPublishedOn('catalog.events');
+    }
+
+    public function test_a_rolled_back_catalog_event_is_not_stored(): void
+    {
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function (): void {
+                app(\App\Services\Kafka\CatalogEventProducer::class)->productDeleted(1, 1);
+                throw new \RuntimeException('rollback');
+            });
+        } catch (\RuntimeException) {
+        }
+
+        $this->assertSame(0, \App\Models\CatalogOutbox::query()->count());
     }
 
     public function test_category_parent_must_belong_to_the_same_store(): void

@@ -243,7 +243,24 @@ class ProductController extends Controller
                 'reserved_quantity' => 0,
             ]);
 
-            return $product;
+            $fresh = $product->fresh(['stock', 'category']);
+            app(\App\Services\Kafka\CatalogEventProducer::class)->productCreated(
+                (int) $fresh->id,
+                (int) $fresh->store_id,
+                (string) $fresh->name,
+                (string) $fresh->price,
+                (bool) $fresh->is_active,
+                [
+                    'description' => (string) ($fresh->description ?? ''),
+                    'category_id' => $fresh->category_id,
+                    'category_name' => (string) ($fresh->category->name ?? ''),
+                    'attributes' => $fresh->attributes ?? [],
+                    'quantity' => (int) $fresh->stock->sum('quantity'),
+                    'available' => (int) $fresh->available_stock,
+                ],
+            );
+
+            return $fresh;
         });
 
         return response()->json([

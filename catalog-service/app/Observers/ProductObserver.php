@@ -16,14 +16,6 @@ class ProductObserver
     public function created(Product $product): void
     {
         $this->cacheService->forgetProductList($product->store_id);
-        $this->events->productCreated(
-            (int) $product->id,
-            (int) $product->store_id,
-            (string) $product->name,
-            (string) $product->price,
-            (bool) $product->is_active,
-            $this->searchFields($product),
-        );
     }
 
     public function updated(Product $product): void
