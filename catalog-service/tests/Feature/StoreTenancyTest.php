@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
-use Firebase\JWT\JWT;
+use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -114,12 +114,9 @@ class StoreTenancyTest extends TestCase
 
     private function token(?int $storeId = null): string
     {
-        return JWT::encode([
-            'sub' => 1,
-            'role' => 'admin',
-            'store_id' => $storeId,
-            'type' => 'access',
-            'exp' => time() + 3600,
-        ], (string) config('jwt.secret'), 'HS256');
+        $pem = (string) file_get_contents(dirname(__DIR__, 3).'/packages/platform-kit/tests/fixtures/access-private.pem');
+
+        return (new AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
+            ->issue(1, ['admin'], $storeId);
     }
 }

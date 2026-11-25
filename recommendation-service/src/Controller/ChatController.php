@@ -13,7 +13,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Uid\Uuid;
@@ -48,7 +48,7 @@ final class ChatController extends \Symfony\Bundle\FrameworkBundle\Controller\Ab
         responses: [
             new OA\Response(response: 200, description: 'Ответ ассистента и товары'),
             new OA\Response(response: 401, description: 'Не авторизован'),
-            new OA\Response(response: 403, description: 'Диалог принадлежит другому пользователю'),
+            new OA\Response(response: 404, description: 'Диалог не найден'),
         ]
     )]
     public function chat(
@@ -87,7 +87,7 @@ final class ChatController extends \Symfony\Bundle\FrameworkBundle\Controller\Ab
         }
 
         if ($existing->getUserId() !== $user->getId()) {
-            throw new AccessDeniedHttpException('Диалог принадлежит другому пользователю.');
+            throw new NotFoundHttpException('Диалог не найден.');
         }
 
         return $existing;

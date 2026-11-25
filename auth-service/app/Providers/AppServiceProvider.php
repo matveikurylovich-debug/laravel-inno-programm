@@ -44,12 +44,14 @@ class AppServiceProvider extends ServiceProvider
 
     private function requireJwtSecret(): void
     {
-        $secret = getenv('JWT_ACCESS_SECRET');
         $command = $_SERVER['argv'][1] ?? '';
         $tooling = ['package:discover', 'config:clear', 'config:cache', 'key:generate', 'about', 'list', 'test'];
         $argv0 = $_SERVER['argv'][0] ?? '';
-        if (($secret === false || $secret === '') && ! in_array($command, $tooling, true) && ! str_contains($argv0, 'phpstan')) {
-            throw new RuntimeException('JWT-секрет пуст, запустите ./start.sh');
+        $path = getenv('JWT_ACCESS_PRIVATE_KEY_PATH');
+        if (! in_array($command, $tooling, true) && ! str_contains($argv0, 'phpstan') && ! $this->app->runningInConsole()) {
+            if (! is_string($path) || $path === '' || ! is_file($path)) {
+                throw new RuntimeException('Закрытый ключ access-токена не найден, запустите ./start.sh');
+            }
         }
     }
 }

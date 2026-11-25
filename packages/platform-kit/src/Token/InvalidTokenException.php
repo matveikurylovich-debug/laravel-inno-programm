@@ -37,4 +37,14 @@ final class InvalidTokenException extends RuntimeException
     {
         return new self('Access token is revoked.');
     }
+
+    public static function audience(): self
+    {
+        return new self('Access token audience is invalid.');
+    }
+
+    public static function issuer(): self
+    {
+        return new self('Access token issuer is invalid.');
+    }
 }

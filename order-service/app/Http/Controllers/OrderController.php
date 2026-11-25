@@ -89,7 +89,7 @@ class OrderController extends Controller
     public function store(CreateOrderRequest $request): JsonResponse
     {
         $user = $request->user();
-        $email = $user instanceof JwtUser ? $user->claims->email : null;
+        $email = $request->validated('email');
 
         if (! is_string($email) || $email === '') {
             return response()->json([

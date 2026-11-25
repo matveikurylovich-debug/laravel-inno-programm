@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\AuthService;
 use App\Enums\RoleName;
 use App\Models\User;
+use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
 use Ecommerce\PlatformKit\Token\InvalidTokenException;
 use Ecommerce\PlatformKit\Token\RefreshTokenReader;
@@ -16,23 +17,17 @@ use InvalidArgumentException;
 
 class JwtService implements AuthService
 {
-    private string $accessSecret;
-
     private string $refreshSecret;
 
     private int $accessTtl;
 
     private int $refreshTtl;
 
-    private string $algo;
-
     public function __construct()
     {
-        $this->accessSecret = config('jwt.keys.access');
         $this->refreshSecret = config('jwt.keys.refresh');
         $this->accessTtl = config('jwt.ttl.access');
         $this->refreshTtl = config('jwt.ttl.refresh');
-        $this->algo = config('jwt.algo');
     }
 
     /**
@@ -53,20 +48,9 @@ class JwtService implements AuthService
      */
     public function createAccessToken(User $user): string
     {
-        $now = time();
         $roles = $user->getRoleNames()->values()->all();
-        $payload = [
-            'iss' => config('app.url'),
-            'sub' => $user->id,
-            'email' => $user->email,
-            'role' => $this->primaryRole($user),
-            'roles' => $roles,
-            'type' => 'access',
-            'iat' => $now,
-            'exp' => $now + $this->accessTtl,
-        ];
 
-        return JWT::encode($payload, $this->accessSecret, $this->algo);
+        return $this->signer()->issue((int) $user->id, $roles);
     }
 
     /**
@@ -102,7 +86,7 @@ class JwtService implements AuthService
             'exp' => $now + $this->refreshTtl,
         ];
 
-        $token = JWT::encode($payload, $this->refreshSecret, $this->algo);
+        $token = JWT::encode($payload, $this->refreshSecret, 'HS256');
 
         Redis::setex($this->refreshKey($user->id, $jti), $this->refreshTtl, '1');
         Redis::sadd($this->userSetKey($user->id), $jti);
@@ -118,7 +102,7 @@ class JwtService implements AuthService
     {
         try {
             $claims = $this->accessVerifier()->verify($token);
-            if ($this->isBlacklisted($token)) {
+            if ($this->isBlacklisted($claims->jti)) {
                 throw new InvalidArgumentException('Токен отозван (находится в блэклисте).');
             }
             $notBefore = Redis::get($this->notBeforeKey($claims->userId));
@@ -138,9 +122,9 @@ class JwtService implements AuthService
 
         return (object) [
             'sub' => $claims->userId,
-            'email' => $claims->email,
-            'role' => $claims->role,
+            'jti' => $claims->jti,
             'iat' => $claims->iat,
+            'nbf' => $claims->nbf,
             'exp' => $claims->exp,
             'type' => $claims->type->value,
             'roles' => $claims->roles,
@@ -256,12 +240,28 @@ class JwtService implements AuthService
 
     private function accessVerifier(): AccessTokenVerifier
     {
-        return new AccessTokenVerifier((string) $this->accessSecret, (string) $this->algo);
+        return app(AccessTokenVerifier::class);
+    }
+
+    private function signer(): AccessTokenSigner
+    {
+        $path = (string) config('jwt.private_key_path');
+        if ($path === '' || ! is_file($path)) {
+            throw new TokenInfrastructureException('JWT access private key is missing.');
+        }
+
+        return new AccessTokenSigner(
+            privateKeyPem: (string) file_get_contents($path),
+            kid: (string) config('jwt.kid'),
+            issuer: (string) config('jwt.issuer'),
+            audience: (string) config('jwt.audience'),
+            ttl: $this->accessTtl,
+        );
     }
 
     private function refreshReader(): RefreshTokenReader
     {
-        return new RefreshTokenReader((string) $this->refreshSecret, (string) $this->algo);
+        return new RefreshTokenReader((string) $this->refreshSecret, 'HS256');
     }
 
     private function notBeforeKey(int $userId): string
@@ -286,14 +286,19 @@ class JwtService implements AuthService
         }
 
         try {
-            Redis::setex("jwt:blacklist:{$token}", $remainingSeconds, 'revoked');
+            Redis::setex($this->blacklistKey($claims->jti), $remainingSeconds, 'revoked');
         } catch (\Throwable $exception) {
             throw new TokenInfrastructureException('Revocation store is unavailable.', previous: $exception);
         }
     }
 
-    public function isBlacklisted(string $token): bool
+    public function isBlacklisted(string $jti): bool
     {
-        return (bool) Redis::exists("jwt:blacklist:{$token}");
+        return (bool) Redis::exists($this->blacklistKey($jti));
+    }
+
+    private function blacklistKey(string $jti): string
+    {
+        return 'jwt:blacklist:jti:'.$jti;
     }
 }

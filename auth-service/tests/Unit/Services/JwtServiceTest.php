@@ -4,7 +4,6 @@ namespace Tests\Unit\Services;
 
 use App\Models\User;
 use App\Services\JwtService;
-use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Role;
@@ -45,10 +44,11 @@ class JwtServiceTest extends TestCase
         $payload = $this->jwtService->decodeAccessToken($tokens['access_token']);
 
         $this->assertEquals($user->id, $payload->sub);
-        $this->assertEquals($user->email, $payload->email);
-        $this->assertEquals('admin', $payload->role);
+        $this->assertObjectNotHasProperty('email', $payload);
+        $this->assertObjectNotHasProperty('role', $payload);
         $this->assertEquals('access', $payload->type);
         $this->assertEquals(['customer', 'admin'], (array) $payload->roles);
+        $this->assertNotEmpty($payload->jti);
         $this->assertNotEmpty($payload->exp);
     }
 
@@ -74,16 +74,13 @@ class JwtServiceTest extends TestCase
     {
         // Создаем заведомо просроченный токен вручную
         $now = time();
-        $expiredPayload = [
-            'iss' => config('app.url'),
-            'sub' => 1,
-            'roles' => ['customer'],
-            'type' => 'access',
-            'iat' => $now - 3600,
-            'exp' => $now - 100, // протух 100 секунд назад
-        ];
-
-        $expiredToken = JWT::encode($expiredPayload, config('jwt.keys.access'), config('jwt.algo'));
+        $pem = (string) file_get_contents((string) config('jwt.private_key_path'));
+        $expiredToken = (new \Ecommerce\PlatformKit\Token\AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
+            ->issue(1, ['customer'], null, [
+                'iat' => $now - 3600,
+                'nbf' => $now - 3600,
+                'exp' => $now - 100,
+            ]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->jwtService->decodeAccessToken($expiredToken);

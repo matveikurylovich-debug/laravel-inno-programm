@@ -14,7 +14,7 @@ final class RedisRevocationInspector implements RevocationInspector
     public function assertActive(AccessClaims $claims, string $token): void
     {
         try {
-            if (Redis::exists('jwt:blacklist:'.$token)) {
+            if (Redis::exists('jwt:blacklist:jti:'.$claims->jti)) {
                 throw InvalidTokenException::revoked();
             }
 

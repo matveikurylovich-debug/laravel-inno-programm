@@ -14,13 +14,14 @@ final class AccessTokenVerifierTest extends TestCase
     public function test_golden_fixtures(): void
     {
         $fixtures = json_decode((string) file_get_contents(__DIR__.'/fixtures/tokens.json'), true);
-        $verifier = new AccessTokenVerifier($fixtures['secret']);
+        $verifier = AccessTokenVerifier::fromJwks(json_encode($fixtures['jwks']), $fixtures['issuer'], $fixtures['audience']);
 
         $claims = $verifier->verify($fixtures['valid']);
         $this->assertSame(7, $claims->userId);
         $this->assertSame(['customer'], $claims->roles);
+        $this->assertSame('fixture-valid', $claims->jti);
 
-        foreach (['expired', 'wrong_type', 'missing_type', 'wrong_alg'] as $name) {
+        foreach (['expired', 'wrong_type', 'missing_type', 'wrong_alg', 'missing_aud', 'wrong_aud'] as $name) {
             try {
                 $verifier->verify($fixtures[$name]);
                 $this->fail($name.' was accepted');
@@ -34,6 +35,6 @@ final class AccessTokenVerifierTest extends TestCase
     {
         $this->expectException(TokenInfrastructureException::class);
 
-        new AccessTokenVerifier('too-short');
+        new \Ecommerce\PlatformKit\Token\RefreshTokenReader('too-short');
     }
 }
