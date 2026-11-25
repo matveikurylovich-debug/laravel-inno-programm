@@ -139,6 +139,9 @@ docker compose up -d --wait auth-postgres auth-redis catalog-postgres catalog-re
 for app in auth-app catalog-service order-service; do
   docker compose run --rm --no-deps "$app" php artisan migrate --force
 done
+if [[ -n "${ADMIN_EMAIL:-}" ]]; then
+  docker compose run --rm --no-deps auth-app php artisan auth:create-admin "$ADMIN_EMAIL"
+fi
 docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
 docker compose run --rm --no-deps search-app php artisan search:setup-index
 docker compose run --rm --no-deps catalog-service php artisan filament:upgrade

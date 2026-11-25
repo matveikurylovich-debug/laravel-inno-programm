@@ -24,7 +24,7 @@ class PasswordResetAndTwoFactorTest extends TestCase
         parent::setUp();
 
         Redis::flushall();
-        Role::create(['name' => 'customer']);
+        Role::firstOrCreate(['name' => 'customer']);
     }
 
     protected function tearDown(): void

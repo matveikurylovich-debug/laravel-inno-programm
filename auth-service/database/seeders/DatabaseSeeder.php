@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\RoleName;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -12,13 +13,15 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Сбрасываем кэш ролей Spatie во избежание коллизий
+        if (! app()->isLocal()) {
+            return;
+        }
+
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // 2. Создаем роли (если их еще нет)
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $customerRole  = Role::firstOrCreate(['name' => 'customer']);
-        $analystRole  = Role::firstOrCreate(['name' => 'analyst']);
+        $adminRole = Role::findOrCreate(RoleName::Admin->value, 'web');
+        $customerRole = Role::findOrCreate(RoleName::Customer->value, 'web');
+        $analystRole = Role::findOrCreate(RoleName::Analyst->value, 'web');
 
         $users = [
             ['email' => 'admin@example.com', 'name' => 'Admin User', 'role' => $adminRole],

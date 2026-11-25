@@ -18,9 +18,9 @@ class GatewayNotificationAccessTest extends TestCase
         parent::setUp();
 
         Redis::flushall();
-        Role::create(['name' => 'customer']);
-        Role::create(['name' => 'admin']);
-        Role::create(['name' => 'analyst']);
+        Role::firstOrCreate(['name' => 'customer']);
+        Role::firstOrCreate(['name' => 'admin']);
+        Role::firstOrCreate(['name' => 'analyst']);
     }
 
     protected function tearDown(): void

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\AuthService;
+use App\Enums\RoleName;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -72,13 +73,13 @@ class JwtService implements AuthService
     {
         $roles = $user->getRoleNames();
 
-        foreach (['admin', 'analyst', 'customer'] as $role) {
-            if ($roles->contains($role)) {
-                return $role;
+        foreach (RoleName::cases() as $role) {
+            if ($roles->contains($role->value)) {
+                return $role->value;
             }
         }
 
-        return (string) ($roles->first() ?? 'customer');
+        return RoleName::Customer->value;
     }
 
     /**

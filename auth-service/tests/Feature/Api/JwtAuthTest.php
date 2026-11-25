@@ -23,8 +23,8 @@ class JwtAuthTest extends TestCase
         Redis::flushall();
 
         // Создаем роль Spatie для тестов
-        Role::create(['name' => 'customer']);
-        Role::create(['name' => 'admin']);
+        Role::firstOrCreate(['name' => 'customer']);
+        Role::firstOrCreate(['name' => 'admin']);
     }
 
     protected function tearDown(): void
