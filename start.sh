@@ -64,6 +64,46 @@ if [[ "${1:-}" == "--prepare-env" ]]; then
   exit 0
 fi
 
+stripe_key_ok() {
+  local value="$1" prefix="$2"
+  [[ "$value" =~ ^${prefix}_[A-Za-z0-9]{16,}$ && "$value" != *placeholder* && "$value" != *example* ]]
+}
+
+env_value() {
+  local key="$1"
+  [[ -f .env ]] || return 0
+  grep -E "^${key}=" .env | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'"
+}
+
+set_env_value() {
+  local key="$1" value="$2"
+  if [[ -f .env ]] && grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
+prompt_stripe() {
+  local key="$1" prefix="$2" current
+  current="$(env_value "$key")"
+  if stripe_key_ok "$current" "$prefix"; then
+    return 0
+  fi
+  if [[ -t 0 ]]; then
+    read -r -p "Введите ${key} (${prefix}_...): " current
+    set_env_value "$key" "$current"
+  fi
+  current="$(env_value "$key")"
+  if ! stripe_key_ok "$current" "$prefix"; then
+    printf 'Нужен настоящий %s в корневом .env (%s_..., не плейсхолдер).\n' "$key" "$prefix" >&2
+    exit 1
+  fi
+}
+
+prompt_stripe STRIPE_SECRET_KEY 'sk_(test|live)'
+prompt_stripe STRIPE_PUBLISHABLE_KEY 'pk_(test|live)'
+
 if [[ "${START_ENV:-local}" == "local" ]]; then
   export COMPOSE_FILE="compose.yaml:compose.override.yml"
 else
@@ -102,6 +142,20 @@ done
 docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
 docker compose run --rm --no-deps search-app php artisan search:setup-index
 docker compose run --rm --no-deps catalog-service php artisan filament:upgrade
+docker compose up -d stripe-cli
+webhook_secret=""
+for _ in $(seq 1 30); do
+  webhook_secret="$(docker compose logs stripe-cli 2>/dev/null | grep -oE 'whsec_[A-Za-z0-9]+' | tail -n 1 || true)"
+  if [[ -n "$webhook_secret" ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ -z "$webhook_secret" ]]; then
+  printf 'stripe listen не выдал STRIPE_WEBHOOK_SECRET. Проверьте STRIPE_SECRET_KEY.\n' >&2
+  exit 1
+fi
+set_env_value STRIPE_WEBHOOK_SECRET "$webhook_secret"
 gemini_key=""
 if [[ -f .env ]]; then
   gemini_key="$(grep -E '^GEMINI_API_KEY=' .env | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"

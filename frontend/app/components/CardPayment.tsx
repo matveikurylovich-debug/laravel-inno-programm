@@ -1,11 +1,20 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
-const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
+const stripeByKey = new Map<string, Promise<Stripe | null>>();
+
+function stripeFor(publishableKey: string): Promise<Stripe | null> {
+  const cached = stripeByKey.get(publishableKey);
+  if (cached) {
+    return cached;
+  }
+  const promise = loadStripe(publishableKey);
+  stripeByKey.set(publishableKey, promise);
+  return promise;
+}
 
 function PaymentForm({ orderId, onPaid }: { orderId: string; onPaid: () => void }) {
   const stripe = useStripe();
@@ -54,18 +63,20 @@ function PaymentForm({ orderId, onPaid }: { orderId: string; onPaid: () => void 
 export default function CardPayment({
   orderId,
   clientSecret,
+  publishableKey,
   onPaid,
 }: {
   orderId: string;
   clientSecret: string;
+  publishableKey: string;
   onPaid: () => void;
 }) {
-  if (!stripePromise) {
-    return <p className="mt-4 text-sm text-slate-500">Не задан NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.</p>;
+  if (!publishableKey) {
+    return <p className="mt-4 text-sm text-slate-500">Сервис заказов не передал ключ Stripe.</p>;
   }
 
   return (
-    <Elements stripe={stripePromise} options={{ clientSecret }}>
+    <Elements stripe={stripeFor(publishableKey)} options={{ clientSecret }}>
       <PaymentForm orderId={orderId} onPaid={onPaid} />
     </Elements>
   );
