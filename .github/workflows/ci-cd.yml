@@ -5,17 +5,18 @@ on:
   pull_request:
     branches: [master, feat/jwt-frontend]
   workflow_dispatch:
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
+env:
+  IMAGE_REGISTRY: ghcr.io/matveikurylovich-debug
+  IMAGE_TAG: ${{ github.sha }}
 jobs:
-  configuration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: ./start.sh --prepare-env
-      - run: docker compose config --quiet && bash -n start.sh stop.sh
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,8 +27,42 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
       - name: Detect secrets in git history
         run: gitleaks detect --source . --log-opts=--all --config .gitleaks.toml --redact
-  php:
+  php-quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_SECRET: ci-only-app-secret
+      JWT_ACCESS_SECRET: ci-only-access-key-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-only-refresh-key-at-least-32-characters
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, catalog-service, order-service, search-service, notification-service, recommendation-service]
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, xml, intl, pdo_pgsql, pdo_sqlite, bcmath, redis, mongodb, rdkafka, zip, gd
+          tools: composer:v2
+          coverage: none
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: ${{ matrix.service }}
+      - run: test -f .env.example && cp .env.example .env || true
+      - run: composer validate --strict --no-check-publish
+      - run: ../scripts/ci/audit-high.sh
+      - run: composer lint
+      - run: composer refactor
+      - run: composer analyse
+  php-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -75,9 +110,9 @@ jobs:
           extensions: mbstring, xml, intl, pdo_pgsql, pdo_sqlite, bcmath, redis, mongodb, rdkafka, zip, gd
           tools: composer:v2
           coverage: none
-      - run: cp .env.example .env && composer install --no-interaction --prefer-dist
-      - run: vendor/bin/pint --test
-      - run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: ${{ matrix.service }}
       - run: composer test
       - name: PostgreSQL integration group
         if: matrix.service == 'order-service'
@@ -91,6 +126,7 @@ jobs:
         run: composer test -- --group=pgsql
   recommendation:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -119,12 +155,14 @@ jobs:
           php-version: '8.5'
           extensions: pdo_pgsql, intl, rdkafka
           tools: composer:v2
-      - run: composer install --no-interaction --prefer-dist
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: recommendation-service
       - run: php bin/console doctrine:migrations:migrate --no-interaction
-      - run: php bin/console lint:container
       - run: php bin/phpunit
-  analytics:
+  go:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: analytics-service/backend
@@ -138,6 +176,7 @@ jobs:
       - run: go test -race ./...
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -152,15 +191,67 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-  # TODO(PR-11): включить после нового ключа и нового процесса деплоя.
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Hadolint
+        run: |
+          curl -sSLf -o /usr/local/bin/hadolint \
+            https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-Linux-x86_64
+          chmod +x /usr/local/bin/hadolint
+          find . \( -name Dockerfile -o -name 'Dockerfile.*' \) -not -path '*/vendor/*' -print0 \
+            | xargs -0 hadolint --failure-threshold error
+      - name: Build images
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]]; then
+            ./scripts/ci/build-images.sh --push
+          else
+            ./scripts/ci/build-images.sh
+          fi
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: images
+    env:
+      COMPOSE_FILE: compose.yaml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Boot and curl the gateway
+        run: ./scripts/ci/smoke.sh
+      - name: Save compose logs
+        if: failure()
+        run: docker compose logs --no-color > compose-logs.txt || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-logs
+          path: compose-logs.txt
+          if-no-files-found: ignore
   deploy:
     runs-on: ubuntu-latest
-    needs: [configuration, secrets, php, recommendation, analytics, frontend]
-    if: false
+    timeout-minutes: 30
+    needs: [secrets, php-quality, php-tests, recommendation, go, frontend, images, smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     environment: stage
     concurrency: stage-deploy
     steps:
       - uses: actions/checkout@v4
+      # The private key lives only in the stage environment. On the server it
+      # should be restricted with from= and, where sshd allows it, command=.
       - name: Configure pinned SSH identity
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -170,14 +261,18 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_stage
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_stage ~/.ssh/known_hosts
-      - name: Deploy code without overwriting runtime data and secrets
+      - name: Publish compose files and roll the stage tag
         env:
           STAGE_USER: ${{ secrets.STAGE_USER }}
           STAGE_IP: ${{ secrets.STAGE_IP }}
         run: |
-          rsync -az --delete --exclude .git --exclude node_modules --exclude vendor \
-            --include '/recommendation-service/.env' \
-            --exclude .env --exclude '.env.local' --exclude '.env.*.local' --exclude .secrets \
-            --exclude storage --exclude var --exclude infra/certs --exclude .local \
-            -e 'ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes' ./ "$STAGE_USER@$STAGE_IP:~/app/"
-          ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes "$STAGE_USER@$STAGE_IP" 'cd ~/app && START_ENV=stage ./start.sh'
+          ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes "$STAGE_USER@$STAGE_IP" 'mkdir -p ~/app/infra/gateway ~/app/scripts/deploy'
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            compose.yaml "$STAGE_USER@$STAGE_IP:~/app/compose.yaml"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            infra/gateway/default.conf infra/gateway/auth.conf \
+            "$STAGE_USER@$STAGE_IP:~/app/infra/gateway/"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            scripts/deploy/stage-remote.sh "$STAGE_USER@$STAGE_IP:~/app/scripts/deploy/stage-remote.sh"
+          ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes "$STAGE_USER@$STAGE_IP" \
+            "chmod +x ~/app/scripts/deploy/stage-remote.sh && COMPOSE_FILE=compose.yaml ~/app/scripts/deploy/stage-remote.sh ${{ github.sha }}"

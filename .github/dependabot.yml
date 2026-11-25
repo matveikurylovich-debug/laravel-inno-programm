@@ -1,0 +1,64 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /analytics-service/backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: composer
+    directory: /auth-service
+    schedule:
+      interval: weekly
+    groups:
+      laravel:
+        patterns: ["laravel/*"]
+      symfony:
+        patterns: ["symfony/*"]
+  - package-ecosystem: composer
+    directory: /catalog-service
+    schedule:
+      interval: weekly
+    groups:
+      laravel:
+        patterns: ["laravel/*"]
+      symfony:
+        patterns: ["symfony/*"]
+  - package-ecosystem: composer
+    directory: /order-service
+    schedule:
+      interval: weekly
+    groups:
+      laravel:
+        patterns: ["laravel/*"]
+      symfony:
+        patterns: ["symfony/*"]
+  - package-ecosystem: composer
+    directory: /search-service
+    schedule:
+      interval: weekly
+    groups:
+      laravel:
+        patterns: ["laravel/*"]
+      symfony:
+        patterns: ["symfony/*"]
+  - package-ecosystem: composer
+    directory: /notification-service
+    schedule:
+      interval: weekly
+    groups:
+      laravel:
+        patterns: ["laravel/*"]
+      symfony:
+        patterns: ["symfony/*"]
+  - package-ecosystem: composer
+    directory: /recommendation-service
+    schedule:
+      interval: weekly
+    groups:
+      laravel:
+        patterns: ["laravel/*"]
+      symfony:
+        patterns: ["symfony/*"]

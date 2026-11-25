@@ -11,7 +11,7 @@ services:
     build:
       context: ./auth-service
       dockerfile: Dockerfile
-    image: ecommerce-auth:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-auth:${IMAGE_TAG:-local}
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: 'false'
@@ -226,7 +226,7 @@ services:
       minio-init:
         condition: service_completed_successfully
     restart: unless-stopped
-    image: ecommerce-catalog:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-catalog:${IMAGE_TAG:-local}
     env_file:
     - path: ./catalog-service/.env
       required: false
@@ -283,7 +283,7 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-    image: ecommerce-catalog:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-catalog:${IMAGE_TAG:-local}
     env_file:
     - path: ./catalog-service/.env
       required: false
@@ -300,7 +300,7 @@ services:
     - backend
     restart: unless-stopped
   order-service:
-    image: ecommerce-order:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     build:
       context: ./order-service
       dockerfile: Dockerfile
@@ -412,7 +412,7 @@ services:
     - backend
     restart: unless-stopped
   order-outbox-relay:
-    image: ecommerce-order:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     restart: unless-stopped
     command: php artisan order:outbox-relay
     environment:
@@ -454,7 +454,7 @@ services:
     - path: ./order-service/.env
       required: false
   order-catalog-consumer:
-    image: ecommerce-order:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     restart: unless-stopped
     command: php artisan kafka:consume-catalog
     environment:
@@ -494,7 +494,7 @@ services:
     - path: ./order-service/.env
       required: false
   order-inventory-consumer:
-    image: ecommerce-order:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     restart: unless-stopped
     command: php artisan kafka:consume-inventory
     environment:
@@ -564,7 +564,7 @@ services:
     build:
       context: ./search-service
       dockerfile: Dockerfile
-    image: ecommerce-search:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-search:${IMAGE_TAG:-local}
     environment:
       KAFKA_BROKERS: kafka:9092
       ANALYTICS_RABBITMQ_URL: amqp://app:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@analytics-rabbitmq:5672/
@@ -602,7 +602,7 @@ services:
       timeout: 5s
       retries: 12
   search-catalog-consumer:
-    image: ecommerce-search:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-search:${IMAGE_TAG:-local}
     restart: unless-stopped
     command: php artisan kafka:consume-catalog
     environment:
@@ -636,7 +636,7 @@ services:
     - path: ./search-service/.env
       required: false
   search-stock-consumer:
-    image: ecommerce-search:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-search:${IMAGE_TAG:-local}
     restart: unless-stopped
     command: php artisan kafka:consume-stock
     environment:
@@ -722,7 +722,7 @@ services:
     build:
       context: ./recommendation-service
       dockerfile: Dockerfile
-    image: ecommerce-recommendation:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-recommendation:${IMAGE_TAG:-local}
     environment:
       DATABASE_URL: postgresql://app_user:${RECOMMENDATION_DB_PASSWORD:?Set database
         password}@recommendation-pgvector:5432/recommendation_db?serverVersion=16&charset=utf8
@@ -763,7 +763,7 @@ services:
       retries: 12
   recommendation-worker:
     profiles: ["gemini"]
-    image: ecommerce-recommendation:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-recommendation:${IMAGE_TAG:-local}
     command: ["sh", "-c", "if [ -z \"$$GEMINI_API_KEY\" ]; then echo 'GEMINI_API_KEY is empty; consumer idle.'; exec sleep infinity; fi; exec php bin/console messenger:consume kafka_catalog --time-limit=3600 --memory-limit=256M -vv"]
     restart: unless-stopped
     environment:
@@ -835,7 +835,7 @@ services:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
-    image: ecommerce-notification:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-notification:${IMAGE_TAG:-local}
     environment:
       MAIL_MAILER: smtp
       MAIL_HOST: mailhog
@@ -877,7 +877,7 @@ services:
       timeout: 5s
       retries: 12
   notification-worker:
-    image: ecommerce-notification:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-notification:${IMAGE_TAG:-local}
     restart: always
     command: php artisan kafka:consume-auth
     environment:
@@ -914,7 +914,7 @@ services:
     - path: ./notification-service/.env
       required: false
   notification-order-worker:
-    image: ecommerce-notification:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-notification:${IMAGE_TAG:-local}
     restart: always
     command: php artisan kafka:consume-orders
     environment:
@@ -1005,7 +1005,7 @@ services:
     build:
       context: ./analytics-service/backend
       dockerfile: Dockerfile
-    image: analytics-back:local
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-analytics:${IMAGE_TAG:-local}
     environment:
       HTTP_PORT: ${HTTP_PORT:-8080}
       CLICKHOUSE_ADDR: analytics-clickhouse:9000
@@ -1079,7 +1079,7 @@ services:
     - backend
     restart: unless-stopped
   auth-events:
-    image: ecommerce-auth:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-auth:${IMAGE_TAG:-local}
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: 'false'
@@ -1123,7 +1123,7 @@ services:
     command: php artisan queue:work database --queue=auth-events --tries=0 --timeout=40
       --sleep=2
   search-events:
-    image: ecommerce-search:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-search:${IMAGE_TAG:-local}
     environment:
       KAFKA_BROKERS: kafka:9092
       ANALYTICS_RABBITMQ_URL: amqp://app:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@analytics-rabbitmq:5672/
@@ -1156,7 +1156,7 @@ services:
     command: php artisan queue:work redis --queue=search-events --tries=0 --timeout=40
       --sleep=2
   order-payments:
-    image: ecommerce-order:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     environment:
       KAFKA_BROKERS: kafka:9092
       ANALYTICS_RABBITMQ_URL: amqp://app:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@analytics-rabbitmq:5672/
@@ -1195,7 +1195,7 @@ services:
     command: php artisan queue:work database --queue=payments --tries=0 --timeout=40
       --sleep=2
   recommendation-cleanup:
-    image: ecommerce-recommendation:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-recommendation:${IMAGE_TAG:-local}
     environment:
       DATABASE_URL: postgresql://app_user:${RECOMMENDATION_DB_PASSWORD:?Set database
         password}@recommendation-pgvector:5432/recommendation_db?serverVersion=16&charset=utf8
@@ -1234,6 +1234,7 @@ services:
   frontend:
     build:
       context: ./frontend
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-frontend:${IMAGE_TAG:-local}
     environment:
       AUTH_INTERNAL_URL: http://auth-nginx
       NODE_ENV: production
