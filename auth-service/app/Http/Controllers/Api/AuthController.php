@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Contracts\AuthService;
+use App\Enums\RoleName;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\ResendTwoFactorRequest;
@@ -18,7 +19,6 @@ use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
-use Spatie\Permission\Models\Role;
 use Throwable;
 
 class AuthController extends Controller
@@ -62,8 +62,7 @@ class AuthController extends Controller
                 'password' => $data['password'],
             ]);
 
-            Role::findOrCreate('customer', 'web');
-            $user->assignRole('customer');
+            $user->assignRole(RoleName::Customer);
 
             event(new Registered($user));
 

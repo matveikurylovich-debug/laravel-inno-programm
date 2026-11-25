@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Contracts\AuthService;
+use App\Enums\RoleName;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use OpenApi\Attributes as OA;
-use Spatie\Permission\Models\Role;
 
 class AdminUserController extends Controller
 {
@@ -80,17 +80,17 @@ class AdminUserController extends Controller
         }
 
         $validated = $request->validate([
-            'role' => ['required', 'string', Rule::in(['admin', 'analyst', 'customer'])],
+            'role' => ['required', Rule::enum(RoleName::class)],
         ]);
 
-        Role::findOrCreate($validated['role'], 'web');
-        $user->syncRoles([$validated['role']]);
+        $role = RoleName::from($validated['role']);
+        $user->syncRoles([$role]);
 
         return response()->json([
             'user' => [
                 'id' => $user->id,
                 'email' => $user->email,
-                'role' => $validated['role'],
+                'role' => $role->value,
             ],
         ]);
     }

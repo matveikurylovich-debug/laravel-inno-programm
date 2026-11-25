@@ -29,8 +29,8 @@ class JwtServiceTest extends TestCase
         // Получаем экземпляр сервиса из контейнера Laravel
         $this->jwtService = app(JwtService::class);
 
-        Role::create(['name' => 'customer']);
-        Role::create(['name' => 'admin']);
+        Role::firstOrCreate(['name' => 'customer']);
+        Role::firstOrCreate(['name' => 'admin']);
     }
 
     protected function tearDown(): void

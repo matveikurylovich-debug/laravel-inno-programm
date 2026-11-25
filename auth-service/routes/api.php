@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\RoleName;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\GatewayController;
@@ -26,7 +27,7 @@ Route::match(['get', 'head'], 'catalog/{path?}', [GatewayController::class, 'cat
     ->where('path', '.*');
 
 Route::match(['post', 'put', 'patch', 'delete'], 'catalog/{path?}', [GatewayController::class, 'catalog'])
-    ->middleware(['jwt.auth', 'role:admin'])
+    ->middleware(['jwt.auth', 'role:'.RoleName::Admin->value])
     ->where('path', '.*');
 
 // Заказы: любой пользователь с access-токеном. Роль владельца проверяет order-service.
@@ -43,13 +44,13 @@ Route::middleware('jwt.auth')->group(function () {
     Route::put('profile/password', [ProfileController::class, 'updatePassword']);
     Route::delete('profile', [ProfileController::class, 'destroy']);
 
-    Route::middleware('role:admin,analyst')->group(function () {
+    Route::middleware('role:'.RoleName::Admin->value.','.RoleName::Analyst->value)->group(function () {
         Route::get('admin/users', [AdminUserController::class, 'index']);
         Route::match(['get', 'head'], 'analytics/{path?}', [GatewayController::class, 'analytics'])
             ->where('path', '.*');
     });
 
-    Route::middleware('role:admin')->group(function () {
+    Route::middleware('role:'.RoleName::Admin->value)->group(function () {
         Route::patch('admin/users/{user}/role', [AdminUserController::class, 'updateRole']);
         Route::match(['get', 'head'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
             ->where('path', '.*');
@@ -58,4 +59,4 @@ Route::middleware('jwt.auth')->group(function () {
     });
 });
 
-Route::get('catalog-admin/access', fn () => response()->noContent())->middleware(['jwt.auth', 'role:admin']);
+Route::get('catalog-admin/access', fn () => response()->noContent())->middleware(['jwt.auth', 'role:'.RoleName::Admin->value]);
