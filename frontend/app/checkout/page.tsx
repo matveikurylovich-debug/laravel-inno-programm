@@ -1,27 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
 import { apiFetch, readError } from "@/app/lib/api";
-import { clearCart, readCart, setQuantity, type CartLine } from "@/app/lib/cart";
+import { clearCart, setQuantity, type CartLine } from "@/app/lib/cart";
+import { useCart } from "@/app/lib/use-cart";
 import { money } from "@/app/lib/orders";
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const [lines, setLines] = useState<CartLine[]>([]);
+  const lines = useCart();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const idempotencyKey = useRef<string>("");
 
-  useEffect(() => {
-    queueMicrotask(() => setLines(readCart()));
-  }, []);
-
   function changeQuantity(productId: number, locationId: number, quantity: number) {
     setQuantity(productId, locationId, quantity);
-    setLines(readCart());
     idempotencyKey.current = "";
   }
 

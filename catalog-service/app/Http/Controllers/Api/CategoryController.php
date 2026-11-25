@@ -37,7 +37,7 @@ class CategoryController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $categories,
+            'data' => $categories,
         ]);
     }
 
@@ -77,7 +77,7 @@ class CategoryController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Категория успешно создана',
-            'data'    => $category,
+            'data' => $category,
         ], 201);
     }
 

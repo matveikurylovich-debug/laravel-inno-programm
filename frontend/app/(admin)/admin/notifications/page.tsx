@@ -21,47 +21,63 @@ function statusBadge(status?: string | null): string {
   }
 }
 
+type JournalState = {
+  query: string;
+  data?: PaginatedNotifications;
+  error?: string;
+};
+
 export default function NotificationsPage() {
-  const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [page, setPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
   const [status, setStatus] = useState("");
   const [recipient, setRecipient] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [error, setError] = useState("");
+  const [journal, setJournal] = useState<JournalState>({ query: "" });
   const [selected, setSelected] = useState<NotificationLog | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  const params = new URLSearchParams({ page: String(page), per_page: "15" });
+  if (status) params.set("status", status);
+  if (recipient) params.set("recipient", recipient);
+  if (dateFrom) params.set("date_from", dateFrom);
+  if (dateTo) params.set("date_to", dateTo);
+  const query = params.toString();
+  const loading = journal.query !== query;
+  const logs = loading ? [] : (journal.data?.data ?? []);
+  const lastPage = loading ? 1 : (journal.data?.meta?.last_page ?? 1);
+  const error = loading ? "" : (journal.error ?? "");
 
   useEffect(() => {
     currentUser().then((user) => setRole(user?.role ?? null)).catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams({ page: String(page), per_page: "15" });
-    if (status) params.set("status", status);
-    if (recipient) params.set("recipient", recipient);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
+    const requested = query;
+    let cancelled = false;
 
-    setLoading(true);
-    apiFetch(`/api/notifications?${params.toString()}`)
+    apiFetch(`/api/notifications?${requested}`)
       .then(async (response) => {
         if (!response.ok) {
-          setError(await readError(response));
-          setLogs([]);
-          return;
+          return { query: requested, data: { data: [] }, error: await readError(response) };
         }
 
         const body = (await response.json()) as PaginatedNotifications;
-        setLogs(body.data ?? []);
-        setLastPage(body.meta?.last_page ?? 1);
-        setError("");
+        return { query: requested, data: body };
       })
-      .catch(() => setError("Не удалось загрузить журнал"))
-      .finally(() => setLoading(false));
-  }, [page, status, recipient, dateFrom, dateTo]);
+      .then((next) => {
+        if (!cancelled) setJournal(next);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setJournal({ query: requested, data: { data: [] }, error: "Не удалось загрузить журнал" });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,16 +90,22 @@ export default function NotificationsPage() {
   }
 
   async function replay(log: NotificationLog) {
-    setError("");
+    setJournal((current) => ({ ...current, error: undefined }));
     const response = await apiFetch(`/api/notifications/${log.id}/replay`, { method: "POST" });
     if (!response.ok) {
-      setError(await readError(response));
+      const message = await readError(response);
+      setJournal((current) => ({ ...current, error: message }));
       return;
     }
 
     const updated = (await response.json()) as { data: NotificationLog };
     const next = updated.data ?? updated;
-    setLogs((current) => current.map((item) => (item.id === log.id ? { ...item, ...next } : item)));
+    setJournal((current) => ({
+      ...current,
+      data: current.data
+        ? { ...current.data, data: current.data.data.map((item) => (item.id === log.id ? { ...item, ...next } : item)) }
+        : current.data,
+    }));
   }
 
   return (

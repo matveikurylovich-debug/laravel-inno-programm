@@ -57,6 +57,7 @@ class ProductDocument
                     'key' => (string) $value['key'],
                     'value' => (string) $value['value'],
                 ];
+
                 continue;
             }
 

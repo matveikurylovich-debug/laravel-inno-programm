@@ -42,5 +42,4 @@ class Stock extends Model
     {
         return max(0, $this->quantity - $this->reserved_quantity);
     }
-
 }

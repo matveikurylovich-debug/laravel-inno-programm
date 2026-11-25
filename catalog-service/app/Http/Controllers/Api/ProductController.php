@@ -249,7 +249,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Товар успешно создан',
-            'data'    => $product->load('stock'),
+            'data' => $product->load('stock'),
         ], 201);
     }
 
@@ -298,12 +298,12 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'category_id' => ['sometimes', 'integer', 'exists:categories,id'],
-            'name'        => ['sometimes', 'string', 'max:255'],
-            'slug'        => ['nullable', 'string', 'max:255'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'price'       => ['sometimes', 'numeric', 'min:0'],
-            'attributes'  => ['nullable', 'array'],
-            'is_active'   => ['sometimes', 'boolean'],
+            'price' => ['sometimes', 'numeric', 'min:0'],
+            'attributes' => ['nullable', 'array'],
+            'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $product->update($validated); // ProductObserver сбросит кэш в Redis
@@ -311,7 +311,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Товар обновлен',
-            'data'    => $product,
+            'data' => $product,
         ]);
     }
 

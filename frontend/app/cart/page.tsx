@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
-import { readCart, setQuantity, type CartLine } from "@/app/lib/cart";
+import { setQuantity } from "@/app/lib/cart";
+import { useCart } from "@/app/lib/use-cart";
 import { money } from "@/app/lib/orders";
 
 export default function CartPage() {
-  const [lines, setLines] = useState<CartLine[]>([]);
-
-  useEffect(() => {
-    queueMicrotask(() => setLines(readCart()));
-  }, []);
+  const lines = useCart();
 
   function changeQuantity(productId: number, locationId: number, quantity: number) {
     setQuantity(productId, locationId, quantity);
-    setLines(readCart());
   }
 
   const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);

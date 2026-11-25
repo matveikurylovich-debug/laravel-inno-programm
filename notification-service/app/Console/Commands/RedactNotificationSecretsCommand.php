@@ -5,6 +5,9 @@ namespace App\Console\Commands;
 use App\Models\NotificationLog;
 use App\Support\SensitivePayload;
 use Illuminate\Console\Command;
+use MongoDB\Collection;
+use MongoDB\Laravel\Eloquent\Builder;
+use MongoDB\UpdateResult;
 
 class RedactNotificationSecretsCommand extends Command
 {
@@ -14,7 +17,9 @@ class RedactNotificationSecretsCommand extends Command
 
     public function handle(): int
     {
-        $result = NotificationLog::raw(function ($collection) {
+        /** @var Builder<NotificationLog> $logs */
+        $logs = NotificationLog::query();
+        $result = $logs->raw(function (Collection $collection): UpdateResult {
             return $collection->updateMany(
                 [],
                 ['$unset' => [
@@ -26,17 +31,16 @@ class RedactNotificationSecretsCommand extends Command
             );
         });
 
-        $unset = is_object($result) && method_exists($result, 'getModifiedCount')
-            ? $result->getModifiedCount()
-            : 0;
+        $unset = $result->getModifiedCount();
 
         $rewritten = 0;
         foreach (NotificationLog::query()->cursor() as $log) {
-            if (! is_string($log->payload)) {
+            $raw = $log->getAttributes()['payload'] ?? null;
+            if (! is_string($raw)) {
                 continue;
             }
 
-            $decoded = json_decode($log->payload, true);
+            $decoded = json_decode($raw, true);
             if (! is_array($decoded)) {
                 continue;
             }
