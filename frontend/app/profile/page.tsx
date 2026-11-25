@@ -223,6 +223,23 @@ export default function ProfilePage() {
           </button>
         </form>
 
+        <section className="card p-6 sm:p-7">
+          <h2 className="text-lg font-semibold tracking-tight">Сессии</h2>
+          <p className="mt-1 text-sm text-slate-500">Завершить вход на всех устройствах, включая это.</p>
+          <button
+            type="button"
+            className="btn btn-secondary mt-6"
+            onClick={() => {
+              void apiFetch("/api/auth/logout-all", { method: "POST" }).finally(() => {
+                clearSession();
+                window.location.href = "/login";
+              });
+            }}
+          >
+            Выйти на всех устройствах
+          </button>
+        </section>
+
         <form onSubmit={deleteAccount} className="card card-danger p-6 sm:p-7">
           <h2 className="text-lg font-semibold text-rose-700">Удалить аккаунт</h2>
           <p className="mt-1 text-sm text-slate-500">После удаления войти с этим email будет нельзя.</p>

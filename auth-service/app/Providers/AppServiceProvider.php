@@ -4,8 +4,11 @@ namespace App\Providers;
 
 use App\Contracts\AuthService;
 use App\Enums\RoleName;
+use App\Listeners\RevokeSessionsAfterPasswordReset;
 use App\Models\User;
 use App\Services\JwtService;
+use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -32,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         Gate::define('access-admin', fn (User $user) => $user->hasRole(RoleName::Admin));
+        Event::listen(PasswordReset::class, RevokeSessionsAfterPasswordReset::class);
     }
 
     private function requireJwtSecret(): void

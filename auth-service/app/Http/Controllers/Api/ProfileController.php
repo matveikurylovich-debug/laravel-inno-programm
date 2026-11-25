@@ -76,9 +76,11 @@ class ProfileController extends Controller
     )]
     public function updatePassword(ProfileUpdatePasswordRequest $request): JsonResponse
     {
-        $request->user()->update([
+        $user = $request->user();
+        $user->update([
             'password' => $request->validated('password'),
         ]);
+        $this->authService->revokeAllForUser((int) $user->id);
 
         return response()->json([
             'message' => 'Пароль обновлён.',
@@ -106,6 +108,7 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        $this->authService->revokeAllForUser((int) $user->id);
         if ($token = $request->bearerToken()) {
             $this->authService->blacklistAccessToken($token);
         }

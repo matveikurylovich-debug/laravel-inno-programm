@@ -40,6 +40,7 @@ Route::middleware('jwt.auth')->group(function () {
 
     Route::get('me', [AuthController::class, 'me']);
     Route::post('logout', [AuthController::class, 'logout']);
+    Route::post('logout-all', [AuthController::class, 'logoutAll']);
     Route::patch('profile', [ProfileController::class, 'update']);
     Route::put('profile/password', [ProfileController::class, 'updatePassword']);
     Route::delete('profile', [ProfileController::class, 'destroy']);
