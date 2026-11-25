@@ -14,7 +14,7 @@ class UploadProductImageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'image'      => ['required', 'image', 'mimes:jpeg,png,webp,jpg', 'max:5120'], // До 5 МБ
+            'image' => ['required', 'image', 'mimes:jpeg,png,webp,jpg', 'max:5120'], // До 5 МБ
             'is_primary' => ['nullable', 'boolean'],
         ];
     }

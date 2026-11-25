@@ -18,14 +18,14 @@ class ProductImageService
     public function upload(Product $product, UploadedFile $file, bool $isPrimary = false): ProductImage
     {
         // 1. Имя файла и путь внутри S3
-        $fileName = Str::uuid() . '.' . ($file->getClientOriginalExtension() ?: 'webp');
+        $fileName = Str::uuid().'.'.($file->getClientOriginalExtension() ?: 'webp');
         $path = "products/{$product->id}/{$fileName}";
 
         // 2. Отправка файла в MinIO
         Storage::disk($this->disk)->putFileAs("products/{$product->id}", $file, $fileName, 'public');
 
         // 3. Если картинок еще нет, первая автоматически становится главной
-        $isPrimary = $isPrimary || !$product->images()->exists();
+        $isPrimary = $isPrimary || ! $product->images()->exists();
 
         if ($isPrimary) {
             $product->images()->update(['is_primary' => false]);
@@ -36,10 +36,10 @@ class ProductImageService
 
         // 5. Запись в БД
         return $product->images()->create([
-            'path'       => $path,
-            'url'        => Storage::disk($this->disk)->url($path),
+            'path' => $path,
+            'url' => Storage::disk($this->disk)->url($path),
             'is_primary' => $isPrimary,
-            'position'   => $position,
+            'position' => $position,
         ]);
     }
 

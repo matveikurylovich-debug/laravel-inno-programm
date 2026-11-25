@@ -6,9 +6,9 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 use Symfony\Component\HttpFoundation\Response;
-use Illuminate\Support\Facades\Cache;
 
 class IdempotencyMiddleware
 {
@@ -42,7 +42,7 @@ class IdempotencyMiddleware
 
         $locked = Cache::lock($lockKey, 10);
 
-        if (!$locked->get()) {
+        if (! $locked->get()) {
             return response()->json([
                 'error' => 'Conflict',
                 'details' => 'Запрос с этим ключом идемпотентности уже выполняется',

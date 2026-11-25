@@ -10,8 +10,10 @@ class CatalogCacheService
 {
     // Время жизни кэша в секундах
     public const TTL_CATEGORY_TREE = 86400; // 24 часа
-    public const TTL_PRODUCT_CARD  = 3600;  // 1 час
-    public const TTL_PRODUCT_LIST  = 300;   // 5 минут
+
+    public const TTL_PRODUCT_CARD = 3600;  // 1 час
+
+    public const TTL_PRODUCT_LIST = 300;   // 5 минут
 
     /**
      * Генерация ключа для дерева категорий магазина
@@ -65,7 +67,7 @@ class CatalogCacheService
             $product = Product::with(['images', 'stock', 'category'])
                 ->find($productId);
 
-            if (!$product) {
+            if (! $product) {
                 return null;
             }
 

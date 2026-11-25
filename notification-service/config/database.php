@@ -31,12 +31,12 @@ return [
     */
 
     'connections' => [
-    
+
         'mongodb' => [
-            'driver'   => 'mongodb',
-            'dsn'      => env('MONGODB_URI', 'mongodb://mongodb:27017'),
+            'driver' => 'mongodb',
+            'dsn' => env('MONGODB_URI', 'mongodb://mongodb:27017'),
             'database' => env('MONGODB_DATABASE', 'notifications_db'),
-        ],          
+        ],
 
         'sqlite' => [
             'driver' => 'sqlite',
