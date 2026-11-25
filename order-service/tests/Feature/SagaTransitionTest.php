@@ -77,3 +77,27 @@ it('moves an order from created to confirmed', function () use (&$sagaSteps) {
         ->and($sagaSteps)->toBe(['stock_reserved', 'payment_pending', 'paid', 'confirmed'])
         ->and(OutboxMessage::query()->orderBy('id')->pluck('event_type')->all())->toBe(['order.paid', 'order.confirmed']);
 });
+
+it('ignores stock reservation once the order has left created', function () {
+    $order = Order::query()->create([
+        'user_id' => 1,
+        'email' => 'buyer@example.com',
+        'store_id' => 1,
+        'status' => 'cancelled',
+        'payment_status' => 'pending',
+        'total_amount' => 15,
+        'currency' => 'usd',
+    ]);
+
+    $message = Mockery::mock(ConsumerMessage::class);
+    $message->shouldReceive('getBody')->andReturn([
+        'event' => 'stock.reserved',
+        'order_id' => $order->id,
+    ]);
+    $message->shouldReceive('getHeaders')->andReturn([]);
+
+    app(InventoryEventsConsumer::class)($message, Mockery::mock(MessageConsumer::class));
+
+    expect($order->refresh()->status)->toBe('cancelled')
+        ->and(Payment::query()->count())->toBe(0);
+});

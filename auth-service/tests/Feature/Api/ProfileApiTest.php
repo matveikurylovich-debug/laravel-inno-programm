@@ -5,7 +5,6 @@ namespace Tests\Feature\Api;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Redis;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -17,14 +16,7 @@ class ProfileApiTest extends TestCase
     {
         parent::setUp();
 
-        Redis::flushall();
         Role::firstOrCreate(['name' => 'customer']);
-    }
-
-    protected function tearDown(): void
-    {
-        Redis::flushall();
-        parent::tearDown();
     }
 
     public function test_register_rejects_missing_phone(): void

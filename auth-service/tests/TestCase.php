@@ -6,9 +6,37 @@ use App\Events\TwoFactorCodeRequested;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Redis;
+use Junges\Kafka\Facades\Kafka;
+use Tests\Support\ArrayRedisConnection;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        if (! defined('RD_KAFKA_PARTITION_UA')) {
+            define('RD_KAFKA_PARTITION_UA', -1);
+        }
+
+        parent::setUp();
+
+        Kafka::fake();
+        $this->isolateRedis();
+    }
+
+    private function isolateRedis(): void
+    {
+        $socket = @fsockopen('127.0.0.1', 6379, $errno, $errstr, 0.2);
+        if ($socket !== false) {
+            fclose($socket);
+            Redis::connection()->flushdb();
+
+            return;
+        }
+
+        Redis::swap(new ArrayRedisConnection);
+    }
+
     /**
      * @return array{challenge_id: string, code: string}
      */

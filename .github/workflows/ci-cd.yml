@@ -53,12 +53,6 @@ jobs:
     env:
       APP_ENV: testing
       APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-      DB_CONNECTION: pgsql
-      DB_HOST: 127.0.0.1
-      DB_PORT: 5432
-      DB_DATABASE: testing
-      DB_USERNAME: testing
-      DB_PASSWORD: testing
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       MONGODB_URI: mongodb://127.0.0.1:27017
@@ -80,8 +74,17 @@ jobs:
       - run: cp .env.example .env && composer install --no-interaction --prefer-dist
       - run: vendor/bin/pint --test
       - run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
-      - run: |
-          if [ -x vendor/bin/pest ]; then vendor/bin/pest; else vendor/bin/phpunit; fi
+      - run: composer test
+      - name: PostgreSQL integration group
+        if: matrix.service == 'order-service'
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: testing
+          DB_USERNAME: testing
+          DB_PASSWORD: testing
+        run: composer test -- --group=pgsql
   recommendation:
     runs-on: ubuntu-latest
     services:

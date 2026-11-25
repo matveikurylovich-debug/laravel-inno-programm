@@ -28,7 +28,9 @@ class NotificationHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
-        NotificationLog::query()->delete();
+        if ($this->app !== null) {
+            NotificationLog::query()->delete();
+        }
         parent::tearDown();
     }
 

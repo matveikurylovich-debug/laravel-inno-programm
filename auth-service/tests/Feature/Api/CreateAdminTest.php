@@ -5,26 +5,12 @@ namespace Tests\Feature\Api;
 use App\Enums\RoleName;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Redis;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class CreateAdminTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Redis::flushall();
-    }
-
-    protected function tearDown(): void
-    {
-        Redis::flushall();
-        parent::tearDown();
-    }
 
     public function test_migration_creates_exactly_three_roles(): void
     {

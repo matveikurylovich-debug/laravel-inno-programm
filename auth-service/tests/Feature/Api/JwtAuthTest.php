@@ -7,7 +7,6 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Redis;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -19,19 +18,9 @@ class JwtAuthTest extends TestCase
     {
         parent::setUp();
 
-        // Очищаем тестовый Redis перед каждым тестом
-        Redis::flushall();
-
         // Создаем роль Spatie для тестов
         Role::firstOrCreate(['name' => 'customer']);
         Role::firstOrCreate(['name' => 'admin']);
-    }
-
-    protected function tearDown(): void
-    {
-        // Очищаем Redis после завершения теста
-        Redis::flushall();
-        parent::tearDown();
     }
 
     /**
