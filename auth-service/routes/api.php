@@ -3,8 +3,8 @@
 use App\Enums\RoleName;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\JwksController;
 use App\Http\Controllers\Api\GatewayController;
+use App\Http\Controllers\Api\JwksController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,29 +20,9 @@ Route::post('reset-password', [AuthController::class, 'resetPassword']);
 Route::post('two-factor/verify', [AuthController::class, 'verifyTwoFactor']);
 Route::post('two-factor/resend', [AuthController::class, 'resendTwoFactor']);
 
-// Поиск публичный: витрина ходит сюда без JWT.
-Route::match(['get', 'head'], 'search', [GatewayController::class, 'search']);
+Route::get('gateway/verify', [GatewayController::class, 'verify'])->middleware('auth:api');
 
-// Health-check рекомендаций (доступен для мониторинга без токена)
-Route::match(['get', 'head'], 'recommendations/health', [GatewayController::class, 'recommendations'])
-    ->defaults('path', 'health');
-
-// Витрина каталога публичная. Запись в каталог — только admin.
-Route::match(['get', 'head'], 'catalog/{path?}', [GatewayController::class, 'catalog'])
-    ->where('path', '.*');
-
-Route::match(['post', 'put', 'patch', 'delete'], 'catalog/{path?}', [GatewayController::class, 'catalog'])
-    ->middleware(['auth:api', 'role:'.RoleName::Admin->value])
-    ->where('path', '.*');
-
-// Заказы: любой пользователь с access-токеном. Роль владельца проверяет order-service.
 Route::middleware('auth:api')->group(function () {
-    Route::any('orders/{path?}', [GatewayController::class, 'orders'])
-        ->where('path', '.*');
-
-    Route::any('recommendations/{path?}', [GatewayController::class, 'recommendations'])
-        ->where('path', '.*');
-
     Route::get('me', [AuthController::class, 'me']);
     Route::post('logout-all', [AuthController::class, 'logoutAll']);
     Route::patch('profile', [ProfileController::class, 'update']);
@@ -52,16 +32,10 @@ Route::middleware('auth:api')->group(function () {
 
     Route::middleware('role:'.RoleName::Admin->value.','.RoleName::Analyst->value)->group(function () {
         Route::get('admin/users', [AdminUserController::class, 'index']);
-        Route::match(['get', 'head'], 'analytics/{path?}', [GatewayController::class, 'analytics'])
-            ->where('path', '.*');
     });
 
     Route::middleware('role:'.RoleName::Admin->value)->group(function () {
         Route::patch('admin/users/{user}/role', [AdminUserController::class, 'updateRole']);
-        Route::match(['get', 'head'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
-            ->where('path', '.*');
-        Route::match(['post', 'put', 'patch', 'delete'], 'notifications/{path?}', [GatewayController::class, 'notifications'])
-            ->where('path', '.*');
     });
 });
 

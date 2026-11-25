@@ -40,9 +40,7 @@ services:
       QUEUE_CONNECTION: database
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET}
       SESSION_SECURE_COOKIE: 'true'
-      PHP_CLI_SERVER_WORKERS: '4'
-      NOTIFICATION_SERVICE_URL: http://notification-app:80/api
-      ANALYTICS_SERVICE_URL: http://analytics-back:8080/analytics
+      PHP_CLI_SERVER_WORKERS: '2'
       SESSION_COOKIE: auth_session
     volumes:
     - ./.secrets/jwt:/run/jwt:ro
@@ -1146,9 +1144,7 @@ services:
       QUEUE_CONNECTION: database
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET}
       SESSION_SECURE_COOKIE: 'true'
-      PHP_CLI_SERVER_WORKERS: '4'
-      NOTIFICATION_SERVICE_URL: http://notification-app:80/api
-      ANALYTICS_SERVICE_URL: http://analytics-back:8080/analytics
+      PHP_CLI_SERVER_WORKERS: '2'
       SESSION_COOKIE: auth_session
     networks:
     - backend
