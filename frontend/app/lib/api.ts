@@ -1,14 +1,18 @@
 let refreshInFlight: Promise<number> | null = null;
 
 function refreshSession(): Promise<number> {
-  const run = () => fetch("/api/auth/refresh", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { Accept: "application/json", "X-Browser-Session": "1" },
-  }).then((result) => result.status);
+  const run = async (): Promise<number> => {
+    const result = await fetch("/api/auth/refresh", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Browser-Session": "1" },
+    });
+
+    return result.status;
+  };
 
   if (typeof navigator !== "undefined" && navigator.locks) {
-    return navigator.locks.request("auth-refresh", run);
+    return navigator.locks.request("auth-refresh", run) as unknown as Promise<number>;
   }
 
   return run();
@@ -34,8 +38,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}): Pro
     const refreshStatus = await refreshInFlight;
     if (refreshStatus >= 200 && refreshStatus < 300) {
       response = await send();
-    } else if (refreshStatus === 429) {
-      return response;
+    } else if (refreshStatus === 429 || refreshStatus >= 500) {
+      return new Response(null, { status: refreshStatus });
     } else if (refreshStatus >= 400 && refreshStatus < 500) {
       window.location.href = "/login";
       return response;

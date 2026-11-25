@@ -2,6 +2,16 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    rate_limiter:
+        chat_messages:
+            policy: sliding_window
+            limit: 10
+            interval: '1 minute'
+        chat_daily:
+            policy: sliding_window
+            limit: 40
+            interval: '1 day'
+
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
@@ -13,3 +23,7 @@ when@test:
         test: true
         session:
             storage_factory_id: session.storage.factory.mock_file
+        cache:
+            pools:
+                cache.rate_limiter:
+                    adapter: cache.adapter.array

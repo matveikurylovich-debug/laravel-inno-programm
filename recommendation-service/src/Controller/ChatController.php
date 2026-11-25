@@ -8,6 +8,7 @@ use App\Dto\ChatRequestDto;
 use App\Entity\Conversation;
 use App\Repository\ConversationRepository;
 use App\Security\JwtUser;
+use App\Service\ChatQuota;
 use App\Service\RecommendationEngine;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
@@ -25,6 +26,7 @@ final class ChatController extends \Symfony\Bundle\FrameworkBundle\Controller\Ab
         private readonly RecommendationEngine $recommendationEngine,
         private readonly ConversationRepository $conversations,
         private readonly EntityManagerInterface $entityManager,
+        private readonly ChatQuota $chatQuota,
     ) {
     }
 
@@ -55,6 +57,13 @@ final class ChatController extends \Symfony\Bundle\FrameworkBundle\Controller\Ab
         #[MapRequestPayload] ChatRequestDto $dto,
         #[CurrentUser] JwtUser $user,
     ): JsonResponse {
+        $retryAfter = $this->chatQuota->consume($user->getId());
+        if ($retryAfter !== null) {
+            return new JsonResponse([
+                'error' => 'Слишком много сообщений. Подождите и попробуйте снова.',
+            ], 429, ['Retry-After' => (string) $retryAfter]);
+        }
+
         $conversation = $this->resolveConversation($dto, $user);
 
         if (!$this->entityManager->contains($conversation)) {

@@ -734,6 +734,24 @@ services:
       search-app:
         condition: service_started
     restart: unless-stopped
+  recommendation-redis:
+    image: redis:7-alpine
+    volumes:
+    - recommendation-redis:/data
+    networks:
+    - backend
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      retries: 5
+      timeout: 5s
+    restart: unless-stopped
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
   recommendation-app:
     build:
       context: ./recommendation-service
@@ -759,6 +777,7 @@ services:
       GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
       GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-3.5-flash}
       GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-gemini-3.5-flash}
+      REDIS_URL: redis://recommendation-redis:6379
       DEFAULT_URI: ${PUBLIC_URL:-https://localhost}
     networks:
     - backend
@@ -803,6 +822,7 @@ services:
       GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
       GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-3.5-flash}
       GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-gemini-3.5-flash}
+      REDIS_URL: redis://recommendation-redis:6379
       DEFAULT_URI: ${PUBLIC_URL:-https://localhost}
     networks:
     - backend
@@ -1241,6 +1261,7 @@ services:
       GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
       GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-3.5-flash}
       GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-gemini-3.5-flash}
+      REDIS_URL: redis://recommendation-redis:6379
       DEFAULT_URI: ${PUBLIC_URL:-https://localhost}
     networks:
     - backend
@@ -1323,6 +1344,7 @@ volumes:
   search-elasticsearch: {}
   search-redis: {}
   recommendation-pgvector: {}
+  recommendation-redis: {}
   sail-mongodb: {}
   sail-kafka: {}
   clickhouse-data: {}
