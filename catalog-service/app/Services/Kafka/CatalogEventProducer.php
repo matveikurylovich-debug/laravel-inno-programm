@@ -2,10 +2,7 @@
 
 namespace App\Services\Kafka;
 
-use Illuminate\Support\Facades\Log;
-use Junges\Kafka\Facades\Kafka;
-use Junges\Kafka\Message\Message;
-use Throwable;
+use App\Models\CatalogOutbox;
 
 class CatalogEventProducer
 {
@@ -98,25 +95,16 @@ class CatalogEventProducer
 
     protected function emit(string $event, string $key, array $body): void
     {
-        try {
-            $message = new Message(
-                headers: ['service' => 'catalog-service'],
-                body: array_merge($body, [
-                    'event' => $event,
-                    'timestamp' => now()->toISOString(),
-                ]),
-                key: $key,
-            );
-
-            Kafka::publish()
-                ->onTopic($this->topic)
-                ->withMessage($message)
-                ->send();
-        } catch (Throwable $e) {
-            Log::error("Ошибка отправки события каталога в Kafka: {$e->getMessage()}", [
+        CatalogOutbox::query()->create([
+            'topic' => $this->topic,
+            'message_key' => $key,
+            'event' => $event,
+            'payload' => array_merge($body, [
                 'event' => $event,
-                'key' => $key,
-            ]);
-        }
+                'timestamp' => now()->toISOString(),
+            ]),
+            'created_at' => now(),
+            'attempts' => 0,
+        ]);
     }
 }

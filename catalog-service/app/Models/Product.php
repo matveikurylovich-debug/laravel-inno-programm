@@ -12,6 +12,19 @@ class Product extends Model
 {
     use BelongsToStore;
 
+    protected $attributes = [
+        'is_active' => true,
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Product $product): void {
+            if ($product->attributes === null) {
+                $product->attributes = [];
+            }
+        });
+    }
+
     protected $fillable = [
         'store_id',
         'category_id',

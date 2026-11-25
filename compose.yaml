@@ -306,6 +306,30 @@ services:
     networks:
     - backend
     restart: unless-stopped
+  catalog-outbox-relay:
+    image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-catalog:${IMAGE_TAG:-local}
+    command: php artisan catalog:outbox-relay
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      APP_ENV: ${APP_ENV:-production}
+      APP_KEY: ${CATALOG_APP_KEY:?Run ./start.sh}
+      DB_CONNECTION: pgsql
+      DB_HOST: catalog-postgres
+      DB_PORT: '5432'
+      DB_DATABASE: catalog_db
+      DB_USERNAME: catalog
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set database password}
+      JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
+      JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
+      JWT_AUDIENCE: ecommerce
+    networks:
+    - backend
+    depends_on:
+      catalog-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: unless-stopped
   order-service:
     image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     build:
