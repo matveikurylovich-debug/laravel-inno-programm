@@ -12,7 +12,7 @@
         "doctrine/orm": "^3.7",
         "firebase/php-jwt": "^7.2",
         "pgvector/pgvector": "^0.2.2",
-        "swagger-api/swagger-ui": "*",
+        "swagger-api/swagger-ui": "^5.34",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/flex": "^2",
@@ -27,7 +27,7 @@
         "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*",
         "ufo-tech/kafka-messenger": "^1.0",
-        "zircote/swagger-php": "*"
+        "zircote/swagger-php": "^6.18"
     },
     "config": {
         "allow-plugins": {
@@ -70,7 +70,13 @@
         ],
         "post-update-cmd": [
             "@auto-scripts"
-        ]
+        ],
+        "lint": [
+            "@php bin/console lint:yaml config",
+            "@php bin/console lint:container"
+        ],
+        "analyse": "@lint",
+        "refactor": "bash ../scripts/ci/rector-dry-run.sh"
     },
     "conflict": {
         "symfony/symfony": "*"
@@ -86,5 +92,7 @@
         "symfony/browser-kit": "8.1.*",
         "symfony/css-selector": "8.1.*",
         "symfony/maker-bundle": "^1.68"
-    }
+    },
+    "name": "ecommerce/recommendation",
+    "description": "Recommendations for the shop."
 }
