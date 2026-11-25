@@ -1,0 +1,7 @@
+title = "gitleaks"
+
+[allowlist]
+  description = "Only synthetic fixtures under tests may contain secret-shaped strings"
+  paths = [
+    '''(^|/)tests/fixtures/''',
+  ]
