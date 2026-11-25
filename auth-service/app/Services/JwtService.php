@@ -5,8 +5,11 @@ namespace App\Services;
 use App\Contracts\AuthService;
 use App\Enums\RoleName;
 use App\Models\User;
+use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
+use Ecommerce\PlatformKit\Token\InvalidTokenException;
+use Ecommerce\PlatformKit\Token\RefreshTokenReader;
+use Ecommerce\PlatformKit\Token\TokenInfrastructureException;
 use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -113,22 +116,35 @@ class JwtService implements AuthService
      */
     public function decodeAccessToken(string $token): object
     {
-        if ($this->isBlacklisted($token)) {
-            throw new InvalidArgumentException('Токен отозван (находится в блэклисте).');
+        try {
+            $claims = $this->accessVerifier()->verify($token);
+            if ($this->isBlacklisted($token)) {
+                throw new InvalidArgumentException('Токен отозван (находится в блэклисте).');
+            }
+            $notBefore = Redis::get($this->notBeforeKey($claims->userId));
+        } catch (InvalidTokenException $exception) {
+            throw new InvalidArgumentException($exception->getMessage(), previous: $exception);
+        } catch (InvalidArgumentException $exception) {
+            throw $exception;
+        } catch (TokenInfrastructureException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw new TokenInfrastructureException('Revocation store is unavailable.', previous: $exception);
         }
 
-        $decoded = JWT::decode($token, new Key($this->accessSecret, $this->algo));
-
-        if (($decoded->type ?? null) !== 'access') {
-            throw new InvalidArgumentException('Некорректный тип токена.');
-        }
-
-        $notBefore = Redis::get($this->notBeforeKey((int) $decoded->sub));
-        if (is_string($notBefore) && $notBefore !== '' && (int) ($decoded->iat ?? 0) <= (int) $notBefore) {
+        if (is_string($notBefore) && $notBefore !== '' && $claims->iat <= (int) $notBefore) {
             throw new InvalidArgumentException('Сессия отозвана.');
         }
 
-        return $decoded;
+        return (object) [
+            'sub' => $claims->userId,
+            'email' => $claims->email,
+            'role' => $claims->role,
+            'iat' => $claims->iat,
+            'exp' => $claims->exp,
+            'type' => $claims->type->value,
+            'roles' => $claims->roles,
+        ];
     }
 
     /**
@@ -136,11 +152,7 @@ class JwtService implements AuthService
      */
     public function decodeRefreshToken(string $token): object
     {
-        $decoded = JWT::decode($token, new Key($this->refreshSecret, $this->algo));
-
-        if (($decoded->type ?? null) !== 'refresh') {
-            throw new InvalidArgumentException('Некорректный тип токена.');
-        }
+        $decoded = $this->refreshReader()->read($token);
 
         $exists = Redis::exists($this->refreshKey((int) $decoded->sub, (string) $decoded->jti));
         if (! $exists) {
@@ -152,11 +164,7 @@ class JwtService implements AuthService
 
     public function readRefreshToken(string $token): object
     {
-        $decoded = JWT::decode($token, new Key($this->refreshSecret, $this->algo));
-
-        if (($decoded->type ?? null) !== 'refresh') {
-            throw new InvalidArgumentException('Некорректный тип токена.');
-        }
+        $decoded = $this->refreshReader()->read($token);
 
         return $decoded;
     }
@@ -246,6 +254,16 @@ class JwtService implements AuthService
         return "jwt:user:{$userId}:refresh";
     }
 
+    private function accessVerifier(): AccessTokenVerifier
+    {
+        return new AccessTokenVerifier((string) $this->accessSecret, (string) $this->algo);
+    }
+
+    private function refreshReader(): RefreshTokenReader
+    {
+        return new RefreshTokenReader((string) $this->refreshSecret, (string) $this->algo);
+    }
+
     private function notBeforeKey(int $userId): string
     {
         return "jwt:user:{$userId}:nbf";
@@ -257,14 +275,20 @@ class JwtService implements AuthService
     public function blacklistAccessToken(string $token): void
     {
         try {
-            $decoded = JWT::decode($token, new Key($this->accessSecret, $this->algo));
-            $remainingSeconds = $decoded->exp - time();
+            $claims = $this->accessVerifier()->verify($token);
+        } catch (InvalidTokenException) {
+            return;
+        }
 
-            if ($remainingSeconds > 0) {
-                Redis::setex("jwt:blacklist:{$token}", $remainingSeconds, 'revoked');
-            }
-        } catch (\Throwable) {
-            // Если токен уже битый или просроченный, в блэклист его писать не нужно
+        $remainingSeconds = $claims->exp - time();
+        if ($remainingSeconds <= 0) {
+            return;
+        }
+
+        try {
+            Redis::setex("jwt:blacklist:{$token}", $remainingSeconds, 'revoked');
+        } catch (\Throwable $exception) {
+            throw new TokenInfrastructureException('Revocation store is unavailable.', previous: $exception);
         }
     }
 

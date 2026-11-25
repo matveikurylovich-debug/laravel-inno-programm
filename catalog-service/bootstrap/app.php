@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Middleware\CatalogAdminAuth;
-use App\Http\Middleware\JwtMiddleware;
 use App\Http\Middleware\ResolveCurrentStore;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,12 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['access_token', 'refresh_token']);
         $middleware->web(append: [CatalogAdminAuth::class]);
-        $middleware->alias([
-            'jwt.auth' => JwtMiddleware::class,
-        ]);
-
         $middleware->priority([
-            JwtMiddleware::class,
             ResolveCurrentStore::class,
         ]);
     })

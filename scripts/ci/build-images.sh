@@ -29,11 +29,11 @@ build() {
 }
 
 build php-base ecommerce-php-base:8.5 infra/php/Dockerfile infra/php
-build auth "${registry}/ecommerce-auth:${tag}" auth-service/Dockerfile auth-service
-build catalog "${registry}/ecommerce-catalog:${tag}" catalog-service/Dockerfile catalog-service
-build order "${registry}/ecommerce-order:${tag}" order-service/Dockerfile order-service
-build search "${registry}/ecommerce-search:${tag}" search-service/Dockerfile search-service
-build notification "${registry}/ecommerce-notification:${tag}" notification-service/Dockerfile notification-service
+build auth "${registry}/ecommerce-auth:${tag}" auth-service/Dockerfile .
+build catalog "${registry}/ecommerce-catalog:${tag}" catalog-service/Dockerfile .
+build order "${registry}/ecommerce-order:${tag}" order-service/Dockerfile .
+build search "${registry}/ecommerce-search:${tag}" search-service/Dockerfile .
+build notification "${registry}/ecommerce-notification:${tag}" notification-service/Dockerfile .
 build recommendation "${registry}/ecommerce-recommendation:${tag}" recommendation-service/Dockerfile recommendation-service
 build frontend "${registry}/ecommerce-frontend:${tag}" frontend/Dockerfile frontend
 build analytics "${registry}/ecommerce-analytics:${tag}" analytics-service/backend/Dockerfile analytics-service/backend

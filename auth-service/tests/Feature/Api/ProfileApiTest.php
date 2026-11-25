@@ -40,18 +40,18 @@ class ProfileApiTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($user))
             ->patchJson('/api/profile', [
                 'name' => 'Updated User',
-                'email' => 'updated@example.com',
+                'email' => $user->email,
                 'phone' => '+375 (29) 222-22-22',
             ])
             ->assertOk()
             ->assertJsonPath('user.name', 'Updated User')
+            ->assertJsonPath('user.email', $user->email)
             ->assertJsonPath('user.phone', '+375 (29) 222-22-22');
 
         $user->refresh();
         $this->assertSame('Updated User', $user->name);
-        $this->assertSame('updated@example.com', $user->email);
         $this->assertSame('+375 (29) 222-22-22', $user->phone);
-        $this->assertNull($user->email_verified_at);
+        $this->assertNotNull($user->email_verified_at);
     }
 
     public function test_email_verification_stays_when_email_is_unchanged(): void

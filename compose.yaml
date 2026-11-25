@@ -9,8 +9,8 @@ services:
     command: ["php", "-v"]
   auth-app:
     build:
-      context: ./auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: auth-service/Dockerfile
     image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-auth:${IMAGE_TAG:-local}
     environment:
       APP_ENV: ${APP_ENV:-production}
@@ -181,8 +181,8 @@ services:
     restart: 'no'
   catalog-service:
     build:
-      context: ./catalog-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: catalog-service/Dockerfile
     environment:
       KAFKA_BROKERS: kafka:9092
       APP_ENV: ${APP_ENV:-production}
@@ -302,8 +302,8 @@ services:
   order-service:
     image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-order:${IMAGE_TAG:-local}
     build:
-      context: ./order-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: order-service/Dockerfile
     environment:
       KAFKA_BROKERS: kafka:9092
       ANALYTICS_RABBITMQ_URL: amqp://app:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@analytics-rabbitmq:5672/
@@ -562,8 +562,8 @@ services:
     - tools
   search-app:
     build:
-      context: ./search-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: search-service/Dockerfile
     image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-search:${IMAGE_TAG:-local}
     environment:
       KAFKA_BROKERS: kafka:9092
@@ -833,8 +833,8 @@ services:
     restart: unless-stopped
   notification-app:
     build:
-      context: ./notification-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: notification-service/Dockerfile
     image: ${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}/ecommerce-notification:${IMAGE_TAG:-local}
     environment:
       MAIL_MAILER: smtp

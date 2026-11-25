@@ -26,7 +26,7 @@ class IdempotencyMiddleware
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $userId = (string) $request->attributes->get('auth_user_id', 'guest');
+        $userId = (string) ($request->user()?->getAuthIdentifier() ?? $request->attributes->get('auth_user_id', 'guest'));
         $redisKey = "idempotency:order:{$userId}:{$idempotencyKey}";
         $lockKey = "lock:{$redisKey}";
 

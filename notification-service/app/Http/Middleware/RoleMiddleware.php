@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Enums\RoleName;
 use Closure;
+use Ecommerce\PlatformKit\Laravel\JwtUser;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -16,24 +17,12 @@ class RoleMiddleware
      */
     public function handle(Request $request, Closure $next, string ...$allowedRoles): Response
     {
-        $payload = $request->attributes->get('jwt_payload');
-
-        // Если роли не переданы в маршруте явно, по умолчанию разрешаем Admin и Analyst
         if (empty($allowedRoles)) {
             $allowedRoles = [RoleName::Admin->value, RoleName::Analyst->value];
         }
 
-        // Извлекаем роли из запроса или payload токена
-        $userRoles = $request->attributes->get('jwt_roles');
-        if ($userRoles === null) {
-            if (isset($payload->roles)) {
-                $userRoles = is_array($payload->roles) ? $payload->roles : (array) $payload->roles;
-            } elseif (isset($payload->role)) {
-                $userRoles = is_array($payload->role) ? $payload->role : [$payload->role];
-            } else {
-                $userRoles = [];
-            }
-        }
+        $user = $request->user();
+        $userRoles = $user instanceof JwtUser ? $user->roles() : [];
 
         // Нормализация к нижнему регистру для нечувствительности к регистру (Admin vs admin, etc.)
         $normalizedUserRoles = array_map(fn ($r) => strtolower(trim((string) $r)), $userRoles);

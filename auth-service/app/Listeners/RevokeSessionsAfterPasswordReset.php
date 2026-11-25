@@ -11,6 +11,6 @@ class RevokeSessionsAfterPasswordReset
 
     public function handle(PasswordReset $event): void
     {
-        $this->auth->revokeAllForUser((int) $event->user->id);
+        $this->auth->revokeAllForUser((int) $event->user->getAuthIdentifier());
     }
 }

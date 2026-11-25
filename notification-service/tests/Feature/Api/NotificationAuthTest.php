@@ -2,19 +2,25 @@
 
 namespace Tests\Feature\Api;
 
+use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
 use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Route;
-use Tests\TestCase;
+use Tests\HttpTestCase;
 
-class NotificationAuthTest extends TestCase
+class NotificationAuthTest extends HttpTestCase
 {
     private string $secret = 'test-secret-key-for-jwt-testing-12345';
 
     protected function setUp(): void
     {
         parent::setUp();
-        config(['jwt.keys.access' => $this->secret]);
-        config(['jwt.algo' => 'HS256']);
+        config([
+            'jwt.keys.access' => $this->secret,
+            'jwt.algo' => 'HS256',
+            'platform-kit.access_secret' => $this->secret,
+            'platform-kit.algorithm' => 'HS256',
+        ]);
+        $this->app->forgetInstance(AccessTokenVerifier::class);
     }
 
     private function generateToken(array $roles = ['admin'], int $ttl = 900, string $type = 'access', ?string $customSecret = null): string
@@ -35,10 +41,7 @@ class NotificationAuthTest extends TestCase
     {
         $response = $this->getJson('/api/notifications');
 
-        $response->assertStatus(401)
-            ->assertJson([
-                'error' => 'Заголовок Authorization: Bearer отсутствует',
-            ]);
+        $response->assertUnauthorized();
     }
 
     public function test_access_denied_with_invalid_signature(): void
@@ -48,10 +51,7 @@ class NotificationAuthTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/notifications');
 
-        $response->assertStatus(401)
-            ->assertJson([
-                'error' => 'Неверная подпись токена',
-            ]);
+        $response->assertUnauthorized();
     }
 
     public function test_access_denied_with_expired_token(): void
@@ -61,10 +61,7 @@ class NotificationAuthTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/notifications');
 
-        $response->assertStatus(401)
-            ->assertJson([
-                'error' => 'Срок действия access-токена истек',
-            ]);
+        $response->assertUnauthorized();
     }
 
     public function test_access_denied_with_refresh_token_type(): void
@@ -74,10 +71,7 @@ class NotificationAuthTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/notifications');
 
-        $response->assertStatus(401)
-            ->assertJson([
-                'error' => 'Некорректный тип токена. Ожидается access-токен',
-            ]);
+        $response->assertUnauthorized();
     }
 
     public function test_notification_routes_require_token_without_role(): void
@@ -91,7 +85,7 @@ class NotificationAuthTest extends TestCase
         foreach ($routes as $route) {
             $middleware = $route->gatherMiddleware();
 
-            $this->assertContains('jwt.auth', $middleware);
+            $this->assertContains('auth:api', $middleware);
             $this->assertFalse(
                 collect($middleware)->contains(fn (string $item) => str_starts_with($item, 'role:')),
             );
@@ -100,18 +94,14 @@ class NotificationAuthTest extends TestCase
 
     public function test_replay_requires_authorization_header(): void
     {
-        $this->postJson('/api/notifications/1/replay')
-            ->assertStatus(401)
-            ->assertJson([
-                'error' => 'Заголовок Authorization: Bearer отсутствует',
-            ]);
+        $this->postJson('/api/notifications/1/replay')->assertUnauthorized();
     }
 
     public function test_admin_can_pass_middleware(): void
     {
         Route::get('/api/test-protected', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['jwt.auth', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'role:admin,analyst']);
 
         $token = $this->generateToken(roles: ['admin']);
 
@@ -126,7 +116,7 @@ class NotificationAuthTest extends TestCase
     {
         Route::get('/api/test-protected-analyst', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['jwt.auth', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'role:admin,analyst']);
 
         $token = $this->generateToken(roles: ['analyst']);
 
@@ -141,7 +131,7 @@ class NotificationAuthTest extends TestCase
     {
         Route::get('/api/test-protected-case', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['jwt.auth', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'role:admin,analyst']);
 
         $token = $this->generateToken(roles: ['Admin']);
 
@@ -156,7 +146,7 @@ class NotificationAuthTest extends TestCase
     {
         Route::get('/api/test-protected-single-role', function () {
             return response()->json(['status' => 'ok']);
-        })->middleware(['jwt.auth', 'role:admin,analyst']);
+        })->middleware(['auth:api', 'role:admin,analyst']);
 
         $payload = [
             'iss' => 'http://localhost:8000',

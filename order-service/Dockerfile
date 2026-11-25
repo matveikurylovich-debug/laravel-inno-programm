@@ -3,7 +3,8 @@ FROM ecommerce-php-base:8.5 AS vendor
 
 WORKDIR /var/www/html
 
-COPY composer.json composer.lock ./
+COPY packages/platform-kit /var/www/packages/platform-kit
+COPY order-service/composer.json order-service/composer.lock ./
 
 RUN composer install \
         --no-dev \
@@ -17,9 +18,10 @@ FROM ecommerce-php-base:8.5
 
 WORKDIR /var/www/html
 
-COPY --chown=www-data:www-data . .
+COPY --from=vendor /var/www/packages /var/www/packages
+COPY --chown=www-data:www-data order-service/ .
 COPY --from=vendor --chown=www-data:www-data /var/www/html/vendor ./vendor
-COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-app.ini
+COPY order-service/docker/php/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 
 RUN mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views storage/logs \
     && composer dump-autoload --optimize --no-dev --no-scripts \

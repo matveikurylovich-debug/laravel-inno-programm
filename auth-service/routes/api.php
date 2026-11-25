@@ -30,11 +30,11 @@ Route::match(['get', 'head'], 'catalog/{path?}', [GatewayController::class, 'cat
     ->where('path', '.*');
 
 Route::match(['post', 'put', 'patch', 'delete'], 'catalog/{path?}', [GatewayController::class, 'catalog'])
-    ->middleware(['jwt.auth', 'role:'.RoleName::Admin->value])
+    ->middleware(['auth:api', 'role:'.RoleName::Admin->value])
     ->where('path', '.*');
 
 // Заказы: любой пользователь с access-токеном. Роль владельца проверяет order-service.
-Route::middleware('jwt.auth')->group(function () {
+Route::middleware('auth:api')->group(function () {
     Route::any('orders/{path?}', [GatewayController::class, 'orders'])
         ->where('path', '.*');
 
@@ -63,4 +63,4 @@ Route::middleware('jwt.auth')->group(function () {
     });
 });
 
-Route::get('catalog-admin/access', fn () => response()->noContent())->middleware(['jwt.auth', 'role:'.RoleName::Admin->value]);
+Route::get('catalog-admin/access', fn () => response()->noContent())->middleware(['auth:api', 'role:'.RoleName::Admin->value]);
