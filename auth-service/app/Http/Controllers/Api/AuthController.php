@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use OpenApi\Attributes as OA;
 use Throwable;
 
@@ -278,12 +279,13 @@ class AuthController extends Controller
         ]);
 
         try {
-            $payload = $this->authService->consumeRefreshToken($data['refresh_token']);
-            $user = User::findOrFail($payload->sub);
-
-            return response()->json($this->authService->generateTokenPair($user));
-        } catch (Throwable) {
+            return response()->json($this->authService->rotateRefreshToken($data['refresh_token']));
+        } catch (InvalidArgumentException) {
             return response()->json(['error' => 'Недействительный или отозванный refresh-токен'], 401);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json(['error' => 'Ошибка авторизации'], 500);
         }
     }
 

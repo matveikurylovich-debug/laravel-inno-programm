@@ -12,6 +12,9 @@ export default function ProfilePage() {
   const [ready, setReady] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [savedEmail, setSavedEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailNotice, setEmailNotice] = useState("");
   const [phone, setPhone] = useState("");
   const [profileError, setProfileError] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
@@ -39,6 +42,7 @@ export default function ProfilePage() {
         const body = (await response.json()) as { user: AuthUser };
         setName(body.user.name);
         setEmail(body.user.email);
+        setSavedEmail(body.user.email);
         setPhone(body.user.phone ? formatBelarusPhone(body.user.phone) : "");
         setReady(true);
       })
@@ -53,18 +57,32 @@ export default function ProfilePage() {
 
     const response = await apiFetch("/api/auth/profile", {
       method: "PATCH",
-      body: JSON.stringify({ name, email, phone }),
+      body: JSON.stringify({ name, email: savedEmail, phone }),
     });
 
-    setProfilePending(false);
-
     if (!response.ok) {
+      setProfilePending(false);
       setProfileError(await readError(response));
       return;
     }
 
-    const body = (await response.json()) as { user: AuthUser };
+    if (email !== savedEmail) {
+      const change = await apiFetch("/api/auth/profile/email", {
+        method: "POST",
+        body: JSON.stringify({ email, current_password: emailPassword }),
+      });
+      setProfilePending(false);
+      if (!change.ok) {
+        setProfileError(await readError(change));
+        return;
+      }
+      setEmailPassword("");
+      setEmailNotice("Ждём подтверждения нового адреса. До этого вход работает по старому email.");
+      setProfileMessage("Данные сохранены.");
+      return;
+    }
 
+    setProfilePending(false);
     setProfileMessage("Сохранено.");
   }
 
@@ -160,6 +178,19 @@ export default function ProfilePage() {
               className={fieldClass}
             />
           </label>
+          {email !== savedEmail ? (
+            <label className="field mt-4">
+              Текущий пароль для смены email
+              <input
+                required
+                type="password"
+                value={emailPassword}
+                onChange={(event) => setEmailPassword(event.target.value)}
+                className={fieldClass}
+              />
+            </label>
+          ) : null}
+          {emailNotice ? <p className="alert alert-success mt-4">{emailNotice}</p> : null}
 
           {profileError ? <p className="alert alert-error mt-4">{profileError}</p> : null}
           {profileMessage ? <p className="alert alert-success mt-4">{profileMessage}</p> : null}

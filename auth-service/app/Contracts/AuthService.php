@@ -25,6 +25,11 @@ interface AuthService
 
     public function consumeRefreshToken(string $token): object;
 
+    /**
+     * @return array{access_token: string, refresh_token: string, token_type: string, expires_in: int}
+     */
+    public function rotateRefreshToken(string $token): array;
+
     public function revokeRefreshToken(int $userId, string $jti): void;
 
     public function revokeAllForUser(int $userId): void;

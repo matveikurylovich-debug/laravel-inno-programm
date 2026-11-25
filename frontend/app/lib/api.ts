@@ -1,5 +1,19 @@
 let refreshInFlight: Promise<number> | null = null;
 
+function refreshSession(): Promise<number> {
+  const run = () => fetch("/api/auth/refresh", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { Accept: "application/json", "X-Browser-Session": "1" },
+  }).then((result) => result.status);
+
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    return navigator.locks.request("auth-refresh", run);
+  }
+
+  return run();
+}
+
 export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
@@ -15,19 +29,16 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}): Pro
   const authenticationEndpoint = /\/api\/auth\/(login|register|refresh|two-factor|forgot-password|reset-password)/.test(endpoint);
   if (response.status === 401 && !authenticationEndpoint && typeof window !== "undefined") {
     if (!refreshInFlight) {
-      refreshInFlight = fetch("/api/auth/refresh", {
-        method: "POST", credentials: "same-origin", headers: { "Accept": "application/json", "X-Browser-Session": "1" },
-      }).then((result) => result.status).finally(() => { refreshInFlight = null; });
+      refreshInFlight = refreshSession().finally(() => { refreshInFlight = null; });
     }
     const refreshStatus = await refreshInFlight;
     if (refreshStatus >= 200 && refreshStatus < 300) {
       response = await send();
-    } else if (refreshStatus !== 401) {
-      return new Response(JSON.stringify({ error: "Сервис авторизации временно недоступен" }), { status: 503 });
-    }
-    if (response.status === 401 && endpoint !== "/api/auth/me") {
-      clearSession();
+    } else if (refreshStatus === 429) {
+      return response;
+    } else if (refreshStatus >= 400 && refreshStatus < 500) {
       window.location.href = "/login";
+      return response;
     }
   }
 

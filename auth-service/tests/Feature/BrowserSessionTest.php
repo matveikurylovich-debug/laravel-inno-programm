@@ -15,11 +15,14 @@ it('sets HttpOnly secure cookies and removes browser tokens from JSON', function
         expect($cookie->isHttpOnly())->toBeTrue();
         expect($cookie->isSecure())->toBeTrue();
     }
+    $cookies = collect($response->headers->getCookies())->keyBy(fn ($cookie) => $cookie->getName());
+    expect($cookies->get('__Host-access')?->getPath())->toBe('/');
+    expect($cookies->get('refresh_token')?->getPath())->toBe('/api/auth');
     expect($response->headers->getCookies())->toHaveCount(2);
 });
 
 it('rejects a cross origin cookie mutation with 403', function () {
-    $request = Request::create('/api/orders', 'POST', cookies: ['access_token' => 'access'], server: ['HTTP_ORIGIN' => 'https://evil.example']);
+    $request = Request::create('/api/orders', 'POST', cookies: ['__Host-access' => 'access'], server: ['HTTP_ORIGIN' => 'https://evil.example']);
     $response = app(BrowserSession::class)->handle($request, fn () => throw new RuntimeException('must not run'));
     expect($response->getStatusCode())->toBe(403);
 });

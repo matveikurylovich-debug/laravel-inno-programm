@@ -3,10 +3,12 @@
 namespace Tests\Feature\Api;
 
 use App\Models\User;
+use App\Services\JwtService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Redis;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -120,7 +122,10 @@ class JwtAuthTest extends TestCase
         $newRefreshToken = $refreshResponse->json('refresh_token');
         $this->assertNotEquals($oldRefreshToken, $newRefreshToken);
 
-        // 2. Повторная попытка использовать старый токен (он должен быть удалён из Redis)
+        $payload = app(JwtService::class)->readRefreshToken($oldRefreshToken);
+        Redis::del('jwt:refresh:grace:'.$user->id.':'.$payload->jti);
+
+        // 2. Повтор вне grace-окна — отзыв всех сессий
         $replayAttackResponse = $this->postJson('/api/refresh', [
             'refresh_token' => $oldRefreshToken,
         ]);
