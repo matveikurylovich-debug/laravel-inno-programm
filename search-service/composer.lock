@@ -1960,16 +1960,16 @@
         },
         {
             "name": "league/commonmark",
-            "version": "2.10.8",
+            "version": "2.10.9",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/commonmark.git",
-                "reference": "681e662a40c805c567f52d603b64d55282ea356c"
+                "reference": "ab5ff8c80fd69abaeb4d57d7711d389248f219e4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/commonmark/zipball/681e662a40c805c567f52d603b64d55282ea356c",
-                "reference": "681e662a40c805c567f52d603b64d55282ea356c",
+                "url": "https://api.github.com/repos/thephpleague/commonmark/zipball/ab5ff8c80fd69abaeb4d57d7711d389248f219e4",
+                "reference": "ab5ff8c80fd69abaeb4d57d7711d389248f219e4",
                 "shasum": ""
             },
             "require": {
@@ -2063,7 +2063,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-11-24T15:44:47+00:00"
+            "time": "2026-11-25T20:08:31+00:00"
         },
         {
             "name": "league/config",
@@ -2673,16 +2673,16 @@
         },
         {
             "name": "mateusjunges/laravel-kafka",
-            "version": "v2.13.0",
+            "version": "v2.13.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/mateusjunges/laravel-kafka.git",
-                "reference": "a43aec899e9df824108cea056df5f3dfc56790ef"
+                "reference": "7e05df68b4848007048dd6acd2b4798e5f1beb55"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/mateusjunges/laravel-kafka/zipball/a43aec899e9df824108cea056df5f3dfc56790ef",
-                "reference": "a43aec899e9df824108cea056df5f3dfc56790ef",
+                "url": "https://api.github.com/repos/mateusjunges/laravel-kafka/zipball/7e05df68b4848007048dd6acd2b4798e5f1beb55",
+                "reference": "7e05df68b4848007048dd6acd2b4798e5f1beb55",
                 "shasum": ""
             },
             "require": {
@@ -2732,7 +2732,7 @@
             "description": "A kafka driver for laravel",
             "support": {
                 "issues": "https://github.com/mateusjunges/laravel-kafka/issues",
-                "source": "https://github.com/mateusjunges/laravel-kafka/tree/v2.13.0"
+                "source": "https://github.com/mateusjunges/laravel-kafka/tree/v2.13.1"
             },
             "funding": [
                 {
@@ -2740,7 +2740,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-07T18:39:25+00:00"
+            "time": "2026-10-23T12:01:33+00:00"
         },
         {
             "name": "monolog/monolog",
