@@ -23,13 +23,20 @@ if [[ ! -s infra/certs/localhost.crt || ! -s infra/certs/localhost.key ]]; then
 fi
 
 ./scripts/ci/build-images.sh --load
-docker compose up -d --wait --wait-timeout 300 --no-build
+
+# Workers query application tables as soon as they start. Create those tables
+# before the full stack is asked to become healthy.
+docker compose up -d --wait --wait-timeout 300 --no-build \
+  auth-postgres catalog-postgres order-postgres \
+  elasticsearch mongodb recommendation-pgvector
 
 for app in auth-app catalog-app order-app notification-app; do
   docker compose run --rm --no-deps "$app" php artisan migrate --force
 done
 docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
 docker compose run --rm --no-deps search-app php artisan search:setup-index
+
+docker compose up -d --wait --wait-timeout 300 --no-build
 
 gateway="https://127.0.0.1:${GATEWAY_HTTPS_PORT:-443}"
 curl_ok() {
