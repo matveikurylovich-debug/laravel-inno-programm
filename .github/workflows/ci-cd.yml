@@ -286,7 +286,7 @@ jobs:
           RABBITMQ_EXCHANGE: analytics.events
         run: |
           for sql in docker/clickhouse/01_init.sql docker/clickhouse/02_replacing.sql; do
-            curl -fsS "http://default:ci-only-clickhouse-password@127.0.0.1:8123/?database=analytics&multiquery=1" \
+            curl -fsS "http://default:ci-only-clickhouse-password@127.0.0.1:8123/?multiquery=1" \
               --data-binary @"$sql"
           done
           go test -race -tags=integration ./tests/integration/...
