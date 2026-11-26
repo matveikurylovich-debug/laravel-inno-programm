@@ -20,7 +20,7 @@ class UserRegisteredMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Добро пожаловать! Подтверждение регистрации',
+            subject: 'Добро пожаловать',
         );
     }
 

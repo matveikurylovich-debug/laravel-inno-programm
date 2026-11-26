@@ -13,5 +13,6 @@ class PasswordResetLinkRequested
     public function __construct(
         public User $user,
         public string $token,
+        public string $frontendBase = '',
     ) {}
 }

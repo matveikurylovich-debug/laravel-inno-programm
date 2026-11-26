@@ -17,6 +17,8 @@ security:
             provider: jwt_users
             access_token:
                 token_handler: App\Security\JwksAccessTokenHandler
+                failure_handler: App\Security\ProblemJsonAuthenticationFailureHandler
+            entry_point: App\Security\ProblemJsonAuthenticationFailureHandler
         main:
             lazy: true
             provider: jwt_users

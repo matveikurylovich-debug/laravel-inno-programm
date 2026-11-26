@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
 import { apiFetch, readError } from "@/app/lib/api";
@@ -42,7 +42,6 @@ function money(value: string): string {
 
 export default function ProductPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const [product, setProduct] = useState<ProductCard | null>(null);
   const [error, setError] = useState("");
   const [photo, setPhoto] = useState("");
@@ -181,12 +180,11 @@ export default function ProductPage() {
                       quantity,
                     });
                     setAdded(true);
-                    router.push("/checkout");
                   }}
                 >
                   В корзину
                 </button>
-                {added ? <span className="text-sm text-slate-500">Добавлено</span> : null}
+                {added ? <Link href="/cart" className="text-sm text-slate-600">Товар добавлен в корзину</Link> : null}
               </div>
               {product.description ? <p className="mt-6 leading-7 text-slate-600">{product.description}</p> : null}
               {attributes.length > 0 ? (

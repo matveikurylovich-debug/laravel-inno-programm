@@ -52,4 +52,11 @@ class SearchQueryBuilderTest extends TestCase
         $this->assertArrayHasKey('price_range', $query['aggs']);
         $this->assertArrayHasKey('attributes', $query['aggs']);
     }
+
+    public function test_non_lexical_query_matches_nothing(): void
+    {
+        $query = (new SearchQueryBuilder)->build(['q' => '<script>alert(1)</script>']);
+
+        $this->assertArrayHasKey('match_none', $query['query']['bool']['must'][0]);
+    }
 }

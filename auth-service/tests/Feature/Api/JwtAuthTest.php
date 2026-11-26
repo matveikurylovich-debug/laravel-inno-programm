@@ -173,17 +173,29 @@ class JwtAuthTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('user.name', 'New User')
-            ->assertJsonPath('user.email', 'new@example.com')
-            ->assertJsonPath('user.phone', '+375 (29) 123-45-67')
-            ->assertJsonPath('user.role', 'customer')
-            ->assertJsonPath('token_type', 'Bearer');
+            ->assertJsonPath('two_factor', true)
+            ->assertJsonPath('message', 'Код подтверждения отправлен на почту.');
 
-        $this->assertNotEmpty($response->json('access_token'));
+        $this->assertNotEmpty($response->json('challenge_id'));
+        $this->assertArrayNotHasKey('access_token', $response->json());
         $this->assertDatabaseHas('users', [
             'email' => 'new@example.com',
             'phone' => '+375 (29) 123-45-67',
         ]);
         Event::assertDispatched(Registered::class);
+    }
+
+    public function test_register_rejects_email_without_a_domain_dot(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'New User',
+            'email' => 'a@b',
+            'phone' => '+375 (29) 123-45-67',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->assertDatabaseMissing('users', ['email' => 'a@b']);
     }
 }

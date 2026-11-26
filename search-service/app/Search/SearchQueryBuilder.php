@@ -40,6 +40,10 @@ class SearchQueryBuilder
             return [['match_all' => new \stdClass]];
         }
 
+        if (preg_match('/^[\p{L}\p{N}][\p{L}\p{N}\s\-]*$/u', $query) !== 1) {
+            return [['match_none' => new \stdClass]];
+        }
+
         return [[
             'bool' => [
                 'should' => [

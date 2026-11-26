@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Events\PasswordResetLinkRequested;
+use App\Support\FrontendUrl;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -40,6 +41,6 @@ class User extends Authenticatable
      */
     public function sendPasswordResetNotification($token): void
     {
-        event(new PasswordResetLinkRequested($this, (string) $token));
+        event(new PasswordResetLinkRequested($this, (string) $token, FrontendUrl::baseFor(request())));
     }
 }

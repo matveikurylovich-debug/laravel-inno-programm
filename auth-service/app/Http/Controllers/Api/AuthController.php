@@ -48,7 +48,7 @@ class AuthController extends Controller
             )
         ),
         responses: [
-            new OA\Response(response: 201, description: 'Пользователь создан, выданы токены'),
+            new OA\Response(response: 201, description: 'Пользователь создан, отправлен код подтверждения'),
             new OA\Response(response: 422, description: 'Ошибка валидации'),
         ]
     )]
@@ -71,7 +71,14 @@ class AuthController extends Controller
             return $user;
         });
 
-        return $this->tokenResponse($user, 201);
+        $challenge = $this->twoFactorService->challenge($user);
+
+        return response()->json([
+            'two_factor' => true,
+            'challenge_id' => $challenge['challenge_id'],
+            'expires_in' => $challenge['expires_in'],
+            'message' => 'Код подтверждения отправлен на почту.',
+        ], 201);
     }
 
     #[OA\Post(

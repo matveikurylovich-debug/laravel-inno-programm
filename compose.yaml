@@ -17,6 +17,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Run ./start.sh}
       JWT_ACCESS_PRIVATE_KEY_PATH: /run/jwt/current.pem
       JWT_ACCESS_PUBLIC_KEY_PATH: /run/jwt/current.pub.pem
@@ -194,6 +196,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -252,6 +256,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -343,6 +349,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -455,6 +463,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -496,6 +506,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -537,6 +549,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -613,6 +627,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -652,6 +668,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -687,6 +705,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -789,6 +809,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -834,6 +856,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -904,6 +928,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -950,6 +976,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -988,6 +1016,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -1149,6 +1179,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -1200,6 +1232,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -1229,6 +1263,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
@@ -1271,6 +1307,8 @@ services:
       APP_DEBUG: 'false'
       APP_URL: ${PUBLIC_URL:-https://localhost}
       FRONTEND_URL: ${PUBLIC_URL:-https://localhost}
+      APP_LOCALE: ru
+      APP_FALLBACK_LOCALE: ru
       JWT_JWKS_URL: http://auth-nginx/api/internal/jwks
       JWT_AUDIENCE: ecommerce
       JWT_ISSUER: ${PUBLIC_URL:-https://localhost}
