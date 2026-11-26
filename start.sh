@@ -108,16 +108,20 @@ stripe_configured() {
 # до остальных: иначе Docker отдаёт её первой автоматически созданной сети.
 ensure_edge_network() {
   local name subnet containers
-  while read -r name subnet containers; do
-    [[ "$subnet" == "172.28.0.0/16" ]] || continue
-    [[ "$name" == "shop_edge" ]] && continue
-    if [[ "${containers:-0}" != "0" ]]; then
-      printf 'Подсеть 172.28.0.0/16 занята сетью %s (%s контейнеров). Освободите её и повторите ./start.sh.\n' "$name" "$containers" >&2
-      exit 1
-    fi
-    printf 'Удаляю пустую сеть %s: подсеть 172.28.0.0/16 зарезервирована за shop_edge.\n' "$name"
-    docker network rm "$name" >/dev/null
-  done < <(docker network inspect $(docker network ls -q) --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}} {{len .Containers}}')
+  local -a network_ids=()
+  mapfile -t network_ids < <(docker network ls -q)
+  if ((${#network_ids[@]} > 0)); then
+    while read -r name subnet containers; do
+      [[ "$subnet" == "172.28.0.0/16" ]] || continue
+      [[ "$name" == "shop_edge" ]] && continue
+      if [[ "${containers:-0}" != "0" ]]; then
+        printf 'Подсеть 172.28.0.0/16 занята сетью %s (%s контейнеров). Освободите её и повторите ./start.sh.\n' "$name" "$containers" >&2
+        exit 1
+      fi
+      printf 'Удаляю пустую сеть %s: подсеть 172.28.0.0/16 зарезервирована за shop_edge.\n' "$name"
+      docker network rm "$name" >/dev/null
+    done < <(docker network inspect "${network_ids[@]}" --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}} {{len .Containers}}')
+  fi
 
   if docker network inspect shop_edge >/dev/null 2>&1; then
     return 0
