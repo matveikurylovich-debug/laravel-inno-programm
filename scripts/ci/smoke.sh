@@ -24,17 +24,14 @@ fi
 
 ./scripts/ci/build-images.sh --load
 
-# Workers query application tables as soon as they start. Create those tables
-# before the full stack is asked to become healthy.
-docker compose up -d --wait --wait-timeout 300 --no-build \
-  auth-postgres catalog-postgres order-postgres \
-  elasticsearch mongodb recommendation-pgvector
-
+# Workers query application tables as soon as they start. Migrate first.
+# Dependencies (postgres, redis, mongo, elasticsearch) come up with the run;
+# the worker services stay down until the full stack starts below.
 for app in auth-app catalog-app order-app notification-app; do
-  docker compose run --rm --no-deps "$app" php artisan migrate --force
+  docker compose run --rm --no-build "$app" php artisan migrate --force
 done
-docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
-docker compose run --rm --no-deps search-app php artisan search:setup-index
+docker compose run --rm --no-build recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
+docker compose run --rm --no-build search-app php artisan search:setup-index
 
 docker compose up -d --wait --wait-timeout 300 --no-build
 
