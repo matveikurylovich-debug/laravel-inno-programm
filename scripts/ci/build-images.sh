@@ -30,17 +30,19 @@ build() {
     "$context"
 }
 
-# Base PHP image must exist locally when Laravel/Symfony images reference it via build-context
+# The container driver cannot see a just-loaded local tag, so the base image
+# is handed to later builds as an OCI layout instead of docker-image://.
+base_layout="$(mktemp -d)"
 docker buildx build \
   --file infra/php/Dockerfile \
   --tag ecommerce-php-base:8.5 \
   --cache-from "type=gha,scope=php-base" \
   --cache-to "${cache_to},scope=php-base" \
-  --output "type=docker" \
+  --output "type=oci,dest=${base_layout}" \
   infra/php
 
 php_contexts=(
-  --build-context "php-base=docker-image://ecommerce-php-base:8.5"
+  --build-context "php-base=oci-layout://${base_layout}"
   --build-context "platform-kit=./packages/platform-kit"
 )
 
