@@ -77,11 +77,11 @@ func TestParseGoldenContractFixtures(t *testing.T) {
 		"../../../contracts/auth.events/user.registered.json",
 		"../../../contracts/analytics.events/search.performed.json",
 	}
-	allFiles := append(orderFiles, extraFiles...)
+	orderFiles = append(orderFiles, extraFiles...)
 
-	seenTypes := make(map[string]int, len(allFiles))
+	seenTypes := make(map[string]int, len(orderFiles))
 
-	for _, path := range allFiles {
+	for _, path := range orderFiles {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			raw, readErr := os.ReadFile(path)
 			require.NoError(t, readErr)

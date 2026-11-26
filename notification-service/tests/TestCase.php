@@ -11,7 +11,7 @@ use App\Models\NotificationLog;
 use DateTimeInterface;
 use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Junges\Kafka\Facades\Kafka;
 use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
@@ -89,8 +89,8 @@ abstract class TestCase extends BaseTestCase
 
         if (is_string($attributes['payload'] ?? null)) {
             $createdAt = $attributes['created_at'] ?? now();
-            $moment = $createdAt instanceof DateTimeInterface ? Carbon::parse($createdAt) : Carbon::parse((string) $createdAt);
-            $storedAt = new UTCDateTime((int) $moment->getTimestampMs());
+            $moment = $createdAt instanceof DateTimeInterface ? Date::parse($createdAt) : Date::parse((string) $createdAt);
+            $storedAt = new UTCDateTime($moment->getTimestampMs());
             /** @var MongoEloquentBuilder<NotificationLog> $query */
             $query = NotificationLog::query();
             $insertedId = $query->raw(function (Collection $collection) use ($attributes, $storedAt): string {

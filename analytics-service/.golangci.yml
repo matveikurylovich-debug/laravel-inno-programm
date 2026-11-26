@@ -29,3 +29,8 @@ formatters:
   enable:
     - gofumpt
     - goimports
+  settings:
+    gofumpt:
+      # Without the module path, gofumpt treats analytics-service as the
+      # standard library because the path has no dot.
+      module-path: analytics-service

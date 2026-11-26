@@ -28,7 +28,7 @@ func (m *Money) UnmarshalJSON(data []byte) error {
 	if err := m.Decimal.UnmarshalJSON(data); err != nil {
 		return err
 	}
-	m.Decimal = m.Decimal.Round(2)
+	m.Decimal = m.Round(2)
 
 	return nil
 }
