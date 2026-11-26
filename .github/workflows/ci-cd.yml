@@ -209,7 +209,7 @@ jobs:
     env:
       APP_ENV: test
       APP_SECRET: ci-only-app-secret
-      DATABASE_URL: postgresql://testing:testing@127.0.0.1:5432/recommendation_test?serverVersion=16
+      DATABASE_URL: postgresql://testing:testing@127.0.0.1:5432/recommendation?serverVersion=16
       JWT_JWKS_PATH: ../packages/platform-kit/tests/fixtures/jwks.json
       JWT_ISSUER: http://auth-app
       JWT_AUDIENCE: ecommerce
@@ -272,7 +272,7 @@ jobs:
         run: go mod tidy -diff
       - uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          version: v2.5.0
           working-directory: analytics-service
       - name: Run unit tests with race detector
         run: go test -race ./...

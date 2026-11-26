@@ -8,9 +8,12 @@ use App\Contracts\NotificationLogRepository;
 use App\Enums\NotificationChannel;
 use App\Enums\NotificationStatus;
 use App\Models\NotificationLog;
+use DateTimeInterface;
 use Ecommerce\PlatformKit\Token\AccessTokenSigner;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Carbon;
 use Junges\Kafka\Facades\Kafka;
+use MongoDB\BSON\UTCDateTime;
 use MongoDB\Collection;
 use MongoDB\Laravel\Eloquent\Builder as MongoEloquentBuilder;
 use Tests\Support\InMemoryNotificationLogRepository;
@@ -85,9 +88,12 @@ abstract class TestCase extends BaseTestCase
         }
 
         if (is_string($attributes['payload'] ?? null)) {
+            $createdAt = $attributes['created_at'] ?? now();
+            $moment = $createdAt instanceof DateTimeInterface ? Carbon::parse($createdAt) : Carbon::parse((string) $createdAt);
+            $storedAt = new UTCDateTime((int) $moment->getTimestampMs());
             /** @var MongoEloquentBuilder<NotificationLog> $query */
             $query = NotificationLog::query();
-            $insertedId = $query->raw(function (Collection $collection) use ($attributes): string {
+            $insertedId = $query->raw(function (Collection $collection) use ($attributes, $storedAt): string {
                 $res = $collection->insertOne([
                     'event_id' => $attributes['event_id'] ?? null,
                     'user_id' => $attributes['user_id'] ?? null,
@@ -101,6 +107,8 @@ abstract class TestCase extends BaseTestCase
                     'attempts' => (int) ($attributes['attempts'] ?? 1),
                     'is_dlq' => (bool) ($attributes['is_dlq'] ?? false),
                     'error_message' => $attributes['error_message'] ?? null,
+                    'created_at' => $storedAt,
+                    'updated_at' => $storedAt,
                 ]);
 
                 return (string) $res->getInsertedId();
