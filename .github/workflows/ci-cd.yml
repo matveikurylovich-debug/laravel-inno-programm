@@ -262,7 +262,7 @@ jobs:
         working-directory: analytics-service
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: analytics-service/go.mod
           cache-dependency-path: analytics-service/go.sum
