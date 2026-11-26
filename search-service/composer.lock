@@ -597,7 +597,7 @@
             "dist": {
                 "type": "path",
                 "url": "../packages/platform-kit",
-                "reference": "648bc86fd41653240ec3096f70c379d19f7daae0"
+                "reference": "55868d60ede8aa678d75a6e4770686c49a11b9cf"
             },
             "require": {
                 "firebase/php-jwt": "^7.0",
@@ -605,7 +605,7 @@
                 "symfony/http-kernel": "^8.1"
             },
             "require-dev": {
-                "phpunit/phpunit": "^12.0"
+                "phpunit/phpunit": "^12.0 || ^13.0"
             },
             "type": "library",
             "extra": {
@@ -10200,11 +10200,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "2.3.5",
+            "version": "2.3.7",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/645a1bd6bead15fc1b8474137467961d0fa30a79",
-                "reference": "645a1bd6bead15fc1b8474137467961d0fa30a79",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/90c91c2498849ab8cc4e873864bbf1cb2bf6ea12",
+                "reference": "90c91c2498849ab8cc4e873864bbf1cb2bf6ea12",
                 "shasum": ""
             },
             "require": {
@@ -10260,7 +10260,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-03T12:14:22+00:00"
+            "time": "2026-11-19T10:31:11+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
