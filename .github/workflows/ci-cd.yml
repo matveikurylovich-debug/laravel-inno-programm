@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install gitleaks
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
@@ -68,7 +68,7 @@ jobs:
       run:
         working-directory: ${{ matrix.service }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: shivammathur/setup-php@v2
@@ -157,7 +157,7 @@ jobs:
       MAIL_MAILER: array
       FRONTEND_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
@@ -214,7 +214,7 @@ jobs:
       JWT_ISSUER: http://auth-app
       JWT_AUDIENCE: ecommerce
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
@@ -261,7 +261,7 @@ jobs:
       run:
         working-directory: analytics-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version-file: analytics-service/go.mod
@@ -305,7 +305,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: frontend/.nvmrc
@@ -328,7 +328,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -362,7 +362,7 @@ jobs:
       COMPOSE_FILE: compose.yaml
       CI_PULL_IMAGES: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -390,7 +390,7 @@ jobs:
     environment: stage
     concurrency: stage-deploy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure pinned SSH identity
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
