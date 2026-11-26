@@ -18,9 +18,10 @@ fi
 
 # The container driver cannot see a just-loaded local tag, so the base image
 # is handed to later builds as an OCI layout instead of docker-image://.
-base_tar="$(mktemp --suffix=.tar)"
-base_layout="$(mktemp -d)"
-rm -f "$base_tar"
+base_layout="${PWD}/.ci-php-base"
+base_tar="${base_layout}.tar"
+rm -rf "$base_layout" "$base_tar"
+mkdir -p "$base_layout"
 docker buildx build \
   --file infra/php/Dockerfile \
   --tag ecommerce-php-base:8.5 \
@@ -31,7 +32,7 @@ docker buildx build \
 tar -xf "$base_tar" -C "$base_layout"
 
 REGISTRY="$registry" TAG="$tag" OUTPUT="$output" PHP_BASE="$base_layout" \
-  docker buildx bake --file docker-bake.hcl default
+  docker buildx bake --allow="fs.read=${base_layout}" --file docker-bake.hcl default
 
 if [[ "$mode" == "--load" ]]; then
   docker buildx build --load --tag catalog-minio:local \

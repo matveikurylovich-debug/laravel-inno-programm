@@ -5,6 +5,8 @@
 !packages/platform-kit/tests/fixtures/*.pem
 **/certs/*.key
 /.local/
+/.ci-php-base/
+/.ci-php-base.tar
 /infra/certs/*
 !infra/certs/.gitkeep
 **/.env.local
