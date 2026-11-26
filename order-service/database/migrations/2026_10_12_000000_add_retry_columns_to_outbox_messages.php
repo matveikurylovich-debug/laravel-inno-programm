@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('outbox_messages', function (Blueprint $table) {
+        Schema::table('outbox_messages', function (Blueprint $table): void {
             $table->unsignedInteger('retry_count')->default(0)->after('status');
             $table->timestamp('next_retry_at')->nullable()->after('retry_count');
 
@@ -24,7 +24,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('outbox_messages', function (Blueprint $table) {
+        Schema::table('outbox_messages', function (Blueprint $table): void {
             $table->dropIndex(['status', 'next_retry_at']);
             $table->dropColumn(['retry_count', 'next_retry_at']);
         });

@@ -1,10 +1,12 @@
 "use client";
 
-import { currentUser } from "@/app/lib/auth";
-
-import { FormEvent, useEffect, useState } from "react";
-import { apiFetch, readError } from "@/app/lib/api";
-import type { NotificationLog, PaginatedNotifications } from "@/app/lib/types";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import Pagination from "@/app/components/Pagination";
+import { listNotifications, replayNotificationById } from "@/app/lib/api/notifications";
+import { canReplayNotification } from "@/app/lib/permissions";
+import type { NotificationLog } from "@/app/lib/types";
+import { useAsyncQuery } from "@/app/lib/use-async-query";
+import { useSession } from "@/app/providers/SessionProvider";
 
 const statuses = ["", "pending", "sent", "failed"];
 
@@ -21,116 +23,162 @@ function statusBadge(status?: string | null): string {
   }
 }
 
-type JournalState = {
-  query: string;
-  data?: PaginatedNotifications;
-  error?: string;
-};
-
 export default function NotificationsPage() {
+  const { user } = useSession();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [recipient, setRecipient] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [journal, setJournal] = useState<JournalState>({ query: "" });
   const [selected, setSelected] = useState<NotificationLog | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [replayingIds, setReplayingIds] = useState<Set<string>>(() => new Set());
 
-  const params = new URLSearchParams({ page: String(page), per_page: "15" });
-  if (status) params.set("status", status);
-  if (recipient) params.set("recipient", recipient);
-  if (dateFrom) params.set("date_from", dateFrom);
-  if (dateTo) params.set("date_to", dateTo);
-  const query = params.toString();
-  const loading = journal.query !== query;
-  const logs = loading ? [] : (journal.data?.data ?? []);
-  const lastPage = loading ? 1 : (journal.data?.meta?.last_page ?? 1);
-  const error = loading ? "" : (journal.error ?? "");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogTitleId = useId();
+
+  const filterKey = JSON.stringify({ page, status, recipient, dateFrom, dateTo });
+  const journalQuery = useAsyncQuery(
+    (signal) =>
+      listNotifications(
+        {
+          page,
+          per_page: 15,
+          status: status || undefined,
+          recipient: recipient || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+        },
+        signal,
+      ),
+    `admin:notifications:${filterKey}`,
+    { fallbackError: "Не удалось загрузить журнал" },
+  );
 
   useEffect(() => {
-    currentUser().then((user) => setRole(user?.role ?? null)).catch(() => undefined);
-  }, []);
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
 
-  useEffect(() => {
-    const requested = query;
-    let cancelled = false;
+    if (selected) {
+      if (!dialog.open) {
+        dialog.showModal();
+      }
+      closeButtonRef.current?.focus();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [selected]);
 
-    apiFetch(`/api/notifications?${requested}`)
-      .then(async (response) => {
-        if (!response.ok) {
-          return { query: requested, data: { data: [] }, error: await readError(response) };
-        }
-
-        const body = (await response.json()) as PaginatedNotifications;
-        return { query: requested, data: body };
-      })
-      .then((next) => {
-        if (!cancelled) setJournal(next);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setJournal({ query: requested, data: { data: [] }, error: "Не удалось загрузить журнал" });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [query]);
+  function readFormField(form: FormData, key: string): string {
+    const entry = form.get(key);
+    return typeof entry === "string" ? entry : "";
+  }
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setPage(1);
-    setStatus(String(form.get("status") ?? ""));
-    setRecipient(String(form.get("recipient") ?? ""));
-    setDateFrom(String(form.get("date_from") ?? ""));
-    setDateTo(String(form.get("date_to") ?? ""));
+    setActionError("");
+    setStatus(readFormField(form, "status"));
+    setRecipient(readFormField(form, "recipient"));
+    setDateFrom(readFormField(form, "date_from"));
+    setDateTo(readFormField(form, "date_to"));
   }
 
   async function replay(log: NotificationLog) {
-    setJournal((current) => ({ ...current, error: undefined }));
-    const response = await apiFetch(`/api/notifications/${log.id}/replay`, { method: "POST" });
-    if (!response.ok) {
-      const message = await readError(response);
-      setJournal((current) => ({ ...current, error: message }));
+    if (replayingIds.has(log.id)) {
       return;
     }
 
-    const updated = (await response.json()) as { data: NotificationLog };
-    const next = updated.data ?? updated;
-    setJournal((current) => ({
-      ...current,
-      data: current.data
-        ? { ...current.data, data: current.data.data.map((item) => (item.id === log.id ? { ...item, ...next } : item)) }
-        : current.data,
-    }));
+    setActionError("");
+    setReplayingIds((prev) => {
+      const next = new Set(prev);
+      next.add(log.id);
+      return next;
+    });
+
+    try {
+      const updated = await replayNotificationById(log.id);
+      journalQuery.mutate((current) =>
+        current
+          ? {
+              ...current,
+              data: current.data.map((item) =>
+                item.id === log.id ? { ...item, ...updated } : item,
+              ),
+            }
+          : current,
+      );
+    } catch (reason: unknown) {
+      setActionError(reason instanceof Error ? reason.message : "Не удалось повторить отправку");
+    } finally {
+      setReplayingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(log.id);
+        return next;
+      });
+    }
   }
+
+  const logs = journalQuery.data?.data ?? [];
+  const lastPage = journalQuery.data?.meta?.last_page ?? 1;
+  const error = actionError || journalQuery.error;
 
   return (
     <section>
       <h1 className="page-title">Журнал уведомлений</h1>
-      <p className="page-subtitle">Записи из MongoDB. Повторная отправка доступна администратору.</p>
+      <p className="page-subtitle">
+        История отправленных уведомлений. Повторная отправка доступна администратору.
+      </p>
 
       <form onSubmit={applyFilters} className="card mt-6 grid gap-3 p-4 md:grid-cols-5">
-        <select name="status" defaultValue={status} className="select">
+        <select
+          name="status"
+          defaultValue={status}
+          aria-label="Статус уведомления"
+          className="select"
+        >
           {statuses.map((item) => (
             <option key={item || "all"} value={item}>
               {item || "Все статусы"}
             </option>
           ))}
         </select>
-        <input name="recipient" defaultValue={recipient} placeholder="Email" className="input" />
-        <input name="date_from" type="date" defaultValue={dateFrom} className="input" />
-        <input name="date_to" type="date" defaultValue={dateTo} className="input" />
+        <input
+          name="recipient"
+          defaultValue={recipient}
+          aria-label="Email получателя"
+          placeholder="Email"
+          className="input"
+        />
+        <input
+          name="date_from"
+          type="date"
+          defaultValue={dateFrom}
+          aria-label="Дата с"
+          className="input"
+        />
+        <input
+          name="date_to"
+          type="date"
+          defaultValue={dateTo}
+          aria-label="Дата по"
+          className="input"
+        />
         <button type="submit" className="btn btn-primary">
           Применить
         </button>
       </form>
 
-      {error ? <p className="alert alert-error mt-4">{error}</p> : null}
-      {loading ? <p className="mt-4 text-sm text-slate-500">Загрузка...</p> : null}
+      {error ? (
+        <p role="alert" className="alert alert-error mt-4">
+          {error}
+        </p>
+      ) : null}
+      {journalQuery.isLoading ? <p className="mt-4 text-sm text-slate-500">Загрузка...</p> : null}
 
       <div className="table-wrap mt-4">
         <table className="data-table min-w-[760px]">
@@ -144,31 +192,49 @@ export default function NotificationsPage() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
-              <tr key={log.id}>
-                <td className="text-slate-500">
-                  {log.created_at ? new Date(log.created_at).toLocaleString("ru-RU") : "—"}
-                </td>
-                <td className="font-medium">{log.event ?? "—"}</td>
-                <td>{log.recipient ?? "—"}</td>
-                <td>
-                  {log.status ? <span className={statusBadge(log.status)}>{log.status}</span> : "—"}
-                </td>
-                <td>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setSelected(log)} className="btn btn-secondary btn-sm">
-                      Payload
-                    </button>
-                    {log.status === "failed" && role === "admin" ? (
-                      <button type="button" onClick={() => replay(log)} className="btn btn-primary btn-sm">
-                        Replay
+            {logs.map((log) => {
+              const isReplaying = replayingIds.has(log.id);
+              return (
+                <tr key={log.id}>
+                  <td className="text-slate-500">
+                    {log.created_at ? new Date(log.created_at).toLocaleString("ru-RU") : "—"}
+                  </td>
+                  <td className="font-medium">{log.event ?? "—"}</td>
+                  <td>{log.recipient ?? "—"}</td>
+                  <td>
+                    {log.status ? (
+                      <span className={statusBadge(log.status)}>{log.status}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelected(log)}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Детали
                       </button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {logs.length === 0 && !loading ? (
+                      {canReplayNotification(user, log.status) ? (
+                        <button
+                          type="button"
+                          disabled={isReplaying}
+                          onClick={() => {
+                            void replay(log);
+                          }}
+                          className="btn btn-primary btn-sm"
+                        >
+                          {isReplaying ? "Отправка..." : "Повторить"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {logs.length === 0 && !journalQuery.isLoading ? (
               <tr>
                 <td colSpan={5} className="!py-12 text-center text-slate-500">
                   Записей нет
@@ -179,33 +245,40 @@ export default function NotificationsPage() {
         </table>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 text-sm text-slate-600">
-        <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="btn btn-secondary btn-sm">
-          Назад
-        </button>
-        <span className="min-w-12 text-center font-medium tabular-nums">
-          {page} / {lastPage}
-        </span>
-        <button type="button" disabled={page >= lastPage} onClick={() => setPage((current) => current + 1)} className="btn btn-secondary btn-sm">
-          Вперёд
-        </button>
-      </div>
+      <Pagination currentPage={page} lastPage={lastPage} onPageChange={setPage} />
 
-      {selected ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-3xl bg-white p-6 shadow-pop" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold tracking-tight">Payload</h2>
-              <button type="button" onClick={() => setSelected(null)} className="btn btn-ghost btn-sm">
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={dialogTitleId}
+        onClose={() => setSelected(null)}
+        className="m-auto max-h-[80vh] w-full max-w-2xl overflow-auto rounded-3xl bg-white p-6 text-slate-900 shadow-pop backdrop:bg-slate-950/50 backdrop:backdrop-blur-sm"
+      >
+        {selected ? (
+          <div>
+            <div className="flex items-center justify-between gap-4">
+              <h2 id={dialogTitleId} className="text-lg font-semibold tracking-tight">
+                Детали уведомления
+              </h2>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={() => setSelected(null)}
+                className="btn btn-ghost btn-sm"
+              >
                 Закрыть
               </button>
             </div>
+            {selected.error_message ? (
+              <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {selected.error_message}
+              </p>
+            ) : null}
             <pre className="mt-4 overflow-auto rounded-xl bg-slate-950 p-4 font-mono text-xs leading-5 text-slate-100">
               {JSON.stringify(selected.payload, null, 2)}
             </pre>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </dialog>
     </section>
   );
 }

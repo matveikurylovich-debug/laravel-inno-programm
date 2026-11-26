@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::create('payments', function (Blueprint $table) {
+        Schema::create('payments', function (Blueprint $table): void {
             $table->id();
             $table->uuid('order_id')->index();
             $table->string('stripe_payment_intent_id')->nullable()->unique();

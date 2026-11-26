@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Prepare env, boot compose without the local override, then hit the gateway.
+# Prepare env, boot compose without the local dev override, then hit the gateway.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
+export START_ENV=ci
 export COMPOSE_FILE=compose.yaml
 export IMAGE_TAG="${IMAGE_TAG:-local}"
 export IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/matveikurylovich-debug}"
 
 ./start.sh --prepare-env
+
+# Test-format Stripe keys so order-app boot check passes in CI smoke
+printf 'STRIPE_SECRET_KEY=sk_test_SmokeCiKey1234567890ABCDEF\nSTRIPE_PUBLISHABLE_KEY=pk_test_SmokeCiKey1234567890ABCDEF\n' >> .env
 
 if [[ ! -s infra/certs/localhost.crt || ! -s infra/certs/localhost.key ]]; then
   mkdir -p infra/certs
@@ -21,11 +25,13 @@ fi
 ./scripts/ci/build-images.sh --load
 docker compose up -d --wait --wait-timeout 300 --no-build
 
-for app in auth-app catalog-service order-service; do
+for app in auth-app catalog-app order-app notification-app; do
   docker compose run --rm --no-deps "$app" php artisan migrate --force
 done
+docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
+docker compose run --rm --no-deps search-app php artisan search:setup-index
 
-gateway="https://127.0.0.1:${HTTPS_PORT:-443}"
+gateway="https://127.0.0.1:${GATEWAY_HTTPS_PORT:-443}"
 curl_ok() {
   local path="$1"
   local code
@@ -41,3 +47,4 @@ curl_ok /up/order
 curl_ok /up/search
 curl_ok /up/notification
 curl_ok /api/catalog/v1/stores
+test -z "$(docker compose ps --status restarting -q)"

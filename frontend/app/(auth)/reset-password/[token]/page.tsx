@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
-import Brand from "@/app/components/Brand";
 import { useParams, useSearchParams } from "next/navigation";
-import { apiFetch, readError } from "@/app/lib/api";
+import Brand from "@/app/components/Brand";
+import { resetPasswordRequest } from "@/app/lib/api/auth";
 
 function ResetPasswordForm() {
   const params = useParams<{ token: string }>();
@@ -23,29 +23,29 @@ function ResetPasswordForm() {
     setMessage("");
     setPending(true);
 
-    const response = await apiFetch("/api/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({
+    try {
+      await resetPasswordRequest({
         token,
         email,
         password,
         password_confirmation: passwordConfirmation,
-      }),
-    });
-
-    setPending(false);
-
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
+      });
+      setMessage("Пароль обновлён. Можно войти.");
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Запрос не выполнен");
+    } finally {
+      setPending(false);
     }
-
-    setMessage("Пароль обновлён. Можно войти.");
   }
 
   return (
     <main className="auth-shell">
-      <form onSubmit={onSubmit} className="auth-card">
+      <form
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        className="auth-card"
+      >
         <Brand />
         <h1 className="auth-title">Новый пароль</h1>
 
@@ -83,7 +83,11 @@ function ResetPasswordForm() {
           />
         </label>
 
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
         {message ? (
           <p className="alert alert-success mt-4">
             {message}{" "}
@@ -93,11 +97,7 @@ function ResetPasswordForm() {
           </p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="btn btn-primary btn-block mt-6"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary btn-block mt-6">
           {pending ? "Сохраняем..." : "Сохранить пароль"}
         </button>
       </form>

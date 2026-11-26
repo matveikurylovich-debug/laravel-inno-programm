@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductResource\Pages;
@@ -7,6 +9,7 @@ use App\Filament\Resources\ProductResource\RelationManagers\ImagesRelationManage
 use App\Filament\Resources\ProductResource\RelationManagers\StocksRelationManager;
 use App\Models\Category;
 use App\Models\Product;
+use App\Rules\ProductRules;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -14,17 +17,23 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Override;
 
 class ProductResource extends Resource
 {
+    #[Override]
     protected static ?string $model = Product::class;
 
+    #[Override]
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
 
+    #[Override]
     protected static ?string $navigationLabel = 'Товары';
 
+    #[Override]
     protected static ?string $modelLabel = 'товар';
 
+    #[Override]
     protected static ?string $pluralModelLabel = 'Товары';
 
     public static function form(Form $form): Form
@@ -34,24 +43,32 @@ class ProductResource extends Resource
                 Forms\Components\Select::make('store_id')
                     ->relationship('store', 'name')
                     ->required()
+                    ->disabledOn('edit')
                     ->live()
                     ->label('Магазин'),
                 Forms\Components\Select::make('category_id')
                     ->label('Категория')
                     ->searchable()
                     ->preload()
-                    ->options(function (Get $get): array {
-                        $storeId = $get('store_id');
-                        if (! $storeId) {
+                    ->options(static function (Get $get, ?Product $record): array {
+                        $storeId = self::resolveStoreId($get, $record);
+                        if ($storeId === null) {
                             return [];
                         }
 
-                        return Category::query()
+                        /** @var array<int|string, string> $options */
+                        $options = Category::query()
                             ->where('store_id', $storeId)
                             ->orderBy('name')
                             ->pluck('name', 'id')
                             ->all();
-                    }),
+
+                        return $options;
+                    })
+                    ->rules(static fn (Get $get, ?Product $record): array => ProductRules::category(
+                        self::resolveStoreId($get, $record),
+                        required: false,
+                    )),
                 Forms\Components\TextInput::make('name')
                     ->required()
                     ->maxLength(255)
@@ -77,16 +94,27 @@ class ProductResource extends Resource
                     ->label('SKU')
                     ->maxLength(255)
                     ->hiddenOn('create')
+                    ->dehydrated(static fn (?string $state): bool => filled($state))
+                    ->rules(static fn (Get $get, ?Product $record): array => ProductRules::sku(
+                        self::resolveStoreId($get, $record),
+                        $record instanceof Product ? (int) $record->id : null,
+                    ))
                     ->helperText('Пустое значение сохранится без изменений.'),
                 Forms\Components\TextInput::make('slug')
                     ->maxLength(255)
-                    ->hiddenOn('create'),
+                    ->hiddenOn('create')
+                    ->dehydrated(static fn (?string $state): bool => filled($state))
+                    ->rules(static fn (Get $get, ?Product $record): array => ProductRules::slug(
+                        self::resolveStoreId($get, $record),
+                        $record instanceof Product ? (int) $record->id : null,
+                    )),
                 Forms\Components\Textarea::make('description')
                     ->columnSpanFull()
                     ->label('Описание'),
                 Forms\Components\KeyValue::make('attributes')
                     ->keyLabel('Ключ')
                     ->valueLabel('Значение')
+                    ->rules(ProductRules::attributes())
                     ->columnSpanFull()
                     ->label('Характеристики'),
             ]);
@@ -137,6 +165,9 @@ class ProductResource extends Resource
             ]);
     }
 
+    /**
+     * @return list<class-string>
+     */
     public static function getRelations(): array
     {
         return [
@@ -145,9 +176,15 @@ class ProductResource extends Resource
         ];
     }
 
+    /**
+     * @return Builder<Product>
+     */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with(['store', 'category', 'stock']);
+        /** @var Builder<Product> $query */
+        $query = parent::getEloquentQuery()->with(['store', 'category', 'stock']);
+
+        return $query;
     }
 
     public static function getPages(): array
@@ -157,5 +194,16 @@ class ProductResource extends Resource
             'create' => Pages\CreateProduct::route('/create'),
             'edit' => Pages\EditProduct::route('/{record}/edit'),
         ];
+    }
+
+    private static function resolveStoreId(Get $get, ?Product $record): ?int
+    {
+        if ($record instanceof Product) {
+            return (int) $record->store_id;
+        }
+
+        $raw = $get('store_id');
+
+        return is_numeric($raw) ? (int) $raw : null;
     }
 }

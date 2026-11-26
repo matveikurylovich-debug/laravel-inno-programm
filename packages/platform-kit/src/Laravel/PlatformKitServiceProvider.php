@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ecommerce\PlatformKit\Laravel;
 
+use Ecommerce\PlatformKit\Analytics\AnalyticsPublisher;
 use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
 use Ecommerce\PlatformKit\Token\InvalidTokenException;
 use Ecommerce\PlatformKit\Token\JwksClient;
@@ -28,6 +29,13 @@ final class PlatformKitServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(RevocationInspector::class, fn (): RevocationInspector => new NullRevocationInspector);
+
+        $this->app->singleton(AnalyticsPublisher::class, function (): AnalyticsPublisher {
+            return new AnalyticsPublisher(
+                (string) config('services.analytics_broker.url', ''),
+                (string) config('services.analytics_broker.exchange', 'analytics.events'),
+            );
+        });
     }
 
     public function boot(): void
@@ -79,7 +87,11 @@ final class PlatformKitServiceProvider extends ServiceProvider
             report($exception);
             logger()->error('JWT infrastructure failure', ['exception' => $exception]);
 
-            return response()->json(['message' => 'Server Error'], 500);
+            if (! $request->is('api/*') && ! $request->expectsJson() && ! $request->is('webhooks/*')) {
+                return null;
+            }
+
+            return ProblemJson::responseFor($exception);
         });
     }
 

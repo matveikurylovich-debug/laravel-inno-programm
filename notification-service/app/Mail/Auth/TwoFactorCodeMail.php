@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail\Auth;
 
 use Illuminate\Bus\Queueable;
@@ -13,8 +15,8 @@ class TwoFactorCodeMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public string $code,
-        public int $ttlMinutes = 5
+        public readonly string $code,
+        public readonly int $ttlMinutes,
     ) {}
 
     public function envelope(): Envelope

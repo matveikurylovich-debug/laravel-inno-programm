@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail\Auth;
 
 use Illuminate\Bus\Queueable;
@@ -13,8 +15,8 @@ class UserRegisteredMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public string $name,
-        public ?string $verificationUrl = null
+        public readonly string $name,
+        public readonly ?string $verificationUrl = null,
     ) {}
 
     public function envelope(): Envelope

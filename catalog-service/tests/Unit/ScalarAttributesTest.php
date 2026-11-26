@@ -1,30 +1,24 @@
 <?php
 
-namespace Tests\Unit;
+declare(strict_types=1);
 
 use App\Rules\ScalarAttributes;
 use Illuminate\Support\Facades\Validator;
-use Tests\TestCase;
 
-class ScalarAttributesTest extends TestCase
-{
-    public function test_scalar_attribute_values_pass(): void
-    {
-        $validator = Validator::make(
-            ['attributes' => ['brand' => 'Apple', 'ram' => 8, 'stylus' => true]],
-            ['attributes' => ['array', new ScalarAttributes]],
-        );
+it('accepts scalar attribute values', function (): void {
+    $validator = Validator::make(
+        ['attributes' => ['brand' => 'Apple', 'ram' => 8, 'stylus' => true]],
+        ['attributes' => ['array', new ScalarAttributes]],
+    );
 
-        $this->assertTrue($validator->passes());
-    }
+    expect($validator->passes())->toBeTrue();
+});
 
-    public function test_nested_attribute_values_fail(): void
-    {
-        $validator = Validator::make(
-            ['attributes' => ['brand' => ['Apple']]],
-            ['attributes' => ['array', new ScalarAttributes]],
-        );
+it('rejects nested array attribute values', function (): void {
+    $validator = Validator::make(
+        ['attributes' => ['brand' => ['Apple']]],
+        ['attributes' => ['array', new ScalarAttributes]],
+    );
 
-        $this->assertTrue($validator->fails());
-    }
-}
+    expect($validator->fails())->toBeTrue();
+});

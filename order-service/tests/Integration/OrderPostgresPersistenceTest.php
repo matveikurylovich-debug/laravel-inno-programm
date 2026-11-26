@@ -5,10 +5,11 @@ declare(strict_types=1);
 use App\Models\Order;
 use App\Models\OutboxMessage;
 use App\Models\ProductSnapshot;
+use Illuminate\Support\Facades\DB;
 
-it('writes the order and outbox to postgres', function () {
+it('writes the order and outbox to postgres', function (): void {
     expect(config('database.default'))->toBe('pgsql')
-        ->and(config('database.connections.pgsql.database'))->toBe(env('DB_DATABASE'));
+        ->and(config('database.connections.pgsql.database'))->toBe(getenv('DB_DATABASE'));
 
     ProductSnapshot::query()->create([
         'product_id' => 10,
@@ -34,5 +35,5 @@ it('writes the order and outbox to postgres', function () {
 
     expect(Order::query()->find($orderId))->not->toBeNull()
         ->and(OutboxMessage::query()->where('aggregate_id', $orderId)->value('event_type'))->toBe('order.created')
-        ->and(Order::query()->getConnection()->getDriverName())->toBe('pgsql');
+        ->and(DB::getDriverName())->toBe('pgsql');
 });

@@ -11,8 +11,6 @@
         "infer-conventions",
         "deploying-to-cloud",
         "laravel-best-practices",
-        "testing-best-practices",
-        "inertia-react-development",
-        "tailwindcss-development"
+        "testing-best-practices"
     ]
 }

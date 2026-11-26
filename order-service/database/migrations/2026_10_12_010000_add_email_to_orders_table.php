@@ -14,14 +14,14 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('orders', function (Blueprint $table) {
+        Schema::table('orders', function (Blueprint $table): void {
             $table->string('email')->nullable()->after('user_id');
         });
     }
 
     public function down(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
+        Schema::table('orders', function (Blueprint $table): void {
             $table->dropColumn('email');
         });
     }

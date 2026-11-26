@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::create('sessions', function (Blueprint $table) {
+        Schema::create('sessions', function (Blueprint $table): void {
             $table->string('id')->primary();
             $table->unsignedBigInteger('user_id')->nullable()->index();
             $table->string('ip_address', 45)->nullable();

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Override;
 
 class OutboxMessage extends Model
 {
+    #[Override]
     protected $fillable = [
         'event_type',
         'aggregate_type',
@@ -22,6 +24,7 @@ class OutboxMessage extends Model
         'error_message',
     ];
 
+    #[Override]
     protected $casts = [
         'payload' => 'array',
         'retry_count' => 'integer',

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inno.local/events/auth.events.schema.json",
+  "type": "object",
+  "events": {
+    "user.registered": {
+      "required": ["user_id", "email", "name"],
+      "properties": {
+        "user_id": {"type": "integer"},
+        "email": {"type": "string"},
+        "name": {"type": "string"}
+      }
+    },
+    "auth.two_factor_code": {
+      "required": ["user_id", "email", "code", "ttl_minutes"],
+      "properties": {
+        "user_id": {"type": "integer"},
+        "email": {"type": "string"},
+        "code": {"type": "string"},
+        "ttl_minutes": {"type": "integer"}
+      }
+    },
+    "auth.password_reset": {
+      "required": ["user_id", "email", "reset_url", "expires_in"],
+      "properties": {
+        "user_id": {"type": "integer"},
+        "email": {"type": "string"},
+        "reset_url": {"type": "string"},
+        "expires_in": {"type": "integer"}
+      }
+    }
+  }
+}

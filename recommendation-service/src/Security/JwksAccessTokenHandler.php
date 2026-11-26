@@ -7,24 +7,29 @@ namespace App\Security;
 use Ecommerce\PlatformKit\Token\AccessTokenVerifier;
 use Ecommerce\PlatformKit\Token\InvalidTokenException;
 use Ecommerce\PlatformKit\Token\JwksClient;
-use Ecommerce\PlatformKit\Token\TokenInfrastructureException;
+use InvalidArgumentException;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Security\Http\AccessToken\AccessTokenHandlerInterface;
 use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 
-final class JwksAccessTokenHandler implements AccessTokenHandlerInterface
+final readonly class JwksAccessTokenHandler implements AccessTokenHandlerInterface
 {
     public function __construct(
-        private readonly string $jwksPath,
-        private readonly string $jwksUrl,
-        private readonly string $issuer,
-        private readonly string $audience,
+        #[Autowire(env: 'JWT_JWKS_PATH')]
+        private string $jwksPath,
+        #[Autowire(env: 'JWT_JWKS_URL')]
+        private string $jwksUrl,
+        #[Autowire(env: 'JWT_ISSUER')]
+        private string $issuer,
+        #[Autowire(env: 'JWT_AUDIENCE')]
+        private string $audience,
     ) {
-        if (($this->jwksPath === '' || ! is_file($this->jwksPath)) && $this->jwksUrl === '') {
-            throw new \InvalidArgumentException('JWT_JWKS_URL or JWT_JWKS_PATH is required.');
+        if (('' === $this->jwksPath || !is_file($this->jwksPath)) && '' === $this->jwksUrl) {
+            throw new InvalidArgumentException('JWT_JWKS_URL or JWT_JWKS_PATH is required.');
         }
-        if ($this->issuer === '' || $this->audience === '') {
-            throw new \InvalidArgumentException('JWT issuer and audience must be configured.');
+        if ('' === $this->issuer || '' === $this->audience) {
+            throw new InvalidArgumentException('JWT issuer and audience must be configured.');
         }
     }
 
@@ -34,8 +39,6 @@ final class JwksAccessTokenHandler implements AccessTokenHandlerInterface
             $claims = $this->verifier()->verify($accessToken);
         } catch (InvalidTokenException $exception) {
             throw new CustomUserMessageAuthenticationException('Требуется авторизация.', previous: $exception);
-        } catch (TokenInfrastructureException $exception) {
-            throw $exception;
         }
 
         $roles = [];
@@ -48,15 +51,11 @@ final class JwksAccessTokenHandler implements AccessTokenHandlerInterface
 
     private function verifier(): AccessTokenVerifier
     {
-        if ($this->jwksPath !== '' && is_file($this->jwksPath)) {
+        if ('' !== $this->jwksPath && is_file($this->jwksPath)) {
             return AccessTokenVerifier::fromJwks((string) file_get_contents($this->jwksPath), $this->issuer, $this->audience);
         }
 
-        try {
-            $json = (new JwksClient($this->jwksUrl, sys_get_temp_dir().'/recommendation-jwks.json'))->json();
-        } catch (TokenInfrastructureException $exception) {
-            throw $exception;
-        }
+        $json = new JwksClient($this->jwksUrl, sys_get_temp_dir().'/recommendation-jwks.json')->json();
 
         return AccessTokenVerifier::fromJwks($json, $this->issuer, $this->audience);
     }

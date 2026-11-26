@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::create('orders', function (Blueprint $table) {
+        Schema::create('orders', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('store_id');
@@ -28,7 +28,7 @@ return new class extends Migration
             $table->index(['user_id', 'created_at']);
         });
 
-        Schema::create('order_items', function (Blueprint $table) {
+        Schema::create('order_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
             $table->unsignedBigInteger('product_id');
@@ -39,7 +39,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('outbox_messages', function (Blueprint $table) {
+        Schema::create('outbox_messages', function (Blueprint $table): void {
             $table->id();
             $table->string('event_type');
             $table->string('aggregate_type');

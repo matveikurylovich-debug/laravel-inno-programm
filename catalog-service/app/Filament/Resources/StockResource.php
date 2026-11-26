@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\StockResource\Pages;
@@ -9,14 +11,34 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
+use Override;
 
 class StockResource extends Resource
 {
+    #[Override]
     protected static ?string $model = Stock::class;
 
+    #[Override]
     protected static ?string $navigationIcon = 'heroicon-o-archive-box';
 
+    #[Override]
     protected static bool $shouldRegisterNavigation = false;
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
 
     public static function form(Form $form): Form
     {

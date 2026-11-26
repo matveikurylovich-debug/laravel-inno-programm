@@ -1,44 +1,56 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Brand from "@/app/components/Brand";
-import { apiFetch, readError } from "@/app/lib/api";
+import { loginRequest } from "@/app/lib/api/auth";
+import { destinationFor } from "@/app/lib/auth";
 import { rememberChallengeId } from "@/app/lib/two-factor-challenge";
-import type { TwoFactorChallenge } from "@/app/lib/types";
+import { useSession } from "@/app/providers/SessionProvider";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next");
+  const { user, status } = useSession();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (status === "authenticated" && user) {
+      router.replace(destinationFor(user));
+    }
+  }, [router, status, user]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setPending(true);
 
-    const response = await apiFetch("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!response.ok) {
-      setError(await readError(response));
+    try {
+      const data = await loginRequest({ email, password });
+      rememberChallengeId(data.challenge_id);
+      const target = nextParam
+        ? `/two-factor?next=${encodeURIComponent(nextParam)}`
+        : "/two-factor";
+      router.push(target);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Запрос не выполнен");
       setPending(false);
-      return;
     }
-
-    const data = (await response.json()) as TwoFactorChallenge;
-    rememberChallengeId(data.challenge_id);
-    router.push("/two-factor");
   }
 
   return (
     <main className="auth-shell">
-      <form onSubmit={onSubmit} className="auth-card">
+      <form
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        className="auth-card"
+      >
         <Brand />
         <h1 className="auth-title">Вход</h1>
         <p className="auth-hint">После пароля отправим код подтверждения на почту.</p>
@@ -65,13 +77,13 @@ export default function LoginPage() {
           />
         </label>
 
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="btn btn-primary btn-block mt-6"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary btn-block mt-6">
           {pending ? "Проверяем..." : "Войти"}
         </button>
 
@@ -89,5 +101,13 @@ export default function LoginPage() {
         </p>
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="state-screen">Загрузка...</main>}>
+      <LoginForm />
+    </Suspense>
   );
 }

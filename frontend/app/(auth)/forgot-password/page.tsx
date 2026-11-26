@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import Brand from "@/app/components/Brand";
-import { apiFetch, readError } from "@/app/lib/api";
+import { forgotPasswordRequest } from "@/app/lib/api/auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,27 +17,29 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setPending(true);
 
-    const response = await apiFetch("/api/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-
-    setPending(false);
-
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
+    try {
+      await forgotPasswordRequest({ email });
+      setMessage("Если аккаунт существует, ссылка отправлена на почту.");
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Запрос не выполнен");
+    } finally {
+      setPending(false);
     }
-
-    setMessage("Если аккаунт существует, ссылка отправлена на почту.");
   }
 
   return (
     <main className="auth-shell">
-      <form onSubmit={onSubmit} className="auth-card">
+      <form
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        className="auth-card"
+      >
         <Brand />
         <h1 className="auth-title">Сброс пароля</h1>
-        <p className="auth-hint">Письмо со ссылкой придёт в MailHog.</p>
+        <p className="auth-hint">
+          Отправим ссылку для восстановления пароля на вашу электронную почту.
+        </p>
 
         <label className="field mt-6">
           Email
@@ -50,14 +52,14 @@ export default function ForgotPasswordPage() {
           />
         </label>
 
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
         {message ? <p className="alert alert-success mt-4">{message}</p> : null}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="btn btn-primary btn-block mt-6"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary btn-block mt-6">
           {pending ? "Отправляем..." : "Отправить ссылку"}
         </button>
 

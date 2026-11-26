@@ -1,16 +1,29 @@
 "use client";
 
-import { FormEvent, Suspense, useState, useSyncExternalStore } from "react";
+import { Suspense, useState, useSyncExternalStore, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import Brand from "@/app/components/Brand";
-import { apiFetch, readError } from "@/app/lib/api";
-import { destinationFor, persistAuth } from "@/app/lib/auth";
-import { currentChallengeId, rememberChallengeId, subscribeChallengeId } from "@/app/lib/two-factor-challenge";
-import type { AuthResponse, TwoFactorChallenge } from "@/app/lib/types";
+import { resendTwoFactorRequest, verifyTwoFactorRequest } from "@/app/lib/api/auth";
+import { destinationFor, safeNextPath } from "@/app/lib/auth";
+import { setCartUser } from "@/app/lib/cart";
+import {
+  currentChallengeId,
+  rememberChallengeId,
+  subscribeChallengeId,
+} from "@/app/lib/two-factor-challenge";
+import { useSession } from "@/app/providers/SessionProvider";
 
 function TwoFactorForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { refresh } = useSession();
   const challengeId = useSyncExternalStore(subscribeChallengeId, currentChallengeId, () => "");
-  const clientReady = useSyncExternalStore(subscribeChallengeId, () => true, () => false);
+  const clientReady = useSyncExternalStore(
+    subscribeChallengeId,
+    () => true,
+    () => false,
+  );
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -21,38 +34,28 @@ function TwoFactorForm() {
     setError("");
     setPending(true);
 
-    const response = await apiFetch("/api/auth/two-factor/verify", {
-      method: "POST",
-      body: JSON.stringify({ challenge_id: challengeId, code }),
-    });
-
-    if (!response.ok) {
-      setError(await readError(response));
+    try {
+      const data = await verifyTwoFactorRequest({ challenge_id: challengeId, code });
+      setCartUser(data.user.id);
+      await refresh();
+      router.replace(safeNextPath(searchParams.get("next"), destinationFor(data.user)));
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Запрос не выполнен");
       setPending(false);
-      return;
     }
-
-    const data = (await response.json()) as AuthResponse;
-    persistAuth(data);
-    window.location.href = destinationFor(data.user.role);
   }
 
   async function resend() {
     setError("");
     setMessage("");
-    const response = await apiFetch("/api/auth/two-factor/resend", {
-      method: "POST",
-      body: JSON.stringify({ challenge_id: challengeId }),
-    });
 
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
+    try {
+      const payload = await resendTwoFactorRequest({ challenge_id: challengeId });
+      rememberChallengeId(payload.challenge_id);
+      setMessage("Новый код отправлен на почту.");
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Запрос не выполнен");
     }
-
-    const payload = (await response.json()) as TwoFactorChallenge;
-    rememberChallengeId(payload.challenge_id);
-    setMessage("Новый код отправлен на почту.");
   }
 
   if (!clientReady) {
@@ -74,10 +77,17 @@ function TwoFactorForm() {
 
   return (
     <main className="auth-shell">
-      <form onSubmit={onSubmit} className="auth-card">
+      <form
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        className="auth-card"
+      >
         <Brand />
         <h1 className="auth-title">Код из письма</h1>
-        <p className="auth-hint">Шестизначный код действует 5 минут. Письмо в MailHog: localhost:8025.</p>
+        <p className="auth-hint">
+          Код отправлен. Если письмо не пришло, запросите ещё раз. Код действует 5 минут.
+        </p>
 
         <label className="field mt-6">
           Код
@@ -92,18 +102,24 @@ function TwoFactorForm() {
           />
         </label>
 
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
         {message ? <p className="alert alert-success mt-4">{message}</p> : null}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="btn btn-primary btn-block mt-6"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary btn-block mt-6">
           {pending ? "Проверяем..." : "Подтвердить"}
         </button>
 
-        <button type="button" onClick={() => void resend()} className="btn btn-ghost btn-block mt-3">
+        <button
+          type="button"
+          onClick={() => {
+            void resend();
+          }}
+          className="btn btn-ghost btn-block mt-3"
+        >
           Отправить код ещё раз
         </button>
       </form>

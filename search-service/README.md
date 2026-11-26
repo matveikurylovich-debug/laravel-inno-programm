@@ -1,58 +1,108 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Search Service (`ecommerce/search-service`)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Микросервис полнотекстового поиска и фасетной фильтрации товаров на базе **Laravel 13**, **PHP 8.5** и **Elasticsearch 8**.
 
-## About Laravel
+Сервис является чисто API/worker-приложением без собственной реляционной базы данных: источником истины для товарного индекса служат события каталога из Kafka и HTTP API `catalog-service` при полной переиндексации.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Возможности
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Полнотекстовый поиск (`Elasticsearch 8`)**:
+  - русская морфология (`stemmer: russian`);
+  - граф поисковых синонимов (`смартфон ↔ телефон`, `ноутбук ↔ лэптоп`, `наушники ↔ гарнитура` и др.);
+  - устойчивость к опечаткам (`fuzziness: AUTO`);
+  - префиксный поиск по названию (`edge_ngram` 3..15);
+  - поиск по вложенным характеристикам товара (`nested` поле `attributes`).
+- **Фасеты и фильтрация**:
+  - фильтрация по поддереву категорий через массив предков `category_path`;
+  - фильтрация по диапазону цен (`price_min`, `price_max`) и наличию (`in_stock`);
+  - агрегации по категориям, наличию на складе, минимальной/максимальной цене и вложенным атрибутам;
+  - сортировка по релевантности (`relevance`), возрастанию (`price_asc`) и убыванию (`price_desc`) цены.
+- **Отказоустойчивое кэширование (`Cache\Repository`)**:
+  - кэширование результатов поиска в Redis с TTL `SEARCH_CACHE_TTL` (по умолчанию `120` сек.);
+  - graceful degradation: при недоступности Redis ошибка логируется через `report()`, а запрос прозрачно обслуживается напрямую из Elasticsearch без ответа `500`.
+- **Асинхронная индексация из Kafka (`catalog.events`)**:
+  - обработка событий `product.created`, `product.updated`, `product.deleted`, `category.created`, `category.updated`, `category.deleted`, `stock.changed`;
+  - ручное подтверждение смещений (`withManualCommit`), настраиваемые повторные попытки с паузой (`Sleep::usleep`) и маршрутизация неисправимых/исчерпавших попытки сообщений в DLQ (`catalog.events.dlq.search-service`).
+- **Переиндексация без простоя (`IndexAliasPlan`)**:
+  - схема индекса хранится в `resources/elasticsearch/products.json`;
+  - новый версионированный индекс наполняется пакетами и атомарно переключается под алиас `products` с удалением старых индексов.
+- **Телеметрия поиска**:
+  - очередь `search-events` отправляет событие `search.performed` (включая `took_ms` из Elasticsearch либо `0` при попадании в кэш) через `Ecommerce\PlatformKit\Analytics\AnalyticsPublisher` в RabbitMQ.
+- **Единый формат ошибок**:
+  - все ошибки API возвращаются в формате RFC 9457 (`application/problem+json`).
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## HTTP API
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Метод | Путь | Описание |
+| --- | --- | --- |
+| `GET` | `/api/search` | Поиск товаров, пагинация и фасеты |
+| `GET` | `/up` | Healthcheck сервиса |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Параметры `GET /api/search`
 
-## Agentic Development
+- `q` — поисковый запрос (до 200 символов);
+- `category_id` — идентификатор категории (фильтрует по `category_path`, включая дочерние категории);
+- `price_min`, `price_max` — границы цены (`>= 0`, `price_max >= price_min`);
+- `in_stock` — фильтр наличия (`true`, `false`, `1`, `0`);
+- `page` — номер страницы (`>= 1`, ограничение глубины `page * per_page <= 10000`, иначе `422`);
+- `per_page` — размер страницы (`1..100`, по умолчанию `20`);
+- `sort` — `relevance` | `price_asc` | `price_desc`.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+OpenAPI-описание вынесено в `app/OpenApi/SearchOpenApi.php`. Swagger UI доступен только при `APP_ENV=local` (или `L5_SWAGGER_ENABLED=true`).
+
+---
+
+## Artisan-команды
 
 ```bash
-composer require laravel/boost --dev
+# Создать первичный индекс и алиас products по схеме resources/elasticsearch/products.json
+php artisan search:setup-index
 
-php artisan boost:install
+# Собрать новый индекс из catalog-service и атомарно переключить алиас
+php artisan search:reindex
+
+# Запустить Kafka-консьюмер событий catalog.events
+php artisan search:consume-catalog-events
+
+# Просмотреть сообщения в DLQ или вернуть их в исходный топик (--replay)
+php artisan search:replay-dlq catalog.events.dlq.search-service --replay
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+---
 
-## Contributing
+## Переменные окружения
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Основные переменные описаны в `.env.example`:
 
-## Code of Conduct
+- `CACHE_STORE=redis`, `QUEUE_CONNECTION=redis`, `SESSION_DRIVER=array`
+- `ELASTICSEARCH_HOSTS=http://elasticsearch:9200`, `ELASTICSEARCH_INDEX=products`
+- `KAFKA_BROKERS=kafka:9092`, `KAFKA_TOPIC_CATALOG_EVENTS=catalog.events`, `KAFKA_DLQ_CATALOG_EVENTS=catalog.events.dlq.search-service`
+- `KAFKA_FAILED_MESSAGE_RETRIES=5`, `KAFKA_FAILED_MESSAGE_BACKOFF_MS=2000`
+- `CATALOG_URL=http://catalog-nginx/api`
+- `ANALYTICS_RABBITMQ_URL=amqp://guest:guest@analytics-rabbitmq:5672/`, `ANALYTICS_RABBITMQ_EXCHANGE=analytics.events`
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+## Проверка качества и тесты
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+# Полный конвейер проверок (Pint, Rector, PHPStan Level 8, Pest без живого ES)
+composer check
 
-## License
+# Автоисправление стиля и правил Rector
+composer lint:fix
+composer refactor:fix
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# Статический анализ PHPStan (Level 8)
+composer analyse
+
+# Модульные, функциональные и архитектурные тесты
+composer test
+
+# Интеграционные тесты с реальным Elasticsearch
+ELASTICSEARCH_INTEGRATION=1 ELASTICSEARCH_HOSTS=http://127.0.0.1:9200 php artisan test --group=elasticsearch
+```

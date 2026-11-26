@@ -1,0 +1,85 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Cannot access property \$event_type on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: tests/Feature/OrderApiTest.php
+
+		-
+			message: '#^Cannot access property \$payload on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 13
+			path: tests/Feature/OrderApiTest.php
+
+		-
+			message: '#^Cannot access property \$status on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/OrderApiTest.php
+
+		-
+			message: '#^Cannot access property \$status on App\\Models\\Payment\|null\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/OrderApiTest.php
+
+		-
+			message: '#^Cannot access property \$payment_expires_at on App\\Models\\Order\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/OrderStateMachineTest.php
+
+		-
+			message: '#^Cannot access property \$status on App\\Models\\Order\|null\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/OrderStateMachineTest.php
+
+		-
+			message: '#^Cannot access property \$kafka_published_at on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/OutboxRelayTest.php
+
+		-
+			message: '#^Cannot access property \$published_at on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/OutboxRelayTest.php
+
+		-
+			message: '#^Cannot access property \$status on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 10
+			path: tests/Feature/OutboxRelayTest.php
+
+		-
+			message: '#^Cannot call method equalTo\(\) on Carbon\\Carbon\|null\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: tests/Feature/OutboxRelayTest.php
+
+		-
+			message: '#^Cannot call method lessThanOrEqualTo\(\) on Carbon\\Carbon\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/OutboxRelayTest.php
+
+		-
+			message: '#^Cannot access property \$payload on App\\Models\\OutboxMessage\|null\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: tests/Feature/StripeWebhookTest.php
+
+		-
+			message: '#^Cannot access property \$status on App\\Models\\Payment\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/StripeWebhookTest.php
+
+		-
+			message: '#^Cannot access property \$status on App\\Models\\Payment\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Unit/PaymentCompensationTest.php

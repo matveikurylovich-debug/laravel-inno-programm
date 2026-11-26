@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inno.local/events/catalog.events.schema.json",
+  "type": "object",
+  "events": {
+    "product.created": {
+      "required": ["id", "product_id", "store_id", "name", "price", "available", "is_in_stock", "is_active"],
+      "properties": {
+        "id": {"type": "integer"},
+        "product_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "category_id": {"type": "integer"},
+        "category_path": {"type": "array"},
+        "name": {"type": "string"},
+        "price": {"type": "string"},
+        "available": {"type": "integer"},
+        "is_in_stock": {"type": "boolean"},
+        "is_active": {"type": "boolean"}
+      }
+    },
+    "product.updated": {
+      "required": ["id", "product_id", "store_id", "name", "price", "available", "is_in_stock", "is_active"],
+      "properties": {
+        "id": {"type": "integer"},
+        "product_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "name": {"type": "string"},
+        "price": {"type": "string"},
+        "available": {"type": "integer"},
+        "is_in_stock": {"type": "boolean"},
+        "is_active": {"type": "boolean"}
+      }
+    },
+    "product.deleted": {
+      "required": ["id", "product_id", "store_id"],
+      "properties": {
+        "id": {"type": "integer"},
+        "product_id": {"type": "integer"},
+        "store_id": {"type": "integer"}
+      }
+    },
+    "stock.changed": {
+      "required": ["id", "product_id", "store_id", "available", "is_in_stock"],
+      "properties": {
+        "id": {"type": "integer"},
+        "product_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "available": {"type": "integer"},
+        "is_in_stock": {"type": "boolean"},
+        "locations": {"type": "array"}
+      }
+    }
+  }
+}

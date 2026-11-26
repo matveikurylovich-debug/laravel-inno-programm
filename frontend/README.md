@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# InnoTrainne Frontend
 
-## Getting Started
+Клиентское веб-приложение интернет-магазина на базе **Next.js 16** (App Router), **React 19** и **Tailwind CSS 4**.
 
-First, run the development server:
+## Архитектура
+
+- **`proxy.ts`** — серверная защита маршрутов Next.js 16 (`/profile`, `/orders`, `/checkout`, `/assistant`, `/admin/:path*`). Проверяет наличие access-cookie (`__Host-access` или `access_token` в локальной HTTP-разработке) и перенаправляет гостей на `/login?next=<encoded-pathname>`.
+- **`app/providers/SessionProvider.tsx`** — единый источник сессии пользователя (`useSession()`), выполняющий не более одного запроса `GET /api/auth/me` на загрузку страницы и различающий состояния `loading`, `authenticated`, `guest` (`401`) и `unavailable` (`5xx` / сетевой сбой).
+- **`app/lib/api.ts` и `app/lib/api/*`** — типизированный HTTP-слой (`auth`, `catalog`, `orders`, `notifications`, `search`, `recommendations`, `analytics`) с разбором `application/problem+json` (`readError`), поддержкой `AbortController` (`useAsyncQuery`) и single-flight обновлением сессии.
+- **`app/lib/permissions.ts`** — клиентские политики доступа (`canViewAdmin`, `canManageUsers`, `canCancelOrder`, `canReplayNotification`, `canOpenCatalogAdmin`), синхронизированные с правилами микросервисов.
+- **`app/lib/cart.ts`** — корзина в `localStorage`, изолированная по ключу `cart:${userId ?? "guest"}` с автоматическим переключением и очисткой гостевого контекста при выходе.
+
+## Сессия и cookies
+
+Токены никогда не сохраняются в `localStorage`. Браузер работает через `HttpOnly` cookies:
+
+- `__Host-access` (`Path=/`) — короткоживущий access-токен, проксируемый API-шлюзом в заголовок `Authorization: Bearer`.
+- `refresh_token` (`Path=/api/auth`) — refresh-cookie с ограниченным путём; при ответе `401` клиентский `apiFetch` выполняет единый (`single-flight` + `navigator.locks`) запрос `POST /api/auth/refresh` и повторяет исходный запрос.
+
+## Локальная разработка
+
+Требуется **Node.js >= 22.18** (рекомендуется Node 24 из `.nvmrc`).
 
 ```bash
+cp .env.example .env.local
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+По умолчанию `next.config.ts` проксирует `/api/auth/*` и `/api/*` на `AUTH_INTERNAL_URL` (`http://127.0.0.1:8000`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Сборка и Docker (Standalone)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Приложение собирается в режиме `output: "standalone"`. Многоступенчатый `Dockerfile` (`deps` -> `build` -> `runtime`) копирует только `.next/standalone`, `.next/static` и `public`, работает от непривилегированного пользователя `node` и проверяет готовность через `HEALTHCHECK` на `http://127.0.0.1:3000/login`.
 
-## Learn More
+```bash
+npm run build
+node .next/standalone/server.js
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Проверки качества и тесты
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run check
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Команда `npm run check` последовательно запускает:
 
-## Deploy on Vercel
+- `npm run lint` — ESLint 9 (`eslint-config-next`, `typescript-eslint` type-checked, `jsx-a11y`, `--max-warnings=0`);
+- `npm run typecheck` — `next typegen && tsc --noEmit`;
+- `npm run format:check` — проверка форматирования Prettier;
+- `npm test` — модульные тесты на встроенном раннере `node --experimental-strip-types --test`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Проверка безопасности зависимостей прод-сборки:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm audit --omit=dev --audit-level=high
+```

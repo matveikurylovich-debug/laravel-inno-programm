@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
     'auth' => ['url' => env('AUTH_SERVICE_URL', 'http://auth-app:8000')],
 

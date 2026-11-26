@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests;
 
 use App\Events\TwoFactorCodeRequested;
 use App\Models\User;
+use Illuminate\Contracts\Redis\Factory as RedisFactory;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Redis;
@@ -26,15 +29,19 @@ abstract class TestCase extends BaseTestCase
 
     private function isolateRedis(): void
     {
-        $socket = @fsockopen('127.0.0.1', 6379, $errno, $errstr, 0.2);
-        if ($socket !== false) {
-            fclose($socket);
-            Redis::connection()->flushdb();
+        if (extension_loaded('redis')) {
+            $socket = @fsockopen('127.0.0.1', 6379, $errno, $errstr, 0.2);
+            if ($socket !== false) {
+                fclose($socket);
+                Redis::connection()->flushdb();
 
-            return;
+                return;
+            }
         }
 
-        Redis::swap(new ArrayRedisConnection);
+        $fake = new ArrayRedisConnection;
+        Redis::swap($fake);
+        $this->app->instance(RedisFactory::class, $fake);
     }
 
     /**
@@ -47,7 +54,7 @@ abstract class TestCase extends BaseTestCase
             $code = $event->code;
         });
 
-        $login = $this->postJson('/api/login', [
+        $login = $this->postJson('/api/v1/login', [
             'email' => $user->email,
             'password' => $password,
         ])->assertOk();
@@ -63,22 +70,25 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Complete login including the two-factor challenge.
-     *
      * @return array{access_token: string, refresh_token: string}
      */
     protected function tokensFor(User $user, string $password = 'password'): array
     {
         $challenge = $this->twoFactorChallenge($user, $password);
 
-        $response = $this->postJson('/api/two-factor/verify', [
+        $response = $this->postJson('/api/v1/two-factor/verify', [
             'challenge_id' => $challenge['challenge_id'],
             'code' => $challenge['code'],
         ])->assertOk();
 
+        $accessToken = $response->json('access_token');
+        $refreshToken = $response->json('refresh_token');
+        $this->assertIsString($accessToken);
+        $this->assertIsString($refreshToken);
+
         return [
-            'access_token' => $response->json('access_token'),
-            'refresh_token' => $response->json('refresh_token'),
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
         ];
     }
 

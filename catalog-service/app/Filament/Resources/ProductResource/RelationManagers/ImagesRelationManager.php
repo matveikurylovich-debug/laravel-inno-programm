@@ -1,23 +1,36 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Filament\Resources\ProductResource\RelationManagers;
 
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Services\ProductImageService;
+use App\Services\Products\ProductImageService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Http\UploadedFile;
+use InvalidArgumentException;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Override;
 
 class ImagesRelationManager extends RelationManager
 {
+    #[Override]
     protected static string $relationship = 'images';
 
+    #[Override]
     protected static ?string $title = 'Фото';
+
+    private ProductImageService $imageService;
+
+    public function boot(ProductImageService $imageService): void
+    {
+        $this->imageService = $imageService;
+    }
 
     public function form(Form $form): Form
     {
@@ -54,7 +67,7 @@ class ImagesRelationManager extends RelationManager
                         /** @var Product $product */
                         $product = $this->getOwnerRecord();
 
-                        return app(ProductImageService::class)->upload(
+                        return $this->imageService->upload(
                             $product,
                             $this->uploadedFile($data['upload'] ?? null),
                             (bool) ($data['is_primary'] ?? false),
@@ -64,7 +77,7 @@ class ImagesRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\DeleteAction::make()
                     ->using(function (ProductImage $record): void {
-                        app(ProductImageService::class)->delete($record);
+                        $this->imageService->delete($record);
                     }),
             ])
             ->bulkActions([
@@ -73,11 +86,10 @@ class ImagesRelationManager extends RelationManager
                         ->label('Удалить')
                         ->requiresConfirmation()
                         ->color('danger')
-                        ->action(function ($records): void {
-                            $service = app(ProductImageService::class);
+                        ->action(function (iterable $records): void {
                             foreach ($records as $record) {
                                 if ($record instanceof ProductImage) {
-                                    $service->delete($record);
+                                    $this->imageService->delete($record);
                                 }
                             }
                         }),
@@ -91,10 +103,10 @@ class ImagesRelationManager extends RelationManager
             return $upload;
         }
 
-        if (is_array($upload)) {
+        if (is_array($upload) && $upload !== []) {
             return $this->uploadedFile(reset($upload));
         }
 
-        throw new \InvalidArgumentException('Не удалось прочитать загруженный файл.');
+        throw new InvalidArgumentException('Не удалось прочитать загруженный файл.');
     }
 }

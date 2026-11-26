@@ -1,33 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Filament\Resources\ProductResource\Pages;
 
 use App\Filament\Resources\ProductResource;
-use App\Models\Product;
-use App\Models\Stock;
-use App\Models\StoreLocation;
+use App\Services\Products\CreateProduct as CreateProductService;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Override;
 
 class CreateProduct extends CreateRecord
 {
+    #[Override]
     protected static string $resource = ProductResource::class;
 
-    /**
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    protected function mutateFormDataBeforeCreate(array $data): array
-    {
-        $data['slug'] = filled($data['slug'] ?? null) ? $data['slug'] : Str::slug((string) $data['name']);
-        $data['sku'] = filled($data['sku'] ?? null)
-            ? $data['sku']
-            : Str::upper(Str::slug((string) $data['name'], '')).'-'.Str::upper(Str::random(4));
-        $data['attributes'] = $data['attributes'] ?? [];
+    private CreateProductService $createProduct;
 
-        return $data;
+    public function boot(CreateProductService $createProduct): void
+    {
+        $this->createProduct = $createProduct;
     }
 
     /**
@@ -35,28 +27,6 @@ class CreateProduct extends CreateRecord
      */
     protected function handleRecordCreation(array $data): Model
     {
-        $quantity = (int) ($data['quantity'] ?? 0);
-        unset($data['quantity']);
-
-        return DB::transaction(function () use ($data, $quantity): Product {
-            /** @var Product $product */
-            $product = Product::query()->create($data);
-
-            $locationId = StoreLocation::query()
-                ->where('store_id', $product->store_id)
-                ->where('is_active', true)
-                ->orderBy('id')
-                ->value('id');
-
-            Stock::query()->create([
-                'product_id' => $product->id,
-                'store_id' => $product->store_id,
-                'location_id' => $locationId,
-                'quantity' => $quantity,
-                'reserved_quantity' => 0,
-            ]);
-
-            return $product->fresh(['stock']) ?? $product;
-        });
+        return $this->createProduct->handle($data);
     }
 }

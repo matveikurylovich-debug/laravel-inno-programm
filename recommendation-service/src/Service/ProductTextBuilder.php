@@ -18,24 +18,24 @@ final class ProductTextBuilder
         array $attributes = [],
     ): string {
         $parts = [
-            'Категория: ' . trim($category),
-            'Название: ' . trim($name),
+            'Категория: '.trim($category),
+            'Название: '.trim($name),
         ];
 
-        if ($description !== null && trim($description) !== '') {
-            $parts[] = 'Описание: ' . trim($description);
+        if (null !== $description && '' !== trim($description)) {
+            $parts[] = 'Описание: '.trim($description);
         }
 
-        if ($attributes !== []) {
+        if ([] !== $attributes) {
             $attrStrings = [];
             foreach ($attributes as $key => $value) {
-                if (is_scalar($value) && (string) $value !== '') {
-                    $attrStrings[] = sprintf('%s: %s', $key, $value);
+                if (\is_scalar($value) && '' !== (string) $value) {
+                    $attrStrings[] = \sprintf('%s: %s', $key, $value);
                 }
             }
 
-            if ($attrStrings !== []) {
-                $parts[] = 'Характеристики: ' . implode(', ', $attrStrings);
+            if ([] !== $attrStrings) {
+                $parts[] = 'Характеристики: '.implode(', ', $attrStrings);
             }
         }
 

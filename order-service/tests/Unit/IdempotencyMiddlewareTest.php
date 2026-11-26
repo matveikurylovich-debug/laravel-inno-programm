@@ -2,70 +2,36 @@
 
 declare(strict_types=1);
 
-use App\Http\Middleware\IdempotencyMiddleware;
+use App\Http\Middleware\EnsureIdempotentRequest;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Cache;
 
-$store = [];
-
-beforeEach(function () use (&$store) {
-    $store = [];
-
-    Redis::shouldReceive('get')
-        ->andReturnUsing(function (string $key) use (&$store) {
-            return $store[$key] ?? null;
-        });
-
-    Redis::shouldReceive('set')
-        ->andReturnUsing(function (string $key, mixed $value, ...$args) use (&$store): bool {
-            if (in_array('NX', $args, true) && array_key_exists($key, $store)) {
-                return false;
-            }
-
-            $store[$key] = $value;
-
-            return true;
-        });
-
-    Redis::shouldReceive('setex')
-        ->andReturnUsing(function (string $key, int $ttl, mixed $value) use (&$store): bool {
-            $store[$key] = $value;
-
-            return true;
-        });
-
-    Redis::shouldReceive('del')
-        ->andReturnUsing(function (string $key) use (&$store): int {
-            unset($store[$key]);
-
-            return 1;
-        });
+beforeEach(function (): void {
+    Cache::flush();
 });
 
-it('rejects order creation without an idempotency key', function () {
-    $middleware = new IdempotencyMiddleware;
-    $request = Request::create('/api/orders', 'POST');
+it('rejects order creation without an idempotency key', function (): void {
+    $middleware = new EnsureIdempotentRequest;
+    $request = Request::create('/api/orders', 'POST', content: '{"store_id":1}');
     $request->attributes->set('auth_user_id', 7);
 
-    $response = $middleware->handle($request, function () {
-        return response()->json(['created' => true], 201);
-    });
+    $response = $middleware->handle($request, fn () => response()->json(['created' => true], 201));
 
     expect($response->getStatusCode())->toBe(400)
-        ->and($response->getContent())->toContain('Idempotency-Key required');
+        ->and($response->getContent())->toContain('Idempotency-Key');
 });
 
-it('replays the cached response for a second request with the same key', function () {
-    $middleware = new IdempotencyMiddleware;
+it('replays the cached response for a second request with the same key', function (): void {
+    $middleware = new EnsureIdempotentRequest;
     $calls = 0;
 
-    $first = $middleware->handle(idempotencyRequest('same-key'), function () use (&$calls) {
+    $first = $middleware->handle(idempotencyRequest('same-key', '{"a":1}'), function () use (&$calls) {
         $calls++;
 
         return response()->json(['created' => true], 201);
     });
 
-    $second = $middleware->handle(idempotencyRequest('same-key'), function () use (&$calls) {
+    $second = $middleware->handle(idempotencyRequest('same-key', '{"a":1}'), function () use (&$calls) {
         $calls++;
 
         return response()->json(['created' => false], 201);
@@ -78,10 +44,20 @@ it('replays the cached response for a second request with the same key', functio
         ->and($second->getContent())->toBe('{"created":true}');
 });
 
-function idempotencyRequest(string $key): Request
+it('rejects the same idempotency key when the body changes', function (): void {
+    $middleware = new EnsureIdempotentRequest;
+    $middleware->handle(idempotencyRequest('same-key', '{"a":1}'), fn () => response()->json(['created' => true], 201));
+
+    $response = $middleware->handle(idempotencyRequest('same-key', '{"a":2}'), fn () => response()->json(['created' => false], 201));
+
+    expect($response->getStatusCode())->toBe(422);
+});
+
+function idempotencyRequest(string $key, string $body): Request
 {
-    $request = Request::create('/api/orders', 'POST');
+    $request = Request::create('/api/orders', 'POST', content: $body);
     $request->headers->set('Idempotency-Key', $key);
+    $request->headers->set('Content-Type', 'application/json');
     $request->attributes->set('auth_user_id', 7);
 
     return $request;

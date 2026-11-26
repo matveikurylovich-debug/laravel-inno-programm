@@ -18,8 +18,8 @@ return [
      */
     'sasl' => [
         'mechanisms' => env('KAFKA_MECHANISMS', 'PLAINTEXT'),
-        'username' => env('KAFKA_USERNAME', null),
-        'password' => env('KAFKA_PASSWORD', null),
+        'username' => env('KAFKA_USERNAME'),
+        'password' => env('KAFKA_PASSWORD'),
     ],
 
     /*
@@ -28,7 +28,7 @@ return [
      | establishing that each partition is only consumed by a single consumer from the group.
      | This config defines the consumer group id you want to use for your project.
      */
-    'consumer_group_id' => env('KAFKA_CONSUMER_GROUP_ID', 'group'),
+    'consumer_group_id' => env('KAFKA_CONSUMER_GROUP_ID', 'order-service-catalog-group'),
 
     'inventory_consumer_group_id' => env('KAFKA_INVENTORY_CONSUMER_GROUP_ID', 'order-service-inventory-group'),
 
@@ -41,7 +41,16 @@ return [
      | offset reset policy (auto.offset.reset). Typically, consumption starts either at the earliest offset or the latest offset.
      | You can choose between "latest", "earliest" or "none".
      */
-    'offset_reset' => env('KAFKA_OFFSET_RESET', 'latest'),
+    'offset_reset' => env('KAFKA_OFFSET_RESET', 'earliest'),
+
+    'failed_message_retries' => (int) env('KAFKA_FAILED_MESSAGE_RETRIES', 5),
+
+    'failed_message_backoff_ms' => (int) env('KAFKA_FAILED_MESSAGE_BACKOFF_MS', 2000),
+
+    'dlq' => [
+        'catalog_events' => env('KAFKA_DLQ_CATALOG_EVENTS', 'catalog.events.dlq.order-service'),
+        'inventory_events' => env('KAFKA_DLQ_INVENTORY_EVENTS', 'inventory.events.dlq.order-service'),
+    ],
 
     /*
      | If you set enable.auto.commit (which is the default), then the consumer will automatically commit offsets periodically at the
@@ -90,6 +99,7 @@ return [
 
     'topics' => [
         'order_events' => env('KAFKA_TOPIC_ORDER_EVENTS', 'order.events'),
+        'stock_commands' => env('KAFKA_TOPIC_STOCK_COMMANDS', 'stock.commands'),
         'inventory_events' => env('KAFKA_TOPIC_INVENTORY_EVENTS', 'inventory.events'),
         'catalog_events' => env('KAFKA_TOPIC_CATALOG_EVENTS', 'catalog.events'),
     ],

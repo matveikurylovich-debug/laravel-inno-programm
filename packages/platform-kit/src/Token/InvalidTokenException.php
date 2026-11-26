@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Ecommerce\PlatformKit\Token;
 
-use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
-final class InvalidTokenException extends RuntimeException
+final class InvalidTokenException extends HttpException
 {
+    public function __construct(string $message)
+    {
+        parent::__construct(401, $message);
+    }
+
     public static function missing(): self
     {
         return new self('Access token is missing.');

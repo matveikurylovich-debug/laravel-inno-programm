@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App;
 
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
@@ -11,7 +13,7 @@ class Kernel extends BaseKernel
 
     public function getCacheDir(): string
     {
-        return ($_SERVER['APP_CACHE_DIR'] ?? $_ENV['APP_CACHE_DIR'] ?? parent::getCacheDir());
+        return $_SERVER['APP_CACHE_DIR'] ?? $_ENV['APP_CACHE_DIR'] ?? parent::getCacheDir();
     }
 
     /**

@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\DB;
 use Junges\Kafka\Facades\Kafka;
 
-it('commits registration and two durable deliveries without contacting brokers', function () {
-    DB::transaction(function () {
+it('commits registration and two durable deliveries without contacting brokers', function (): void {
+    DB::transaction(function (): void {
         $user = User::factory()->create();
         event(new Registered($user));
     });
@@ -16,9 +18,9 @@ it('commits registration and two durable deliveries without contacting brokers',
     Kafka::assertNothingPublished();
 });
 
-it('rolls back registration deliveries with the user', function () {
+it('rolls back registration deliveries with the user', function (): void {
     try {
-        DB::transaction(function () {
+        DB::transaction(function (): void {
             $user = User::factory()->create();
             event(new Registered($user));
             throw new RuntimeException('rollback');

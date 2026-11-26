@@ -2,14 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Contracts\PaymentGateway;
+use App\Enums\OrderStatus;
+use App\Exceptions\NonRetryableException;
+use App\Messaging\ConsumerFactory;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ProductSnapshot;
-use App\Services\StripeService;
+use Ecommerce\PlatformKit\Messaging\NonRetryableMessageException;
+use Illuminate\Support\Sleep;
 use Junges\Kafka\Facades\Kafka;
 use Junges\Kafka\Message\ConsumedMessage;
 
-beforeEach(function () {
+beforeEach(function (): void {
     mockRedis();
 
     if (! defined('RD_KAFKA_PARTITION_UA')) {
@@ -17,7 +22,7 @@ beforeEach(function () {
     }
 });
 
-it('handles stock reserved from fake kafka', function () {
+it('handles stock reserved from fake kafka', function (): void {
     $order = Order::query()->create([
         'user_id' => 1,
         'email' => 'buyer@example.com',
@@ -28,7 +33,7 @@ it('handles stock reserved from fake kafka', function () {
         'currency' => 'usd',
     ]);
 
-    $this->mock(StripeService::class, function ($mock): void {
+    $this->mock(PaymentGateway::class, function ($mock): void {
         $mock->shouldReceive('createPaymentIntent')
             ->once()
             ->andReturnUsing(fn (Order $incoming): Payment => Payment::query()->create([
@@ -57,13 +62,13 @@ it('handles stock reserved from fake kafka', function () {
         ),
     ]);
 
-    $this->artisan('kafka:consume-inventory')->assertSuccessful();
+    $this->artisan('order:consume-inventory-events')->assertSuccessful();
 
-    expect($order->refresh()->status)->toBe('payment_pending')
+    expect($order->refresh()->status)->toBe(OrderStatus::PaymentPending)
         ->and($order->payment?->stripe_payment_intent_id)->toBe('pi_kafka');
 });
 
-it('updates a product snapshot from fake kafka', function () {
+it('updates a product snapshot from fake kafka', function (): void {
     Kafka::fake();
     Kafka::shouldReceiveMessages([
         new ConsumedMessage(
@@ -84,11 +89,90 @@ it('updates a product snapshot from fake kafka', function () {
         ),
     ]);
 
-    $this->artisan('kafka:consume-catalog')->assertSuccessful();
+    $this->artisan('order:consume-catalog-events')->assertSuccessful();
 
     $snapshot = ProductSnapshot::query()->find(42);
     expect($snapshot)->not->toBeNull()
-        ->and($snapshot->name)->toBe('Tablet')
-        ->and($snapshot->store_id)->toBe(3)
-        ->and($snapshot->is_active)->toBeTrue();
+        ->and($snapshot?->name)->toBe('Tablet')
+        ->and($snapshot?->store_id)->toBe(3)
+        ->and($snapshot?->is_active)->toBeTrue();
 });
+
+it('retries transient failures in ConsumerFactory with Sleep backoff before rethrowing', function (): void {
+    Sleep::fake();
+    config([
+        'kafka.failed_message_retries' => 2,
+        'kafka.failed_message_backoff_ms' => 50,
+    ]);
+
+    Kafka::fake();
+    Kafka::shouldReceiveMessages([
+        new ConsumedMessage(
+            topicName: 'inventory.events',
+            partition: 0,
+            headers: [],
+            body: ['event' => 'stock.reserved'],
+            key: 'k1',
+            offset: 0,
+            timestamp: time(),
+        ),
+    ]);
+
+    $attempts = 0;
+
+    expect(function () use (&$attempts): void {
+        ConsumerFactory::consume(
+            'inventory.events',
+            'test-group',
+            'inventory.events.dlq.order-service',
+            static function () use (&$attempts): void {
+                $attempts++;
+                throw new RuntimeException('db temporarily unavailable');
+            },
+        );
+    })->toThrow(RuntimeException::class, 'db temporarily unavailable');
+
+    expect($attempts)->toBe(3);
+    Sleep::assertSleptTimes(2);
+});
+
+it('rethrows non-retryable exceptions immediately in ConsumerFactory without retrying', function (Throwable $exception): void {
+    Sleep::fake();
+    config([
+        'kafka.failed_message_retries' => 5,
+        'kafka.failed_message_backoff_ms' => 100,
+    ]);
+
+    Kafka::fake();
+    Kafka::shouldReceiveMessages([
+        new ConsumedMessage(
+            topicName: 'catalog.events',
+            partition: 0,
+            headers: [],
+            body: [],
+            key: 'k2',
+            offset: 0,
+            timestamp: time(),
+        ),
+    ]);
+
+    $attempts = 0;
+
+    expect(function () use (&$attempts, $exception): void {
+        ConsumerFactory::consume(
+            'catalog.events',
+            'test-group',
+            'catalog.events.dlq.order-service',
+            static function () use (&$attempts, $exception): void {
+                $attempts++;
+                throw $exception;
+            },
+        );
+    })->toThrow($exception::class);
+
+    expect($attempts)->toBe(1);
+    Sleep::assertNeverSlept();
+})->with([
+    'domain non-retryable' => fn (): NonRetryableException => new NonRetryableException('bad payload'),
+    'platform-kit non-retryable' => fn (): NonRetryableMessageException => new NonRetryableMessageException('bad envelope'),
+]);

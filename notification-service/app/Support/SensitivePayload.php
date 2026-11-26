@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Support;
 
 final class SensitivePayload
 {
     /** @var list<string> */
-    private const KEYS = ['code', 'reset_url'];
+    private const array KEYS = ['code', 'reset_url'];
 
     /**
      * @param  array<string, mixed>  $payload

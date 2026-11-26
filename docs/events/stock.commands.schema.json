@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inno.local/events/stock.commands.schema.json",
+  "type": "object",
+  "events": {
+    "stock.commit_requested": {
+      "required": ["order_id", "store_id"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "store_id": {"type": "integer"},
+        "location_id": {"type": "integer"}
+      }
+    },
+    "stock.release_requested": {
+      "required": ["order_id", "reason"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    }
+  }
+}

@@ -2,53 +2,30 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { currentUser } from "@/app/lib/auth";
 import Brand from "@/app/components/Brand";
 import UserMenu from "@/app/components/UserMenu";
-import { readCart } from "@/app/lib/cart";
-
-function useCartCount(): number {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    function sync() {
-      setCount(readCart().reduce((sum, line) => sum + line.quantity, 0));
-    }
-
-    sync();
-    window.addEventListener("cart-changed", sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener("cart-changed", sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
-
-  return count;
-}
+import { canViewAdmin } from "@/app/lib/permissions";
+import { useCart } from "@/app/lib/use-cart";
+import { useSession } from "@/app/providers/SessionProvider";
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const cartCount = useCartCount();
-  const [signedIn, setSignedIn] = useState(false);
-  const [staff, setStaff] = useState(false);
+  const { user, status } = useSession();
+  const lines = useCart();
+  const cartCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+
+  const signedIn = status === "authenticated" && user !== null;
+  const staff = canViewAdmin(user);
+
   const catalogActive = pathname === "/catalog" || pathname.startsWith("/catalog/");
   const assistantActive = pathname === "/assistant";
   const ordersActive = pathname === "/orders" || pathname.startsWith("/orders/");
   const cartActive = pathname === "/cart" || pathname === "/checkout";
 
-  useEffect(() => {
-    currentUser().then((user) => {
-      setSignedIn(Boolean(user));
-      setStaff(user?.role === "admin" || user?.role === "analyst");
-    }).catch(() => undefined);
-  }, []);
-
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/catalog" aria-label="В каталог" className="shrink-0">
+        <Link href="/" aria-label="На главную" className="shrink-0">
           <Brand />
         </Link>
 
@@ -57,7 +34,9 @@ export default function AppHeader() {
             href="/catalog"
             aria-current={catalogActive ? "page" : undefined}
             className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-              catalogActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              catalogActive
+                ? "bg-brand-50 text-brand-700"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
             Каталог
@@ -67,7 +46,9 @@ export default function AppHeader() {
               href="/assistant"
               aria-current={assistantActive ? "page" : undefined}
               className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                assistantActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                assistantActive
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
               Консультант
@@ -81,7 +62,9 @@ export default function AppHeader() {
               href="/orders"
               aria-current={ordersActive ? "page" : undefined}
               className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                ordersActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                ordersActive
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
               Заказы
@@ -90,14 +73,29 @@ export default function AppHeader() {
 
           <Link
             href="/cart"
+            aria-label={cartCount > 0 ? `Корзина, товаров: ${cartCount}` : "Корзина"}
             aria-current={cartActive ? "page" : undefined}
             className={`relative inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
               cartActive ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.5l1.6 9.2a2 2 0 002 1.6h9.9a2 2 0 001.9-1.4L21 6.5H6.2" />
-              <path strokeLinecap="round" d="M9 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm10.5 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.7}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 3h1.5l1.6 9.2a2 2 0 002 1.6h9.9a2 2 0 001.9-1.4L21 6.5H6.2"
+              />
+              <path
+                strokeLinecap="round"
+                d="M9 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm10.5 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+              />
             </svg>
             <span className="hidden sm:inline">Корзина</span>
             {cartCount > 0 ? (
@@ -118,6 +116,10 @@ export default function AppHeader() {
 
           {signedIn ? (
             <UserMenu />
+          ) : status === "loading" ? (
+            <span className="px-3 py-2 text-xs text-slate-400" aria-live="polite">
+              ...
+            </span>
           ) : (
             <Link href="/login" className="btn btn-primary btn-sm">
               Войти

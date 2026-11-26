@@ -5,13 +5,13 @@ declare(strict_types=1);
 use App\Models\Order;
 use App\Models\OutboxMessage;
 use App\Models\ProductSnapshot;
-use App\Services\OutboxService;
+use App\Services\Outbox\OutboxService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     mockRedis();
 });
 
-it('persists the created order and outbox row together', function () {
+it('persists the created order and outbox row together', function (): void {
     ProductSnapshot::query()->create([
         'product_id' => 10,
         'store_id' => 1,
@@ -40,7 +40,7 @@ it('persists the created order and outbox row together', function () {
         ->and(OutboxMessage::query()->where('aggregate_id', $orderId)->value('status'))->toBe('pending');
 });
 
-it('rolls the order back when the outbox write fails', function () {
+it('rolls the order back when the outbox write fails', function (): void {
     ProductSnapshot::query()->create([
         'product_id' => 10,
         'store_id' => 1,

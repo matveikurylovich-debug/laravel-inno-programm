@@ -1,7 +1,22 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - vendor/nesbot/carbon/extension.neon
+    - phpstan-baseline.neon
+
 parameters:
-    level: 5
+    level: 8
     paths:
         - app
+        - config
+        - database
+        - routes
+        - tests
+    excludePaths:
+        - config/l5-swagger.php
+    reportUnmatchedIgnoredErrors: true
+    ignoreErrors:
+        -
+            message: '#^(Call to an undefined method|Access to an undefined property) Pest\\PendingCalls\\TestCall::#'
+            paths:
+                - tests/*
     tmpDir: /tmp/phpstan-auth

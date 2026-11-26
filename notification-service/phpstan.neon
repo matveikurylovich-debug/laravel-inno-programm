@@ -1,7 +1,21 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
 parameters:
-    level: 5
+    level: 8
     paths:
         - app
+        - config
+        - database
+        - routes
+        - tests
     tmpDir: /tmp/phpstan-notification
+    reportUnmatchedIgnoredErrors: true
+    ignoreErrors:
+        -
+            identifier: variable.undefined
+            message: '#^Undefined variable: \$this$#'
+            paths:
+                - tests/*
+            reportUnmatched: false

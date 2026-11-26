@@ -1,122 +1,137 @@
 <?php
 
-namespace Tests\Feature;
+declare(strict_types=1);
 
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
-use Ecommerce\PlatformKit\Token\AccessTokenSigner;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
+use App\Models\StoreLocation;
 
-class StoreTenancyTest extends TestCase
+function createTenantStore(string $slug): Store
 {
-    use RefreshDatabase;
-
-    public function test_storefront_of_one_store_does_not_show_another_stores_products(): void
-    {
-        $first = $this->store('one');
-        $second = $this->store('two');
-        $this->product($first, 'Phone');
-        $this->product($second, 'Tablet');
-
-        $this->getJson("/api/v1/stores/{$first->id}/products")
-            ->assertOk()
-            ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.name', 'Phone');
-
-        $this->getJson('/api/v1/stores')
-            ->assertOk()
-            ->assertJsonCount(2, 'data');
-    }
-
-    public function test_store_admin_cannot_see_or_change_another_store(): void
-    {
-        $own = $this->store('own');
-        $foreign = $this->store('foreign');
-        $ownProduct = $this->product($own, 'Own');
-        $foreignProduct = $this->product($foreign, 'Foreign');
-
-        $this->withToken($this->token($own->id))
-            ->getJson('/api/v1/stores')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $own->id);
-
-        $this->withToken($this->token($own->id))
-            ->getJson("/api/v1/stores/{$foreign->id}/products")
-            ->assertForbidden();
-
-        $this->withToken($this->token($own->id))
-            ->patchJson("/api/v1/products/{$foreignProduct->id}", ['name' => 'Stolen'])
-            ->assertNotFound();
-
-        $this->withToken($this->token($own->id))
-            ->patchJson("/api/v1/products/{$ownProduct->id}", ['name' => 'Renamed'])
-            ->assertOk()
-            ->assertJsonPath('data.name', 'Renamed');
-
-        $this->withToken($this->token($own->id))
-            ->postJson('/api/v1/stores', ['name' => 'Extra'])
-            ->assertForbidden();
-    }
-
-    public function test_platform_admin_still_manages_every_store(): void
-    {
-        $first = $this->store('first');
-        $second = $this->store('second');
-        $category = Category::query()->create([
-            'store_id' => $second->id,
-            'name' => 'Phones',
-            'slug' => 'phones',
-        ]);
-
-        $this->withToken($this->token())
-            ->getJson('/api/v1/stores')
-            ->assertOk()
-            ->assertJsonCount(2, 'data');
-
-        $this->withToken($this->token())
-            ->postJson('/api/v1/products', [
-                'store_id' => $second->id,
-                'category_id' => $category->id,
-                'name' => 'Tablet',
-                'price' => 20,
-                'quantity' => 1,
-            ])
-            ->assertCreated()
-            ->assertJsonPath('data.store_id', $second->id);
-
-        $this->assertSame(1, Product::query()->where('store_id', $second->id)->count());
-        $this->assertSame(0, Product::query()->where('store_id', $first->id)->count());
-    }
-
-    private function store(string $slug): Store
-    {
-        return Store::query()->create([
-            'name' => $slug,
-            'slug' => $slug,
-            'is_active' => true,
-        ]);
-    }
-
-    private function product(Store $store, string $name): Product
-    {
-        return Product::query()->create([
-            'store_id' => $store->id,
-            'name' => $name,
-            'slug' => strtolower($name).'-'.$store->id,
-            'sku' => strtoupper($name).'-'.$store->id,
-            'price' => 10,
-            'is_active' => true,
-        ]);
-    }
-
-    private function token(?int $storeId = null): string
-    {
-        $pem = (string) file_get_contents(dirname(__DIR__, 3).'/packages/platform-kit/tests/fixtures/access-private.pem');
-
-        return (new AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
-            ->issue(1, ['admin'], $storeId);
-    }
+    return Store::query()->create([
+        'name' => $slug,
+        'slug' => $slug,
+        'is_active' => true,
+    ]);
 }
+
+function createTenantProduct(Store $store, string $name): Product
+{
+    return Product::query()->create([
+        'store_id' => $store->id,
+        'name' => $name,
+        'slug' => strtolower($name).'-'.$store->id,
+        'sku' => strtoupper($name).'-'.$store->id,
+        'price' => 10,
+        'is_active' => true,
+        'attributes' => [],
+    ]);
+}
+
+it('isolates storefront products by store while listing all active stores', function (): void {
+    $first = createTenantStore('one');
+    $second = createTenantStore('two');
+    createTenantProduct($first, 'Phone');
+    createTenantProduct($second, 'Tablet');
+
+    $this->getJson("/api/v1/stores/{$first->id}/products")
+        ->assertOk()
+        ->assertJsonPath('meta.total', 1)
+        ->assertJsonPath('data.0.name', 'Phone');
+
+    $this->getJson('/api/v1/stores')
+        ->assertOk()
+        ->assertJsonCount(2, 'data');
+});
+
+it('lets platform admin manage multiple stores explicitly', function (): void {
+    $first = createTenantStore('first');
+    $second = createTenantStore('second');
+    $category = Category::query()->create([
+        'store_id' => $second->id,
+        'name' => 'Phones',
+        'slug' => 'phones',
+    ]);
+
+    $this->withToken(catalogJwt('admin'))
+        ->postJson('/api/v1/products', [
+            'store_id' => $second->id,
+            'category_id' => $category->id,
+            'name' => 'Tablet',
+            'price' => 20,
+            'quantity' => 1,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.store_id', $second->id);
+
+    expect(Product::query()->where('store_id', $second->id)->count())->toBe(1)
+        ->and(Product::query()->where('store_id', $first->id)->count())->toBe(0);
+});
+
+it('rejects cross-store category and location references with 422', function (): void {
+    $first = createTenantStore('store-a');
+    $second = createTenantStore('store-b');
+
+    $firstCategory = Category::query()->create([
+        'store_id' => $first->id,
+        'name' => 'First Cat',
+        'slug' => 'first-cat',
+    ]);
+    $secondCategory = Category::query()->create([
+        'store_id' => $second->id,
+        'name' => 'Second Cat',
+        'slug' => 'second-cat',
+    ]);
+    $secondLocation = StoreLocation::query()->create([
+        'store_id' => $second->id,
+        'name' => 'Foreign Pickup',
+        'address' => 'Street 2',
+        'is_active' => true,
+    ]);
+
+    $product = Product::query()->create([
+        'store_id' => $first->id,
+        'category_id' => $firstCategory->id,
+        'sku' => 'SKU-A1',
+        'name' => 'Phone A',
+        'slug' => 'phone-a',
+        'price' => 50,
+        'is_active' => true,
+        'attributes' => [],
+    ]);
+
+    $token = catalogJwt('admin');
+
+    $this->withToken($token)
+        ->postJson('/api/v1/products', [
+            'store_id' => $first->id,
+            'category_id' => $secondCategory->id,
+            'name' => 'Invalid Cross Store',
+            'price' => 30,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('category_id');
+
+    $this->withToken($token)
+        ->patchJson("/api/v1/products/{$product->id}", [
+            'category_id' => $secondCategory->id,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('category_id');
+
+    $this->withToken($token)
+        ->putJson("/api/v1/products/{$product->id}/stock", [
+            'quantity' => 5,
+            'location_id' => $secondLocation->id,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('location_id');
+
+    $this->withToken($token)
+        ->patchJson("/api/v1/categories/{$firstCategory->id}", [
+            'parent_id' => $secondCategory->id,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('parent_id');
+});

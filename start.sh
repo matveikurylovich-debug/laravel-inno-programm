@@ -1,11 +1,26 @@
 #!/usr/bin/env bash
+# Запуск платформы. START_ENV: local (по умолчанию) | ci | stage
+#   local — compose.yaml + compose.dev.yaml (исходники с хоста, mailpit, порты на 127.0.0.1), mkcert
+#   ci    — только compose.yaml, сертификат кладёт job (openssl)
+#   stage — только compose.yaml; деплой идёт образами из registry (PR-11)
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
+START_ENV="${START_ENV:-local}"
+
+PHP_APPS=(
+  "auth-app:laravel"
+  "catalog-app:laravel"
+  "order-app:laravel"
+  "search-app:laravel"
+  "notification-app:laravel"
+  "recommendation-app:symfony"
+)
+ENV_FROM_EXAMPLE=(auth catalog order search notification)
+
 prepare_env() {
-  local env_file=".env"
+  local env_file=".env" line key service target example tmp
   declare -A values=()
-  local line key service target example tmp
 
   if [[ -f "$env_file" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -16,24 +31,22 @@ prepare_env() {
 
   [[ -n "${values[PUBLIC_URL]:-}" ]] || values[PUBLIC_URL]="https://localhost"
 
-  for key in JWT_ACCESS_SECRET JWT_REFRESH_SECRET RECOMMENDATION_APP_SECRET \
+  for key in JWT_REFRESH_SECRET RECOMMENDATION_APP_SECRET \
     AUTH_DB_PASSWORD CATALOG_DB_PASSWORD ORDER_DB_PASSWORD RECOMMENDATION_DB_PASSWORD \
-    RABBITMQ_PASSWORD CLICKHOUSE_PASSWORD MINIO_PASSWORD GRAFANA_PASSWORD; do
-    if [[ -z "${values[$key]:-}" ]]; then
-      values[$key]="$(openssl rand -hex 32)"
-    fi
+    REDIS_PASSWORD MONGO_PASSWORD RABBITMQ_PASSWORD CLICKHOUSE_PASSWORD MINIO_PASSWORD; do
+    [[ -n "${values[$key]:-}" ]] || values[$key]="$(openssl rand -hex 32)"
   done
 
   for key in AUTH CATALOG ORDER SEARCH NOTIFICATION; do
-    if [[ -z "${values[${key}_APP_KEY]:-}" ]]; then
-      values[${key}_APP_KEY]="base64:$(openssl rand -base64 32 | tr -d '\n')"
-    fi
+    [[ -n "${values[${key}_APP_KEY]:-}" ]] || values[${key}_APP_KEY]="base64:$(openssl rand -base64 32 | tr -d '\n')"
   done
 
-  values[LOCAL_UID]="$(id -u)"
-  values[LOCAL_GID]="$(id -g)"
-
   [[ -v values[GEMINI_API_KEY] ]] || values[GEMINI_API_KEY]=""
+
+  if [[ "$START_ENV" == local ]]; then
+    values[LOCAL_UID]="$(id -u)"
+    values[LOCAL_GID]="$(id -g)"
+  fi
 
   tmp="$(mktemp)"
   for key in "${!values[@]}"; do
@@ -42,38 +55,27 @@ prepare_env() {
   mv "$tmp" "$env_file"
   chmod 600 "$env_file"
 
-  for service in auth catalog order search notification analytics; do
+  for service in "${ENV_FROM_EXAMPLE[@]}"; do
     target="${service}-service/.env"
     example="${service}-service/.env.example"
     if [[ ! -e "$target" && -f "$example" ]]; then
       cp "$example" "$target"
       chmod 600 "$target"
     fi
-    if [[ "$service" != analytics && -f "$target" ]]; then
-      if grep -q '^BROADCAST_CONNECTION=' "$target"; then
-        sed -i 's|^BROADCAST_CONNECTION=.*|BROADCAST_CONNECTION=null|' "$target"
-      else
-        printf '\nBROADCAST_CONNECTION=null\n' >> "$target"
-      fi
-    fi
   done
 }
 
-prepare_env
-
-jwt_dir=".secrets/jwt"
-mkdir -p "$jwt_dir"
-if [[ ! -f "$jwt_dir/current.pem" ]]; then
-  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$jwt_dir/current.pem"
-  openssl pkey -in "$jwt_dir/current.pem" -pubout -out "$jwt_dir/current.pub.pem"
-  chmod 600 "$jwt_dir/current.pem"
-fi
-export JWT_ACCESS_KID="${JWT_ACCESS_KID:-auth-1}"
-php scripts/jwt/write-jwks.php "$jwt_dir"
-
-if [[ "${1:-}" == "--prepare-env" ]]; then
-  exit 0
-fi
+ensure_jwt_keys() {
+  local jwt_dir=".secrets/jwt"
+  mkdir -p "$jwt_dir"
+  if [[ ! -f "$jwt_dir/current.pem" ]]; then
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$jwt_dir/current.pem"
+    openssl pkey -in "$jwt_dir/current.pem" -pubout -out "$jwt_dir/current.pub.pem"
+    chmod 600 "$jwt_dir/current.pem"
+  fi
+  export JWT_ACCESS_KID="${JWT_ACCESS_KID:-auth-1}"
+  php scripts/jwt/write-jwks.php "$jwt_dir"
+}
 
 stripe_key_ok() {
   local value="$1" prefix="$2"
@@ -81,9 +83,11 @@ stripe_key_ok() {
 }
 
 env_value() {
-  local key="$1"
+  local key="$1" line
   [[ -f .env ]] || return 0
-  grep -E "^${key}=" .env | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'"
+  line="$(grep -E "^${key}=" .env | tail -n 1 || true)"
+  [[ -n "$line" ]] || return 0
+  printf '%s' "${line#*=}" | tr -d '"' | tr -d "'"
 }
 
 set_env_value() {
@@ -95,59 +99,100 @@ set_env_value() {
   fi
 }
 
-prompt_stripe() {
-  local key="$1" prefix="$2" current
-  current="$(env_value "$key")"
-  if stripe_key_ok "$current" "$prefix"; then
-    return 0
-  fi
-  if [[ -t 0 ]]; then
-    read -r -p "Введите ${key} (${prefix}_...): " current
-    set_env_value "$key" "$current"
-  fi
-  current="$(env_value "$key")"
-  if ! stripe_key_ok "$current" "$prefix"; then
-    printf 'Нужен настоящий %s в корневом .env (%s_..., не плейсхолдер).\n' "$key" "$prefix" >&2
-    exit 1
-  fi
+stripe_configured() {
+  stripe_key_ok "$(env_value STRIPE_SECRET_KEY)" 'sk_(test|live)' \
+    && stripe_key_ok "$(env_value STRIPE_PUBLISHABLE_KEY)" 'pk_(test|live)'
 }
 
-prompt_stripe STRIPE_SECRET_KEY 'sk_(test|live)'
-prompt_stripe STRIPE_PUBLISHABLE_KEY 'pk_(test|live)'
+# auth доверяет 172.28.0.0/16 как шлюзу. Эту подсеть нужно занять сетью edge
+# до остальных: иначе Docker отдаёт её первой автоматически созданной сети.
+ensure_edge_network() {
+  local name subnet containers
+  while read -r name subnet containers; do
+    [[ "$subnet" == "172.28.0.0/16" ]] || continue
+    [[ "$name" == "shop_edge" ]] && continue
+    if [[ "${containers:-0}" != "0" ]]; then
+      printf 'Подсеть 172.28.0.0/16 занята сетью %s (%s контейнеров). Освободите её и повторите ./start.sh.\n' "$name" "$containers" >&2
+      exit 1
+    fi
+    printf 'Удаляю пустую сеть %s: подсеть 172.28.0.0/16 зарезервирована за shop_edge.\n' "$name"
+    docker network rm "$name" >/dev/null
+  done < <(docker network inspect $(docker network ls -q) --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}} {{len .Containers}}')
 
-if [[ "${START_ENV:-local}" == "local" ]]; then
-  export COMPOSE_FILE="compose.yaml:compose.override.yml"
-else
-  export COMPOSE_FILE="compose.yaml"
-fi
+  if docker network inspect shop_edge >/dev/null 2>&1; then
+    return 0
+  fi
 
-if [[ ! -s infra/certs/localhost.crt || ! -s infra/certs/localhost.key ]]; then
+  # Compose создаёт все сети проекта параллельно, и первая свободная 172.28.0.0/16
+  # достаётся не edge. Сеть создаётся заранее с метками Compose, чтобы up её переиспользовал.
+  docker network create \
+    --driver bridge \
+    --subnet 172.28.0.0/16 \
+    --label com.docker.compose.network=edge \
+    --label com.docker.compose.project=shop \
+    --label com.docker.compose.version=2.40.3 \
+    shop_edge >/dev/null
+}
+
+ensure_certs() {
+  [[ -s infra/certs/localhost.crt && -s infra/certs/localhost.key ]] && return 0
+  if [[ "$START_ENV" != local ]]; then
+    printf 'infra/certs/localhost.{crt,key} не найдены. Для %s сертификат кладёт CI или ACME, mkcert только локально.\n' "$START_ENV" >&2
+    exit 1
+  fi
   if ! command -v mkcert >/dev/null 2>&1; then
-    printf 'mkcert is required for the local HTTPS certificate.\n' >&2
-    printf 'Install it (https://github.com/FiloSottile/mkcert#installation) and run ./start.sh again.\n' >&2
+    printf 'mkcert is required for the local HTTPS certificate: https://github.com/FiloSottile/mkcert#installation\n' >&2
     exit 1
   fi
   mkdir -p infra/certs
   mkcert -install
   mkcert -cert-file infra/certs/localhost.crt -key-file infra/certs/localhost.key localhost 127.0.0.1 ::1
   chmod 600 infra/certs/localhost.key
+}
+
+prepare_env
+ensure_jwt_keys
+[[ "${1:-}" == "--prepare-env" ]] && exit 0
+
+stripe_ready=0
+if [[ "$START_ENV" == local ]] && stripe_configured; then
+  stripe_ready=1
+elif [[ "$START_ENV" == local ]]; then
+  printf 'Stripe-ключи не заданы: сайт и вход работают, оплата картой недоступна. Ключи можно добавить в .env и перезапустить.\n'
 fi
+
+case "$START_ENV" in
+  local) export COMPOSE_FILE="compose.yaml:compose.dev.yaml" ;;
+  ci | stage) export COMPOSE_FILE="compose.yaml" ;;
+  *) printf 'Unknown START_ENV=%s (local|ci|stage)\n' "$START_ENV" >&2; exit 1 ;;
+esac
+
+ensure_certs
 docker compose config --quiet
+ensure_edge_network
 docker compose --profile php-base build php-base
 docker compose build
-# Locally the source tree is bind-mounted over /var/www/html and hides vendor
-# baked into the image. Install into that mount so the IDE can see vendor/.
-if [[ "${START_ENV:-local}" == "local" ]]; then
-  for app in auth-app catalog-service order-service search-app notification-app recommendation-app; do
+
+if [[ "$START_ENV" == local ]]; then
+  for entry in "${PHP_APPS[@]}"; do
+    app="${entry%%:*}"
     docker compose run --rm --no-deps "$app" composer install --no-interaction --prefer-dist --no-progress --no-scripts
-    if [[ "$app" != recommendation-app ]]; then
+    if [[ "${entry##*:}" == laravel ]]; then
       docker compose run --rm --no-deps "$app" php artisan package:discover
       docker compose run --rm --no-deps "$app" php artisan config:clear
     fi
   done
 fi
-docker compose up -d --wait auth-postgres auth-redis catalog-postgres catalog-redis order-postgres order-redis search-redis elasticsearch recommendation-pgvector mongodb kafka analytics-rabbitmq analytics-clickhouse minio mailhog
-for app in auth-app catalog-service order-service; do
+
+infra=(auth-postgres auth-redis catalog-postgres catalog-redis order-postgres order-redis
+  search-redis elasticsearch recommendation-pgvector recommendation-redis mongodb kafka
+  analytics-rabbitmq analytics-clickhouse minio)
+[[ "$START_ENV" == local ]] && infra+=(mailpit)
+docker compose up -d --wait "${infra[@]}"
+
+docker compose run --rm kafka-init
+
+for app in auth-app catalog-app order-app notification-app; do
   docker compose run --rm --no-deps "$app" php artisan migrate --force
 done
 if [[ -n "${ADMIN_EMAIL:-}" ]]; then
@@ -155,34 +200,37 @@ if [[ -n "${ADMIN_EMAIL:-}" ]]; then
 fi
 docker compose run --rm --no-deps recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
 docker compose run --rm --no-deps search-app php artisan search:setup-index
-docker compose run --rm --no-deps catalog-service php artisan filament:upgrade
-docker compose up -d stripe-cli
-webhook_secret=""
-for _ in $(seq 1 30); do
-  webhook_secret="$(docker compose logs stripe-cli 2>/dev/null | grep -oE 'whsec_[A-Za-z0-9]+' | tail -n 1 || true)"
-  if [[ -n "$webhook_secret" ]]; then
-    break
+docker compose run --rm --no-deps catalog-app php artisan filament:upgrade
+
+profiles=()
+if [[ "$stripe_ready" == 1 ]]; then
+  docker compose --profile stripe up -d stripe-cli
+  webhook_secret=""
+  for _ in $(seq 1 30); do
+    webhook_secret="$(docker compose logs stripe-cli 2>/dev/null | grep -oE 'whsec_[A-Za-z0-9]+' | tail -n 1 || true)"
+    [[ -n "$webhook_secret" ]] && break
+    sleep 1
+  done
+  if [[ -z "$webhook_secret" ]]; then
+    printf 'stripe listen не выдал STRIPE_WEBHOOK_SECRET. Проверьте STRIPE_SECRET_KEY.\n' >&2
+    exit 1
   fi
-  sleep 1
-done
-if [[ -z "$webhook_secret" ]]; then
-  printf 'stripe listen не выдал STRIPE_WEBHOOK_SECRET. Проверьте STRIPE_SECRET_KEY.\n' >&2
-  exit 1
+  set_env_value STRIPE_WEBHOOK_SECRET "$webhook_secret"
+  profiles+=(--profile stripe)
 fi
-set_env_value STRIPE_WEBHOOK_SECRET "$webhook_secret"
-gemini_key=""
-if [[ -f .env ]]; then
-  gemini_key="$(grep -E '^GEMINI_API_KEY=' .env | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-fi
+
+gemini_key="$(env_value GEMINI_API_KEY)"
 if [[ -n "$gemini_key" ]]; then
-  docker compose --profile gemini up -d --wait --wait-timeout 240
+  profiles+=(--profile gemini)
 else
   docker compose --profile gemini stop recommendation-worker >/dev/null 2>&1 || true
   printf 'GEMINI_API_KEY is empty; recommendation-worker stays stopped.\n'
-  docker compose up -d --wait --wait-timeout 240
 fi
+
+docker compose "${profiles[@]}" up -d --wait --wait-timeout 300
+
 if [[ "${1:-}" == --seed ]]; then
-  docker compose exec -T catalog-service php artisan db:seed --force
-  docker compose exec -T catalog-service php artisan catalog:reindex-products
+  docker compose exec -T catalog-app php artisan db:seed --force
+  docker compose exec -T catalog-app php artisan catalog:reindex-products
 fi
 printf 'Services started. Open https://localhost (or PUBLIC_URL from .env).\n'

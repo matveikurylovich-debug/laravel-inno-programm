@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::create('product_snapshots', function (Blueprint $table) {
+        Schema::create('product_snapshots', function (Blueprint $table): void {
             $table->unsignedBigInteger('product_id')->primary();
             $table->unsignedBigInteger('store_id')->index();
             $table->string('name');

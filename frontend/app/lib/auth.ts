@@ -1,18 +1,20 @@
-import type { AuthResponse, AuthUser } from "@/app/lib/types";
-import { apiFetch, clearSession } from "@/app/lib/api";
+import { canViewAdmin } from "@/app/lib/permissions";
+import type { AuthUser } from "@/app/lib/types";
 
-export function destinationFor(role: string): string {
-  return role === "admin" || role === "analyst" ? "/admin/notifications" : "/";
+export function destinationFor(userOrRole: Pick<AuthUser, "role" | "roles"> | string): string {
+  const target = typeof userOrRole === "string" ? { role: userOrRole } : userOrRole;
+  return canViewAdmin(target) ? "/admin/users" : "/catalog";
 }
 
-export function persistAuth(data: AuthResponse): void {
-  void data;
-  // Remove credentials left by older releases; the server now sets HttpOnly cookies.
-  clearSession();
-}
+export function safeNextPath(rawNext: string | null | undefined, fallback: string): string {
+  if (!rawNext) {
+    return fallback;
+  }
 
-export async function currentUser(): Promise<AuthUser | null> {
-  const response = await apiFetch("/api/auth/me");
-  if (!response.ok) return null;
-  return ((await response.json()) as { user: AuthUser }).user;
+  const trimmed = rawNext.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//") || trimmed.startsWith("/\\")) {
+    return fallback;
+  }
+
+  return trimmed;
 }

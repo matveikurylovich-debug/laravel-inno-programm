@@ -1,35 +1,43 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "ecommerce/notification",
+    "name": "ecommerce/notification-service",
     "type": "project",
-    "description": "Notification delivery for the shop.",
+    "description": "Notification delivery service for the ecommerce platform.",
     "keywords": [
+        "ecommerce",
+        "kafka",
         "laravel",
-        "framework"
+        "mongodb",
+        "notifications"
     ],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
-        "php": "^8.3",
+        "php": "~8.5.0",
+        "ext-intl": "*",
+        "ext-mongodb": "*",
+        "ext-rdkafka": "*",
         "darkaonline/l5-swagger": "^11.2",
+        "ecommerce/platform-kit": "^1.0",
         "firebase/php-jwt": "^7.2",
         "laravel/framework": "^13.17",
-        "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "mateusjunges/laravel-kafka": "^2.11",
-        "mongodb/laravel-mongodb": "^5.11",
-        "ecommerce/platform-kit": "^1.0"
+        "mongodb/laravel-mongodb": "^5.11"
     },
     "require-dev": {
+        "driftingly/rector-laravel": "^2.7",
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3.15",
         "laravel/boost": "^2.10",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
-        "laravel/sail": "^1.67",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^12.5.12"
+        "pestphp/pest": "^5.2",
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "phpunit/phpunit": "^13.3.3",
+        "rector/rector": "^2.9"
     },
     "autoload": {
         "psr-4": {
@@ -44,22 +52,6 @@
         }
     },
     "scripts": {
-        "setup": [
-            "composer install",
-            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
-            "@php artisan key:generate",
-            "@php artisan migrate --force",
-            "npm install --ignore-scripts",
-            "npm run build"
-        ],
-        "dev": [
-            "Composer\\Config::disableProcessTimeout",
-            "@php artisan dev"
-        ],
-        "test": [
-            "@php artisan config:clear --ansi @no_additional_args",
-            "@php artisan test"
-        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
@@ -70,18 +62,25 @@
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
-        "post-create-project-cmd": [
-            "@php artisan key:generate --ansi",
-            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
-            "@php artisan migrate --graceful --ansi"
-        ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ],
         "lint": "pint --test",
+        "lint:fix": "pint",
         "analyse": "phpstan analyse --memory-limit=1G --no-progress",
-        "check": ["@lint", "@analyse", "@test"],
-        "refactor": "bash ../scripts/ci/rector-dry-run.sh"
+        "analyse:baseline": "phpstan analyse --memory-limit=1G --generate-baseline",
+        "refactor": "rector process --dry-run --no-progress-bar",
+        "refactor:fix": "rector process --no-progress-bar",
+        "test": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php artisan test"
+        ],
+        "check": [
+            "@lint",
+            "@refactor",
+            "@analyse",
+            "@test"
+        ]
     },
     "extra": {
         "laravel": {
@@ -90,14 +89,12 @@
     },
     "config": {
         "optimize-autoloader": true,
+        "platform-check": "php-only",
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
-        },
-        "platform": {
-            "ext-mongodb": "2.4.2"
         }
     },
     "minimum-stability": "stable",

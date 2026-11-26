@@ -4,12 +4,13 @@ export type AuthUser = {
   email: string;
   phone: string | null;
   role: string;
+  roles?: string[];
 };
 
 export type AuthResponse = {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
+  access_token?: string;
+  token_type?: string;
+  expires_in?: number;
   user: AuthUser;
 };
 
@@ -20,10 +21,19 @@ export type TwoFactorChallenge = {
   message: string;
 };
 
+export type PaginationMeta = {
+  current_page: number;
+  last_page: number;
+  total: number;
+  per_page?: number;
+};
+
 export type DirectoryUser = {
   id: number;
+  name?: string;
   email: string;
   role: string;
+  roles?: string[];
   registered_at: string | null;
 };
 
@@ -43,9 +53,5 @@ export type NotificationLog = {
 
 export type PaginatedNotifications = {
   data: NotificationLog[];
-  meta?: {
-    current_page: number;
-    last_page: number;
-    total: number;
-  };
+  meta?: PaginationMeta;
 };

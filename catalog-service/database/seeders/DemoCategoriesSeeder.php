@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use App\Models\Category;
@@ -26,21 +28,25 @@ class DemoCategoriesSeeder extends Seeder
     }
 
     /**
-     * @param  list<array{slug: string, name: string, children?: list<array<string, mixed>>}>  $nodes
+     * @param  list<array<string, mixed>>  $nodes
      */
     private function seedTree(Store $store, array $nodes, ?int $parentId): void
     {
         foreach ($nodes as $position => $node) {
+            $slug = is_string($node['slug'] ?? null) ? $node['slug'] : '';
+            $name = is_string($node['name'] ?? null) ? $node['name'] : '';
             $category = Category::query()->updateOrCreate(
-                ['store_id' => $store->id, 'slug' => $node['slug']],
+                ['store_id' => $store->id, 'slug' => $slug],
                 [
                     'parent_id' => $parentId,
-                    'name' => $node['name'],
+                    'name' => $name,
                     'position' => $position + 1,
                 ],
             );
 
-            $this->seedTree($store, $node['children'] ?? [], $category->id);
+            /** @var list<array<string, mixed>> $children */
+            $children = is_array($node['children'] ?? null) ? array_values($node['children']) : [];
+            $this->seedTree($store, $children, $category->id);
         }
     }
 }

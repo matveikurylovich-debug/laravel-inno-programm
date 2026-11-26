@@ -4,30 +4,29 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Kafka\Consumers\CatalogEventsConsumer;
+use App\Messaging\ConsumerFactory;
+use App\Messaging\Consumers\CatalogEventsConsumer;
 use Illuminate\Console\Command;
-use Junges\Kafka\Facades\Kafka;
+use Override;
 
 class ConsumeCatalogEventsCommand extends Command
 {
-    protected $signature = 'kafka:consume-catalog';
+    #[Override]
+    protected $signature = 'order:consume-catalog-events';
 
+    #[Override]
     protected $description = 'Слушает события каталога и обновляет таблицу product_snapshots';
 
-    public function handle(): int
+    public function handle(CatalogEventsConsumer $handler): int
     {
-        $topic = config('kafka.topics.catalog_events', 'catalog.events');
-        $groupId = config('kafka.consumer_group_id', 'order-service-catalog-group');
+        $topic = (string) config('kafka.topics.catalog_events', 'catalog.events');
+        $groupId = (string) config('kafka.consumer_group_id', 'order-service-catalog-group');
+        $dlq = (string) config('kafka.dlq.catalog_events', 'catalog.events.dlq.order-service');
 
         $this->info("Запуск консьюмера событий каталога. Топик: {$topic}, Group: {$groupId}");
 
-        $consumer = Kafka::consumer([$topic])
-            ->withConsumerGroupId($groupId)
-            ->withHandler(new CatalogEventsConsumer)
-            ->build();
+        ConsumerFactory::consume($topic, $groupId, $dlq, $handler);
 
-        $consumer->consume();
-
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 }

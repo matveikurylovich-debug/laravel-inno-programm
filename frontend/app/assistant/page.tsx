@@ -1,22 +1,15 @@
 "use client";
 
-import { currentUser } from "@/app/lib/auth";
-
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
-import { apiFetch, readError } from "@/app/lib/api";
+import { listStores } from "@/app/lib/api/catalog";
+import { postRecommendationChat, type SuggestedProduct } from "@/app/lib/api/recommendations";
 import { productHref } from "@/app/lib/assistant.mjs";
-
-type Store = { id: number; name: string };
-
-type SuggestedProduct = {
-  product_id: number;
-  name: string;
-  price: string | number;
-  category?: string;
-  similarity?: string | number;
-};
+import { formatMoney } from "@/app/lib/format";
+import { useAsyncQuery } from "@/app/lib/use-async-query";
+import { SessionUnavailableScreen, useSession } from "@/app/providers/SessionProvider";
 
 type ChatTurn = {
   role: "user" | "assistant";
@@ -24,49 +17,30 @@ type ChatTurn = {
   products?: SuggestedProduct[];
 };
 
-function money(value: string | number): string {
-  const number = Number(value);
-  if (Number.isNaN(number)) {
-    return String(value);
-  }
-
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    minimumFractionDigits: 0,
-  }).format(number);
-}
-
 export default function AssistantPage() {
-  const [ready, setReady] = useState(false);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [storeId, setStoreId] = useState<number | null>(null);
+  const router = useRouter();
+  const { user, status, error: sessionError, refresh } = useSession();
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    currentUser().then((user) => {
-      if (!user) { window.location.href = "/login"; return; }
-      setReady(true);
-    }).catch(() => undefined);
-    apiFetch("/api/catalog/v1/stores")
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(await readError(response));
-        }
-        const body = (await response.json()) as { data?: Store[] } | Store[];
-        const list = Array.isArray(body) ? body : (body.data ?? []);
-        setStores(list);
-        setStoreId(list[0]?.id ?? null);
-      })
-      .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : "Не удалось загрузить магазины");
-      });
-  }, []);
+    if (status === "guest") {
+      router.replace("/login?next=%2Fassistant");
+    }
+  }, [router, status]);
+
+  const storesQuery = useAsyncQuery((signal) => listStores(signal), "assistant:stores", {
+    enabled: status === "authenticated",
+    fallbackError: "Не удалось загрузить магазины",
+  });
+
+  const stores = storesQuery.data ?? [];
+  const storeId = selectedStoreId ?? stores[0]?.id ?? null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,29 +54,16 @@ export default function AssistantPage() {
     }
 
     setDraft("");
-    setError(null);
+    setChatError(null);
     setTurns((current) => [...current, { role: "user", text: message }]);
     setPending(true);
 
     try {
-      const response = await apiFetch("/api/recommendations/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          message,
-          store_id: storeId,
-          conversation_id: conversationId,
-        }),
+      const body = await postRecommendationChat({
+        message,
+        store_id: storeId,
+        conversation_id: conversationId,
       });
-
-      if (!response.ok) {
-        throw new Error(await readError(response));
-      }
-
-      const body = (await response.json()) as {
-        conversation_id: string;
-        reply: string;
-        products: SuggestedProduct[];
-      };
 
       setConversationId(body.conversation_id);
       setTurns((current) => [
@@ -110,7 +71,7 @@ export default function AssistantPage() {
         { role: "assistant", text: body.reply, products: body.products ?? [] },
       ]);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Не удалось получить рекомендацию");
+      setChatError(reason instanceof Error ? reason.message : "Не удалось получить рекомендацию");
     } finally {
       setPending(false);
     }
@@ -119,12 +80,25 @@ export default function AssistantPage() {
   function resetChat() {
     setConversationId(null);
     setTurns([]);
-    setError(null);
+    setChatError(null);
   }
 
-  if (!ready) {
+  if (status === "unavailable") {
+    return (
+      <SessionUnavailableScreen
+        message={sessionError}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
+    );
+  }
+
+  if (status !== "authenticated" || !user) {
     return <main className="state-screen">Открываем консультанта...</main>;
   }
+
+  const activeError = chatError ?? (storesQuery.error || null);
 
   return (
     <>
@@ -145,7 +119,7 @@ export default function AssistantPage() {
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
               value={storeId ?? ""}
               onChange={(event) => {
-                setStoreId(Number(event.target.value));
+                setSelectedStoreId(Number(event.target.value));
                 resetChat();
               }}
             >
@@ -171,8 +145,15 @@ export default function AssistantPage() {
             ) : null}
 
             {turns.map((turn, index) => (
-              <article key={`${turn.role}-${index}`} className={turn.role === "user" ? "ml-8" : "mr-8"}>
-                <p className={`text-xs font-medium ${turn.role === "user" ? "text-right text-brand-700" : "text-slate-500"}`}>
+              <article
+                key={`${turn.role}-${index}`}
+                className={turn.role === "user" ? "ml-8" : "mr-8"}
+              >
+                <p
+                  className={`text-xs font-medium ${
+                    turn.role === "user" ? "text-right text-brand-700" : "text-slate-500"
+                  }`}
+                >
                   {turn.role === "user" ? "Вы" : "Консультант"}
                 </p>
                 <div
@@ -180,19 +161,29 @@ export default function AssistantPage() {
                     turn.role === "user" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-800"
                   }`}
                 >
-                  <span className={turn.role === "assistant" ? "whitespace-pre-line" : undefined}>{turn.text}</span>
+                  <span className={turn.role === "assistant" ? "whitespace-pre-line" : undefined}>
+                    {turn.text}
+                  </span>
                 </div>
                 {turn.products && turn.products.length > 0 ? (
                   <ul className="mt-2 space-y-2">
                     {turn.products.map((product) => (
-                      <li key={product.product_id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                        <Link href={productHref(product.product_id) ?? "#"} className="link text-sm">
+                      <li
+                        key={product.product_id}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                      >
+                        <Link
+                          href={productHref(product.product_id) ?? "#"}
+                          className="link text-sm"
+                        >
                           {product.name}
                         </Link>
                         <p className="mt-1 text-xs text-slate-500">
                           {product.category ? `${product.category} · ` : ""}
-                          {money(product.price)}
-                          {product.similarity !== undefined ? ` · сходство ${product.similarity}` : ""}
+                          {formatMoney(product.price, product.currency ?? "USD")}
+                          {product.similarity !== undefined
+                            ? ` · сходство ${product.similarity}`
+                            : ""}
                         </p>
                       </li>
                     ))}
@@ -202,12 +193,22 @@ export default function AssistantPage() {
             ))}
 
             {pending ? <p className="text-sm text-slate-500">Подбираю товары...</p> : null}
-            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+            {activeError ? (
+              <p role="alert" className="alert alert-error">
+                {activeError}
+              </p>
+            ) : null}
             <div ref={bottomRef} />
           </div>
 
-          <form onSubmit={submit} className="flex gap-2 border-t border-slate-200 p-3">
+          <form
+            onSubmit={(event) => {
+              void submit(event);
+            }}
+            className="flex gap-2 border-t border-slate-200 p-3"
+          >
             <input
+              aria-label="Сообщение консультанту"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               maxLength={400}
@@ -215,7 +216,11 @@ export default function AssistantPage() {
               className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
               disabled={pending || storeId === null}
             />
-            <button type="submit" className="btn btn-primary btn-sm" disabled={pending || storeId === null || draft.trim() === ""}>
+            <button
+              type="submit"
+              className="btn btn-primary btn-sm"
+              disabled={pending || storeId === null || draft.trim() === ""}
+            >
               Отправить
             </button>
           </form>

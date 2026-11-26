@@ -6,15 +6,15 @@ namespace App\Security;
 
 use Symfony\Component\Security\Core\User\UserInterface;
 
-final class JwtUser implements UserInterface
+final readonly class JwtUser implements UserInterface
 {
     /**
      * @param list<string> $roles
      */
     public function __construct(
-        private readonly int $id,
-        private readonly string $email,
-        private readonly array $roles,
+        private int $id,
+        private string $email,
+        private array $roles,
     ) {
     }
 
@@ -39,9 +39,5 @@ final class JwtUser implements UserInterface
         $roles[] = 'ROLE_USER';
 
         return array_values(array_unique($roles));
-    }
-
-    public function eraseCredentials(): void
-    {
     }
 }

@@ -26,6 +26,11 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Entity'
                 prefix: 'App\Entity'
                 alias: App
+        dql:
+            numeric_functions:
+                cosine_distance: Pgvector\Doctrine\CosineDistance
+            string_functions:
+                JSON_TEXT: App\Doctrine\JsonTextFunction
 
 when@test:
     doctrine:

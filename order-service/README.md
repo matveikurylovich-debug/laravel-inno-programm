@@ -1,58 +1,129 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Order Service
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Сервис управления заказами, платежами Stripe и оркестрации распределённой саги оформления заказа.
 
-## About Laravel
+## Назначение и зона ответственности
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+`order-service` отвечает за:
+- приём и идемпотентное создание заказов по локальным снапшотам товаров (`product_snapshots`);
+- управление жизненным циклом заказа и координацию саги со складом (`stock.commands` / `inventory.events`);
+- создание и отмену `Stripe PaymentIntent`, приём подписанных Stripe Webhooks и выполнение возвратов (`Refund`);
+- гарантированную доставку доменных событий в Apache Kafka и аналитический брокер RabbitMQ через паттерн **Transactional Outbox**.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Заказы являются финансовыми записями: физическое (`DELETE`) и мягкое (`SoftDeletes`) удаление заказов запрещено — при отмене заказ переходит в терминальный статус `cancelled` с сохранением истории и компенсационными событиями.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Состояния заказа и переходы саги
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Статусы заказа (`OrderStatus`)
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- `created` — заказ создан в БД вместе с событием `order.created` в `outbox_messages`; ожидается резервирование остатков на складе.
+- `stock_reserved` — склад подтвердил резерв (`stock.reserved`); сервис инициализирует `Stripe PaymentIntent`.
+- `payment_pending` — `PaymentIntent` создан, установлен дедлайн оплаты (`payment_expires_at`); ожидается оплата покупателем.
+- `paid` — оплата подтверждена Stripe (`payment_intent.succeeded`); публикуются `order.paid` и команда списания резерва `stock.commit_requested`.
+- `confirmed` — склад подтвердил финальное списание (`stock.committed`); публикуется `order.confirmed`.
+- `cancelled` — терминальный статус отмены (по запросу пользователя, при отказе резерва `stock_unavailable`, при ошибке списания `stock_commit_failed` или по истечении тайм-аута `payment_timeout` / `reserve_timeout`).
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Разрешённые переходы
 
-## Agentic Development
+| Из статуса | Допустимые целевые статусы |
+|---|---|
+| `created` | `stock_reserved`, `cancelled` |
+| `stock_reserved` | `payment_pending`, `cancelled` |
+| `payment_pending` | `paid`, `cancelled` |
+| `paid` | `confirmed`, `cancelled` |
+| `confirmed` | `cancelled` |
+| `cancelled` | — (терминальный) |
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Статусы оплаты (`PaymentStatus`)
+
+`pending` → `paid` / `succeeded` / `failed` → `refund_pending` → `refunded`.
+Отказ карты (`payment_intent.payment_failed`) не отменяет заказ автоматически: заказ остаётся в `payment_pending` до успешной повторной попытки или истечения `payment_expires_at`.
+
+---
+
+## HTTP API
+
+Все защищённые маршруты используют JWT-аутентификацию (`auth:api`, guard по умолчанию — `api`) и возвращают ошибки в формате RFC 9457 (`application/problem+json`).
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `GET` | `/api/orders` | Пагинированный список заказов (`customer` видит свои, `admin` и `analyst` — все) |
+| `POST` | `/api/orders` | Создание заказа (обязателен заголовок `Idempotency-Key`) |
+| `GET` | `/api/orders/{order}` | Детали заказа (`stripe_client_secret` доступен только владельцу; `email` скрыт от `analyst`) |
+| `POST` | `/api/orders/{order}/cancel` | Отмена заказа с освобождением резерва и постановкой возврата в очередь при оплате |
+| `POST` | `/webhooks/stripe` | Приём подписанных событий Stripe (`Stripe-Signature`, без сессий и CSRF) |
+| `GET` | `/up` | Liveness-проверка приложения |
+| `GET` | `/ready` | Readiness-проверка отставания `outbox_messages` (`503`, если лаг превышает `ORDER_OUTBOX_LAG_SECONDS`) |
+
+Swagger UI доступен только в окружении `APP_ENV=local` (`/api/documentation`); спецификация OpenAPI вынесена в `app/OpenApi/`.
+
+---
+
+## Идемпотентность
+
+`POST /api/orders` защищён middleware `EnsureIdempotentRequest` (`idempotency`):
+- требует непустой заголовок `Idempotency-Key` (иначе `400 Bad Request`);
+- захватывает распределённую блокировку `Cache::lock` на время выполнения запроса (`409 Conflict` при конкурирующем дубле);
+- сохраняет успешный ответ на 24 часа вместе с SHA-256 отпечатком тела запроса:
+  - повтор с тем же телом возвращает сохранённый ответ с заголовком `X-Idempotent-Replay: true`;
+  - повтор того же ключа с изменённым телом отклоняется с `422 Unprocessable Entity`.
+
+---
+
+## Stripe Webhooks и возвраты
+
+Конфигурация Stripe сосредоточена в `config/services.php` (`services.stripe`: `secret`, `publishable`, `webhook_secret`, `currency`), а `Stripe\StripeClient` регистрируется в контейнере в `AppServiceProvider`.
+
+1. **Верификация и дедупликация**: `StripeWebhookController` проверяет заголовок `Stripe-Signature` через `STRIPE_WEBHOOK_SECRET` и записывает `event_id` в таблицу `stripe_events` (`insertOrIgnore`), гарантируя однократную обработку каждого вебхука.
+2. **Обрабатываемые события**:
+   - `payment_intent.succeeded` — переводит заказ в `paid` и запрашивает `stock.commit_requested` (а если заказ уже успел перейти в `cancelled`, инициирует автоматический возврат);
+   - `payment_intent.payment_failed` — фиксирует `payment_status = failed` и публикует `order.payment_failed`;
+   - `refund.created`, `refund.updated`, `refund.failed` — синхронизирует статус возврата и при `succeeded` однократно записывает событие `order.refunded` в outbox.
+3. **Очередь возвратов**: при отмене оплаченного заказа задача `App\Jobs\RefundCancelledOrder` отправляется в очередь `payments` (соединение `database` внутри транзакции отмены) с идемпотентным ключом Stripe и `backoff` `[10, 30, 60, 300]`.
+
+---
+
+## Transactional Outbox, Kafka и DLQ
+
+Все исходящие события записываются в таблицу `outbox_messages` в одной БД-транзакции с изменением заказа.
+
+### Artisan-команды
+
+- `php artisan order:relay-outbox [--batch=50] [--sleep=1] [--once]` — вычитывает `pending`-сообщения с сохранением порядка внутри `aggregate_id` (`FOR UPDATE SKIP LOCKED` на PostgreSQL), публикует доменные события в Kafka (`order.events` / `stock.commands`) и аналитические события в RabbitMQ (`analytics.events`) с экспоненциальным повтором при сбоях брокера.
+- `php artisan order:retry-outbox --failed` — возвращает сообщения со статусом `dead` обратно в `pending`.
+- `php artisan order:consume-catalog-events` — синхронизирует таблицу `product_snapshots` из топика `catalog.events` (DLQ: `catalog.events.dlq.order-service`).
+- `php artisan order:consume-inventory-events` — обрабатывает ответы склада из `inventory.events` (DLQ: `inventory.events.dlq.order-service`).
+- `php artisan order:replay-dlq {topic} [--replay]` — выводит сообщения из DLQ-топика и при флаге `--replay` перепубликует их в исходный топик.
+- `php artisan order:expire-orders` — запускается по расписанию каждую минуту: отменяет заказы с просроченной оплатой (`payment_timeout`) и однократно перепубликует зависший резерв перед отменой по `reserve_timeout`.
+
+В `ConsumerFactory` включён ручной коммит (`withManualCommit()`) и `withDlq()`: транзиентные ошибки повторяются `kafka.failed_message_retries` раз с паузой `kafka.failed_message_backoff_ms`, а `NonRetryableException` / `NonRetryableMessageException` немедленно пробрасываются в DLQ без повторов.
+
+---
+
+## Проверка качества и тесты
+
+Тестовый набор написан на **Pest** и разделён в `phpunit.xml` на сьюты `Unit`, `Feature`, `Integration` (группа `pgsql`) и `Arch` (`tests/Arch/LayoutTest.php`).
 
 ```bash
-composer require laravel/boost --dev
+# Строгая валидация composer.json и composer.lock
+composer validate --strict
 
-php artisan boost:install
+# Форматирование кода (Laravel Pint)
+composer lint
+composer lint:fix
+
+# Автоматический рефакторинг (Rector)
+composer refactor
+composer refactor:fix
+
+# Статический анализ (PHPStan / Larastan Level 8)
+composer analyse
+
+# Запуск тестов (Unit + Feature + Arch на SQLite in-memory)
+composer test
+
+# Полный конвейер проверок (lint + refactor + analyse + test)
+composer check
 ```
-
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).

@@ -43,8 +43,8 @@ return [
     ],
 
     'stripe' => [
-        'key' => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET_KEY'),
+        'publishable' => env('STRIPE_PUBLISHABLE_KEY') ?: env('STRIPE_KEY'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
         'currency' => env('STRIPE_CURRENCY', 'usd'),
     ],

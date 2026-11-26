@@ -1,63 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import AppHeader from "@/app/components/AppHeader";
-import { apiFetch, readError } from "@/app/lib/api";
-import { canCancel, money, statusLabel, type Order } from "@/app/lib/orders";
+import Pagination from "@/app/components/Pagination";
+import { cancelOrderById, listOrders } from "@/app/lib/api/orders";
+import { formatMoney } from "@/app/lib/format";
+import { statusLabel } from "@/app/lib/orders";
+import { canCancelOrder } from "@/app/lib/permissions";
+import { useAsyncQuery } from "@/app/lib/use-async-query";
+import { useSession } from "@/app/providers/SessionProvider";
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [error, setError] = useState("");
+  const { user } = useSession();
+  const [page, setPage] = useState(1);
+  const [actionError, setActionError] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const ordersQuery = useAsyncQuery((signal) => listOrders({ page }, signal), `orders:my:${page}`, {
+    fallbackError: "Не удалось загрузить заказы",
+  });
 
   async function cancelOrder(id: string) {
     setCancellingId(id);
-    setError("");
-    const response = await apiFetch(`/api/orders/${id}/cancel`, { method: "POST" });
-    setCancellingId(null);
+    setActionError("");
 
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
+    try {
+      const updated = await cancelOrderById(id);
+      ordersQuery.mutate((current) =>
+        current
+          ? {
+              ...current,
+              data: current.data.map((order) =>
+                order.id === id ? { ...order, ...updated } : order,
+              ),
+            }
+          : current,
+      );
+    } catch (reason: unknown) {
+      setActionError(reason instanceof Error ? reason.message : "Не удалось отменить заказ");
+    } finally {
+      setCancellingId(null);
     }
-
-    const body = (await response.json()) as { data: Order };
-    setOrders((current) => current.map((order) => (order.id === id ? { ...order, ...body.data } : order)));
   }
 
-  async function deleteOrder(id: string) {
-    if (!window.confirm("Отменить заказ и убрать из списка? Оплата будет возвращена.")) {
-      return;
-    }
-
-    setDeletingId(id);
-    setError("");
-    const response = await apiFetch(`/api/orders/${id}`, { method: "DELETE" });
-    setDeletingId(null);
-
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
-    }
-
-    setOrders((current) => current.filter((order) => order.id !== id));
-  }
-
-  useEffect(() => {
-    apiFetch("/api/orders")
-      .then(async (response) => {
-        if (!response.ok) {
-          setError(await readError(response));
-          return;
-        }
-
-        const body = (await response.json()) as { data: Order[] };
-        setOrders(body.data ?? []);
-      })
-      .catch(() => setError("Не удалось загрузить заказы"));
-  }, []);
+  const orders = ordersQuery.data?.data ?? [];
+  const meta = ordersQuery.data?.meta;
+  const error = actionError || ordersQuery.error;
 
   return (
     <div className="min-h-screen">
@@ -65,42 +54,59 @@ export default function OrdersPage() {
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <h1 className="page-title">Мои заказы</h1>
         <p className="page-subtitle">Список покупок текущего пользователя.</p>
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
-        {orders.length === 0 && !error ? (
-          <div className="card mt-6 px-6 py-12 text-center text-sm text-slate-500">Заказов пока нет.</div>
+
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
         ) : null}
+
+        {ordersQuery.isLoading ? (
+          <div className="card mt-6 px-6 py-12 text-center text-sm text-slate-500">
+            Загружаем заказы...
+          </div>
+        ) : orders.length === 0 && !error ? (
+          <div className="card mt-6 px-6 py-12 text-center text-sm text-slate-500">
+            Заказов пока нет.
+          </div>
+        ) : null}
+
         {orders.length > 0 ? (
-          <ul className="mt-6 space-y-3">
-            {orders.map((order) => (
-              <li key={order.id} className="card flex items-center justify-between gap-4 px-5 py-4">
-                <Link href={`/orders/${order.id}`} className="min-w-0 flex-1">
-                  <p className="font-medium">{statusLabel(order.status)}</p>
-                  <p className="mt-1 truncate text-xs text-slate-500">{order.id}</p>
-                </Link>
-                <p className="font-semibold">{money(order.total_amount, order.currency)}</p>
-                <div className="flex shrink-0 items-center gap-2">
-                  {canCancel(order.status) ? (
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-sm"
-                      disabled={cancellingId === order.id || deletingId === order.id}
-                      onClick={() => void cancelOrder(order.id)}
-                    >
-                      {cancellingId === order.id ? "..." : "Отменить"}
-                    </button>
+          <>
+            <ul className="mt-6 space-y-3">
+              {orders.map((order) => (
+                <li
+                  key={order.id}
+                  className="card flex items-center justify-between gap-4 px-5 py-4"
+                >
+                  <Link href={`/orders/${order.id}`} className="min-w-0 flex-1">
+                    <p className="font-medium">{statusLabel(order.status)}</p>
+                    <p className="mt-1 truncate text-xs text-slate-500">{order.id}</p>
+                  </Link>
+                  <p className="font-semibold">{formatMoney(order.total_amount, order.currency)}</p>
+                  {canCancelOrder(user, order) ? (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        disabled={cancellingId === order.id}
+                        onClick={() => {
+                          void cancelOrder(order.id);
+                        }}
+                      >
+                        {cancellingId === order.id ? "..." : "Отменить"}
+                      </button>
+                    </div>
                   ) : null}
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    disabled={deletingId === order.id || cancellingId === order.id}
-                    onClick={() => void deleteOrder(order.id)}
-                  >
-                    {deletingId === order.id ? "..." : "Удалить"}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+            <Pagination
+              currentPage={meta?.current_page ?? page}
+              lastPage={meta?.last_page ?? 1}
+              onPageChange={setPage}
+            />
+          </>
         ) : null}
       </main>
     </div>

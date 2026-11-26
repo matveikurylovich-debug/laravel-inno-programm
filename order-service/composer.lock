@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "53a9d1746dbe2a753522fdcdfdf41a2b",
+    "content-hash": "3e1b5cfbf4f40bc2ff8bbc9b86f4f38d",
     "packages": [
         {
             "name": "beberlei/assert",
@@ -597,11 +597,12 @@
             "dist": {
                 "type": "path",
                 "url": "../packages/platform-kit",
-                "reference": "8ec96576f440e34cf7f26ab3ae2f782910f05996"
+                "reference": "648bc86fd41653240ec3096f70c379d19f7daae0"
             },
             "require": {
                 "firebase/php-jwt": "^7.0",
-                "php": "^8.3"
+                "php": "~8.5.0",
+                "symfony/http-kernel": "^8.1"
             },
             "require-dev": {
                 "phpunit/phpunit": "^12.0"
@@ -635,7 +636,7 @@
             "license": [
                 "proprietary"
             ],
-            "description": "Shared access-token verification and the Laravel JWT guard.",
+            "description": "Shared access-token verification, the Laravel JWT guard, and problem+json errors.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -7854,6 +7855,75 @@
             "time": "2026-02-07T07:09:04+00:00"
         },
         {
+            "name": "driftingly/rector-laravel",
+            "version": "2.7.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/driftingly/rector-laravel.git",
+                "reference": "0a333a9c2394d18de71f63f5a3ecbd1777c9622a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/driftingly/rector-laravel/zipball/0a333a9c2394d18de71f63f5a3ecbd1777c9622a",
+                "reference": "0a333a9c2394d18de71f63f5a3ecbd1777c9622a",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.3",
+                "rector/rector": "^2.7",
+                "symplify/rule-doc-generator-contracts": "^11.2",
+                "webmozart/assert": "^1.11 || ^2.0"
+            },
+            "require-dev": {
+                "boundwize/structarmed": "^0.19",
+                "illuminate/support": "^13.0",
+                "nette/utils": "^4.0",
+                "nikic/php-parser": "^5.6",
+                "phpstan/extension-installer": "^1.3",
+                "phpstan/phpstan": "^2.2",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-strict-rules": "^2.0",
+                "phpstan/phpstan-webmozart-assert": "^2.0",
+                "phpunit/phpunit": "^10.5",
+                "symplify/rule-doc-generator": "^12.2",
+                "tightenco/duster": "^3.1",
+                "tracy/tracy": "^2.10"
+            },
+            "suggest": {
+                "illuminate/support": "Required by RelationTableStringToPivotClassRector, which uses Illuminate\\Support\\Str at runtime to resolve pivot models from table names (^8.0 || ^9.0 || ^10.0 || ^11.0 || ^12.0 || ^13.0)."
+            },
+            "type": "rector-extension",
+            "extra": {
+                "rector": {
+                    "includes": [
+                        "config/config.php"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "RectorLaravel\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Rector upgrades rules for Laravel Framework",
+            "keywords": [
+                "dev",
+                "laravel",
+                "rector",
+                "refactoring",
+                "upgrade"
+            ],
+            "support": {
+                "issues": "https://github.com/driftingly/rector-laravel/issues",
+                "source": "https://github.com/driftingly/rector-laravel/tree/2.7.1"
+            },
+            "time": "2026-10-25T22:56:12+00:00"
+        },
+        {
             "name": "fakerphp/faker",
             "version": "v1.24.1",
             "source": {
@@ -10308,6 +10378,63 @@
             "time": "2026-07-28T13:58:09+00:00"
         },
         {
+            "name": "rector/rector",
+            "version": "2.7.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/rectorphp/rector.git",
+                "reference": "4d6a39b7fff302cac0ce90cd959a53c2f6a32776"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/rectorphp/rector/zipball/4d6a39b7fff302cac0ce90cd959a53c2f6a32776",
+                "reference": "4d6a39b7fff302cac0ce90cd959a53c2f6a32776",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.4|^8.0",
+                "phpstan/phpstan": "^2.3.0"
+            },
+            "conflict": {
+                "rector/rector-doctrine": "*",
+                "rector/rector-downgrade-php": "*",
+                "rector/rector-phpunit": "*",
+                "rector/rector-symfony": "*"
+            },
+            "bin": [
+                "bin/rector"
+            ],
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "bootstrap.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Instant Upgrade and Automated Refactoring of any PHP code",
+            "homepage": "https://getrector.com/",
+            "keywords": [
+                "automation",
+                "dev",
+                "migration",
+                "refactoring"
+            ],
+            "support": {
+                "issues": "https://github.com/rectorphp/rector/issues",
+                "source": "https://github.com/rectorphp/rector/tree/2.7.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/tomasvotruba",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-10-06T08:46:45+00:00"
+        },
+        {
             "name": "sebastian/cli-parser",
             "version": "4.2.1",
             "source": {
@@ -11293,6 +11420,66 @@
             "time": "2024-10-20T05:08:20+00:00"
         },
         {
+            "name": "symplify/rule-doc-generator-contracts",
+            "version": "11.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symplify/rule-doc-generator-contracts.git",
+                "reference": "479cfcfd46047f80624aba931d9789e50475b5c6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symplify/rule-doc-generator-contracts/zipball/479cfcfd46047f80624aba931d9789e50475b5c6",
+                "reference": "479cfcfd46047f80624aba931d9789e50475b5c6",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "php-parallel-lint/php-parallel-lint": "^1.3",
+                "phpstan/extension-installer": "^1.2",
+                "rector/rector": "^0.15.10",
+                "symplify/easy-ci": "^11.1",
+                "symplify/easy-coding-standard": "^11.1",
+                "symplify/easy-testing": "^11.1",
+                "symplify/phpstan-extensions": "^11.1",
+                "symplify/phpstan-rules": "11.2.3.72",
+                "tomasvotruba/unused-public": "^0.0.34"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "11.2-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Symplify\\RuleDocGenerator\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Contracts for production code of RuleDocGenerator",
+            "support": {
+                "source": "https://github.com/symplify/rule-doc-generator-contracts/tree/11.2.0"
+            },
+            "funding": [
+                {
+                    "url": "https://www.paypal.me/rectorphp",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/tomasvotruba",
+                    "type": "github"
+                }
+            ],
+            "abandoned": true,
+            "time": "2024-03-18T22:02:54+00:00"
+        },
+        {
             "name": "ta-tikoma/phpunit-architecture-test",
             "version": "0.8.7",
             "source": {
@@ -11474,7 +11661,12 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.3"
+        "php": "~8.5.0",
+        "ext-bcmath": "*",
+        "ext-intl": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-rdkafka": "*",
+        "ext-redis": "*"
     },
     "platform-dev": {},
     "plugin-api-version": "2.9.0"

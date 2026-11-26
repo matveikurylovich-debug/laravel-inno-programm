@@ -1,185 +1,155 @@
 <?php
 
-namespace Tests\Feature;
+declare(strict_types=1);
 
 use App\Contracts\ProductIndex;
+use App\Exceptions\SearchUnavailableException;
 use App\Jobs\PublishSearchEvent;
-use App\Kafka\Consumers\CatalogEventsConsumer;
-use App\Kafka\Consumers\StockEventsConsumer;
+use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Redis;
-use Junges\Kafka\Contracts\ConsumerMessage;
-use Junges\Kafka\Contracts\MessageConsumer;
-use Junges\Kafka\Facades\Kafka;
-use Junges\Kafka\Message\ConsumedMessage;
-use Tests\TestCase;
 
-class SearchApiTest extends TestCase
-{
-    public function test_inactive_product_is_removed_from_the_index(): void
-    {
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('delete')->once()->with('15');
-        $index->shouldReceive('upsert')->never();
-        $this->app->instance(ProductIndex::class, $index);
+use function Pest\Laravel\get;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\swap;
 
-        app(CatalogEventsConsumer::class)($this->message([
-            'event' => 'product.updated',
-            'product_id' => 15,
-            'name' => 'Phone',
-            'is_active' => false,
-        ]), \Mockery::mock(MessageConsumer::class));
-    }
+it('rejects page=10001 with 422 problem+json', function (): void {
+    getJson('/api/search?page=10001')
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json')
+        ->assertJsonStructure(['type', 'title', 'status', 'detail', 'errors'])
+        ->assertJsonValidationErrors('page');
+});
 
-    public function test_deep_page_is_rejected_and_unavailable_search_is_503(): void
-    {
-        $this->getJson('/api/search?page=10001')->assertStatus(422)->assertJsonValidationErrors('page');
+it('accepts in_stock=true and validates filter parameters', function (): void {
+    Queue::fake();
 
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('search')->once()->andThrow(new \Elastic\Transport\Exception\NoNodeAvailableException('down'));
-        $this->app->instance(ProductIndex::class, $index);
-        Redis::shouldReceive('get')->once()->andReturnNull();
+    $index = Mockery::mock(ProductIndex::class);
+    $index->shouldReceive('search')->times(3)->andReturn([
+        'took' => 3,
+        'hits' => ['total' => ['value' => 0], 'hits' => []],
+        'aggregations' => [
+            'categories' => ['buckets' => []],
+            'in_stock_count' => ['buckets' => ['true' => ['doc_count' => 0], 'false' => ['doc_count' => 0]]],
+            'price_range' => ['min' => null, 'max' => null],
+        ],
+    ]);
+    swap(ProductIndex::class, $index);
 
-        $this->getJson('/api/search?q=phone')->assertStatus(503);
-    }
+    getJson('/api/search?in_stock=true')->assertOk();
+    getJson('/api/search?in_stock=false')->assertOk();
+    getJson('/api/search?in_stock=1')->assertOk();
+    getJson('/api/search?in_stock=0')->assertOk();
+    getJson('/api/search?price_max=100')->assertOk();
 
-    public function test_catalog_event_indexes_product_by_external_id(): void
-    {
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('upsert')
-            ->once()
-            ->with('15', \Mockery::on(fn (array $document): bool => $document['name'] === 'Phone' && $document['id'] === '15'));
-        $this->app->instance(ProductIndex::class, $index);
+    getJson('/api/search?in_stock=yes')
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json')
+        ->assertJsonValidationErrors('in_stock');
 
-        app(CatalogEventsConsumer::class)($this->message([
-            'event' => 'product.updated',
-            'product_id' => 15,
-            'store_id' => 1,
-            'name' => 'Phone',
-            'price' => 10,
-        ]), \Mockery::mock(MessageConsumer::class));
-    }
+    getJson('/api/search?price_min=200&price_max=100')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('price_max');
 
-    public function test_repeated_delete_ignores_missing_document(): void
-    {
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('delete')->once()->with('15');
-        $this->app->instance(ProductIndex::class, $index);
+    getJson('/api/search?sort=invalid')
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('sort');
+});
 
-        app(CatalogEventsConsumer::class)($this->message([
-            'event' => 'product.deleted',
-            'product_id' => 15,
-        ]), \Mockery::mock(MessageConsumer::class));
-    }
+it('returns 503 problem+json when elasticsearch is unavailable', function (): void {
+    $index = Mockery::mock(ProductIndex::class);
+    $index->shouldReceive('search')->once()->andThrow(new SearchUnavailableException('elasticsearch down'));
+    swap(ProductIndex::class, $index);
 
-    public function test_category_created_and_deleted_update_facets(): void
-    {
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('renameCategory')->once()->with(5, 'Phones');
-        $index->shouldReceive('clearCategory')->once()->with(5);
-        $this->app->instance(ProductIndex::class, $index);
+    getJson('/api/search?q=phone')
+        ->assertStatus(503)
+        ->assertHeader('content-type', 'application/problem+json');
+});
 
-        $consumer = app(CatalogEventsConsumer::class);
-        $consumer($this->message([
-            'event' => 'category.created',
-            'category_id' => 5,
-            'category_name' => 'Phones',
-        ]), \Mockery::mock(MessageConsumer::class));
-        $consumer($this->message([
-            'event' => 'category.deleted',
-            'category_id' => 5,
-        ]), \Mockery::mock(MessageConsumer::class));
-    }
+it('degrades gracefully to elasticsearch with 200 when cache repository throws RuntimeException', function (): void {
+    Queue::fake();
 
-    public function test_stock_event_updates_availability(): void
-    {
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('updateInStock')->once()->with('4', false);
-        $this->app->instance(ProductIndex::class, $index);
+    $index = Mockery::mock(ProductIndex::class);
+    $index->shouldReceive('search')->once()->andReturn([
+        'took' => 14,
+        'hits' => [
+            'total' => ['value' => 1],
+            'hits' => [['_source' => ['id' => '4', 'name' => 'Phone']]],
+        ],
+        'aggregations' => [
+            'categories' => ['buckets' => []],
+            'in_stock_count' => ['buckets' => ['true' => ['doc_count' => 1], 'false' => ['doc_count' => 0]]],
+            'price_range' => ['min' => 10, 'max' => 10],
+        ],
+    ]);
+    swap(ProductIndex::class, $index);
 
-        app(StockEventsConsumer::class)($this->message([
-            'event' => 'stock.changed',
-            'product_id' => 4,
-            'quantity' => 0,
-        ]), \Mockery::mock(MessageConsumer::class));
-    }
+    $brokenCache = Mockery::mock(Repository::class);
+    $brokenCache->shouldReceive('get')->once()->andThrow(new RuntimeException('redis down'));
+    $brokenCache->shouldReceive('put')->once()->andThrow(new RuntimeException('redis down'));
+    swap(Repository::class, $brokenCache);
 
-    public function test_search_is_public_returns_facets_and_publishes_event(): void
-    {
-        Queue::fake([PublishSearchEvent::class]);
-        $raw = [
-            'hits' => [
-                'total' => ['value' => 1],
-                'hits' => [['_source' => ['id' => '4', 'name' => 'Phone']]],
-            ],
-            'aggregations' => [
-                'categories' => ['buckets' => []],
-                'in_stock_count' => ['buckets' => ['true' => ['doc_count' => 1], 'false' => ['doc_count' => 0]]],
-                'price_range' => ['min' => 10, 'max' => 10],
-            ],
-        ];
+    getJson('/api/search?q=phone')
+        ->assertOk()
+        ->assertJsonPath('data.0.name', 'Phone')
+        ->assertJsonPath('meta.total', 1);
+});
 
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('search')->once()->andReturn($raw);
-        $this->app->instance(ProductIndex::class, $index);
+it('caches search responses via cache repository and records took_ms from elasticsearch and 0 on cache hit', function (): void {
+    Queue::fake([PublishSearchEvent::class]);
 
-        $stored = null;
-        Redis::shouldReceive('get')->twice()->andReturnUsing(function () use (&$stored) {
-            return $stored;
-        });
-        Redis::shouldReceive('setex')->once()->andReturnUsing(function (string $key, int $ttl, string $value) use (&$stored): bool {
-            $stored = $value;
+    $raw = [
+        'took' => 17,
+        'hits' => [
+            'total' => ['value' => 1],
+            'hits' => [['_source' => ['id' => '4', 'name' => 'Phone']]],
+        ],
+        'aggregations' => [
+            'categories' => ['buckets' => []],
+            'in_stock_count' => ['buckets' => ['true' => ['doc_count' => 1], 'false' => ['doc_count' => 0]]],
+            'price_range' => ['min' => 10, 'max' => 10],
+        ],
+    ];
 
-            return true;
-        });
+    $index = Mockery::mock(ProductIndex::class);
+    $index->shouldReceive('search')->once()->andReturn($raw);
+    swap(ProductIndex::class, $index);
 
-        $this->getJson('/api/search?q=phone')
-            ->assertOk()
-            ->assertJsonPath('data.0.name', 'Phone')
-            ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('facets.in_stock.true', 1);
+    getJson('/api/search?q=phone')
+        ->assertOk()
+        ->assertJsonPath('data.0.name', 'Phone')
+        ->assertJsonPath('meta.total', 1)
+        ->assertJsonPath('facets.in_stock.true', 1);
 
-        $this->getJson('/api/search?q=phone')->assertOk();
+    getJson('/api/search?q=phone')
+        ->assertOk()
+        ->assertJsonPath('data.0.name', 'Phone');
 
-        Queue::assertPushed(PublishSearchEvent::class, 4);
-        Queue::assertPushed(PublishSearchEvent::class, fn ($job) => $job->destination === 'kafka' && $job->payload['query'] === 'phone');
-    }
+    Queue::assertPushed(PublishSearchEvent::class, 2);
+    Queue::assertPushed(
+        PublishSearchEvent::class,
+        fn (PublishSearchEvent $job): bool => $job->tries === 8
+            && $job->payload['query'] === 'phone'
+            && $job->payload['took_ms'] === 17,
+    );
+    Queue::assertPushed(
+        PublishSearchEvent::class,
+        fn (PublishSearchEvent $job): bool => $job->payload['query'] === 'phone'
+            && $job->payload['took_ms'] === 0,
+    );
+});
 
-    public function test_catalog_consumer_command_reads_fake_kafka(): void
-    {
-        if (! defined('RD_KAFKA_PARTITION_UA')) {
-            define('RD_KAFKA_PARTITION_UA', -1);
-        }
+it('disables swagger ui outside local environment and preserves public routes and commands', function (): void {
+    getJson('/api/documentation')->assertNotFound();
+    get('/up')->assertOk();
 
-        $index = \Mockery::mock(ProductIndex::class);
-        $index->shouldReceive('renameCategory')->once()->with(5, 'Phones');
-        $this->app->instance(ProductIndex::class, $index);
+    expect(route('api.v1.search', absolute: false))->toBe('/api/search');
 
-        Kafka::fake();
-        Kafka::shouldReceiveMessages([
-            new ConsumedMessage(
-                topicName: 'catalog.events',
-                partition: 0,
-                headers: ['event-type' => 'category.updated'],
-                body: ['event' => 'category.updated', 'category_id' => 5, 'category_name' => 'Phones'],
-                key: '5',
-                offset: 0,
-                timestamp: time(),
-            ),
-        ]);
-
-        $this->artisan('kafka:consume-catalog')->assertSuccessful();
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    private function message(array $body): ConsumerMessage
-    {
-        $message = \Mockery::mock(ConsumerMessage::class);
-        $message->shouldReceive('getBody')->andReturn($body);
-        $message->shouldReceive('getHeaders')->andReturn([]);
-
-        return $message;
-    }
-}
+    $names = array_keys(Artisan::all());
+    expect($names)->toContain(
+        'search:consume-catalog-events',
+        'search:setup-index',
+        'search:reindex',
+        'search:replay-dlq',
+    );
+});

@@ -23,12 +23,6 @@ class Conversation
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
 
-    #[ORM\Column(name: 'user_id', type: Types::INTEGER)]
-    private int $userId;
-
-    #[ORM\Column(name: 'store_id', type: Types::INTEGER)]
-    private int $storeId;
-
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
     private DateTimeImmutable $createdAt;
 
@@ -50,14 +44,15 @@ class Conversation
     #[ORM\OrderBy(['createdAt' => 'ASC'])]
     private Collection $messages;
 
-    public function __construct(int $userId, int $storeId)
+    public function __construct(#[ORM\Column(name: 'user_id', type: Types::INTEGER)]
+        private int $userId, #[ORM\Column(name: 'store_id', type: Types::INTEGER)]
+        private int $storeId, ?DateTimeImmutable $now = null)
     {
+        $createdAt = $now ?? new DateTimeImmutable();
         $this->id = Uuid::v7();
-        $this->userId = $userId;
-        $this->storeId = $storeId;
-        $this->createdAt = new DateTimeImmutable();
-        $this->lastActivityAt = $this->createdAt;
-        $this->expiresAt = $this->createdAt->modify('+24 hours');
+        $this->createdAt = $createdAt;
+        $this->lastActivityAt = $createdAt;
+        $this->expiresAt = $createdAt->modify('+24 hours');
         $this->messages = new ArrayCollection();
     }
 
@@ -99,27 +94,27 @@ class Conversation
         return $this->messages;
     }
 
-    public function touchActivity(): void
+    public function touchActivity(?DateTimeImmutable $now = null): void
     {
-        $this->lastActivityAt = new DateTimeImmutable();
+        $this->lastActivityAt = $now ?? new DateTimeImmutable();
     }
 
-    public function isExpired(): bool
+    public function isExpired(int $ttlMinutes = 30, ?DateTimeImmutable $now = null): bool
     {
-        $now = new DateTimeImmutable();
-        $inactivityLimit = $this->lastActivityAt->modify('+30 minutes');
+        $currentTime = $now ?? new DateTimeImmutable();
+        $inactivityLimit = $this->lastActivityAt->modify(\sprintf('+%d minutes', $ttlMinutes));
 
-        return $now > $inactivityLimit || $now > $this->expiresAt;
+        return $currentTime > $inactivityLimit || $currentTime > $this->expiresAt;
     }
 
-    public function addMessage(Message $message): self
+    public function addMessage(Message $message, ?DateTimeImmutable $now = null): self
     {
         if (!$this->messages->contains($message)) {
             $this->messages->add($message);
             $message->setConversation($this);
         }
 
-        $this->touchActivity();
+        $this->touchActivity($now);
 
         return $this;
     }

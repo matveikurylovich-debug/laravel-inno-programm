@@ -2,15 +2,9 @@
     "openapi": "3.0.0",
     "info": {
         "title": "Search Service API",
-        "description": "Поиск товаров в Elasticsearch",
+        "description": "Полнотекстовый поиск товаров и фасетная фильтрация в Elasticsearch",
         "version": "1.0.0"
     },
-    "servers": [
-        {
-            "url": "/",
-            "description": "Search Service"
-        }
-    ],
     "paths": {
         "/api/search": {
             "get": {
@@ -18,7 +12,7 @@
                     "Search"
                 ],
                 "summary": "Поиск товаров",
-                "operationId": "6f342725afb19bf3680b7143b375082f",
+                "operationId": "6bc494a5446c3215bf9a61b2c309b338",
                 "parameters": [
                     {
                         "name": "q",
@@ -98,12 +92,21 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Результаты поиска"
+                        "description": "Результаты поиска и фасеты"
                     },
                     "422": {
-                        "description": "Ошибка валидации"
+                        "description": "Ошибка валидации параметров (application/problem+json)"
+                    },
+                    "503": {
+                        "description": "Сервис поиска временно недоступен (application/problem+json)"
                     }
-                }
+                },
+                "servers": [
+                    {
+                        "url": "/",
+                        "description": "Search Service"
+                    }
+                ]
             }
         }
     },

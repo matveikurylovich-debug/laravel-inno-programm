@@ -1,28 +1,23 @@
 <?php
 
-use App\Http\Middleware\CatalogAdminAuth;
-use App\Http\Middleware\ResolveCurrentStore;
+declare(strict_types=1);
+
+use App\Http\Middleware\AuthenticateCatalogAdmin;
+use Ecommerce\PlatformKit\Laravel\ProblemJson;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->encryptCookies(except: ['access_token', 'refresh_token']);
-        $middleware->web(append: [CatalogAdminAuth::class]);
-        $middleware->priority([
-            ResolveCurrentStore::class,
-        ]);
+    ->withMiddleware(static function (Middleware $middleware): void {
+        $middleware->encryptCookies(except: ['__Host-access', 'access_token', 'refresh_token']);
+        $middleware->web(append: [AuthenticateCatalogAdmin::class]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
-        );
+    ->withExceptions(static function (Exceptions $exceptions): void {
+        ProblemJson::register($exceptions);
     })->create();

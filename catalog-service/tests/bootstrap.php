@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 if (! defined('RD_KAFKA_PARTITION_UA')) {
     define('RD_KAFKA_PARTITION_UA', -1);
 }

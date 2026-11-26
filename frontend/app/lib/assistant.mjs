@@ -7,7 +7,5 @@ export function productHref(id) {
 }
 
 export function assistantLinkHrefs(products) {
-  return products
-    .map((product) => productHref(product.product_id))
-    .filter((href) => href !== null);
+  return products.map((product) => productHref(product.product_id)).filter((href) => href !== null);
 }

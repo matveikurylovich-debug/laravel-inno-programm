@@ -35,9 +35,4 @@ class OrderPolicy
         return PermissionMap::allows($user->roles(), 'orders.cancel')
             && (string) $order->user_id === (string) $user->getAuthIdentifier();
     }
-
-    public function delete(JwtUser $user, Order $order): bool
-    {
-        return $this->cancel($user, $order);
-    }
 }

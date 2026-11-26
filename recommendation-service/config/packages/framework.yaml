@@ -2,6 +2,10 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    serializer:
+        default_context:
+            preserve_empty_objects: true
+
     rate_limiter:
         chat_messages:
             policy: sliding_window
@@ -15,8 +19,24 @@ framework:
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
-    #esi: true
-    #fragments: true
+    http_client:
+        scoped_clients:
+            gemini.client:
+                base_uri: 'https://generativelanguage.googleapis.com/v1beta/models/'
+                headers:
+                    x-goog-api-key: '%env(GEMINI_API_KEY)%'
+                timeout: 6
+                max_duration: 20
+                retry_failed:
+                    max_retries: 2
+                    delay: 200
+                    multiplier: 2
+                    http_codes:
+                        429: ['POST']
+                        500: ['POST']
+                        502: ['POST']
+                        503: ['POST']
+                        504: ['POST']
 
 when@test:
     framework:

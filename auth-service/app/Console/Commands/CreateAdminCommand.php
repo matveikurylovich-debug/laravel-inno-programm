@@ -1,21 +1,23 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Console\Commands;
 
 use App\Enums\RoleName;
 use App\Models\User;
+use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
+#[Description('Создаёт или обновляет первого администратора')]
+#[Signature('auth:create-admin {email} {--password=}')]
 class CreateAdminCommand extends Command
 {
-    protected $signature = 'auth:create-admin {email} {--password=}';
-
-    protected $description = 'Создаёт или обновляет первого администратора';
-
     public function handle(): int
     {
-        $email = (string) $this->argument('email');
+        $email = User::normalizeEmail((string) $this->argument('email'));
         $password = $this->option('password');
         $generated = false;
 

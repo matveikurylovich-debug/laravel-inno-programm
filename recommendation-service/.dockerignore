@@ -6,4 +6,10 @@ node_modules
 .env.*.local
 .env.local.php
 .phpunit.cache
+docker/nginx/certs
+compose.yaml
+*.md
 tests
+.php-cs-fixer*
+phpstan*
+rector.php

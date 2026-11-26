@@ -2,13 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Api\V1\OrderController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:api'])->prefix('orders')->group(function () {
-    Route::get('/', [OrderController::class, 'index']);
-    Route::post('/', [OrderController::class, 'store'])->middleware('idempotency');
-    Route::get('/{id}', [OrderController::class, 'show']);
-    Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
-    Route::delete('/{id}', [OrderController::class, 'destroy']);
+Route::middleware(['auth:api'])->prefix('orders')->name('api.v1.orders.')->group(function (): void {
+    Route::get('/', [OrderController::class, 'index'])->name('index');
+    Route::post('/', [OrderController::class, 'store'])->middleware('idempotency')->name('store');
+    Route::get('/{order}', [OrderController::class, 'show'])->whereUuid('order')->name('show');
+    Route::post('/{order}/cancel', [OrderController::class, 'cancel'])->whereUuid('order')->name('cancel');
 });

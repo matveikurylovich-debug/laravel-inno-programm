@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Enums\RoleName;
 use Illuminate\Database\Migrations\Migration;
 use Spatie\Permission\Models\Permission;
@@ -10,7 +12,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        resolve(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $granted = [
             RoleName::Admin->value => [

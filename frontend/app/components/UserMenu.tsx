@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { apiFetch, logout } from "@/app/lib/api";
-import type { AuthUser } from "@/app/lib/types";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
+import { logoutSession } from "@/app/lib/api/auth";
+import { canViewAdmin } from "@/app/lib/permissions";
+import { useSession } from "@/app/providers/SessionProvider";
 
 type UserMenuProps = {
   variant?: "light" | "dark";
@@ -13,29 +14,17 @@ type UserMenuProps = {
 
 export default function UserMenu({ variant = "light", dropUp = false }: UserMenuProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, clear } = useSession();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("");
+  const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const name = user?.name ?? "";
+  const email = user?.email ?? "";
   const inAdmin = pathname.startsWith("/admin");
-  const staff = role === "admin" || role === "analyst";
-
-  useEffect(() => {
-
-    apiFetch("/api/auth/me")
-      .then(async (response) => {
-        if (!response.ok) {
-          return;
-        }
-
-        const body = (await response.json()) as { user: AuthUser };
-        setName(body.user.name);
-        setEmail(body.user.email);
-        setRole(body.user.role);
-      })
-      .catch(() => undefined);
-  }, []);
+  const staff = canViewAdmin(user);
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
@@ -44,9 +33,28 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
       }
     }
 
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && open) {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, []);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  async function handleLogout() {
+    setOpen(false);
+    await logoutSession();
+    clear();
+    router.replace("/login");
+  }
 
   const buttonClass =
     variant === "dark"
@@ -57,7 +65,10 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
+        aria-expanded={open}
+        aria-controls={menuId}
         onClick={() => setOpen((value) => !value)}
         className={`inline-flex items-center gap-2.5 rounded-xl py-1.5 pl-1.5 pr-2.5 text-sm font-medium transition ${buttonClass}`}
       >
@@ -81,6 +92,7 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
 
       {open ? (
         <div
+          id={menuId}
           className={`absolute z-40 w-60 rounded-2xl border border-slate-200 bg-white p-1.5 text-slate-900 shadow-pop ${
             dropUp ? "bottom-full left-0 mb-2" : "right-0 mt-2"
           }`}
@@ -118,7 +130,7 @@ export default function UserMenu({ variant = "light", dropUp = false }: UserMenu
             <button
               type="button"
               onClick={() => {
-                void logout();
+                void handleLogout();
               }}
               className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50"
             >

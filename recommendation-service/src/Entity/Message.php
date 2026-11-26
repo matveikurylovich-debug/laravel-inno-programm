@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Enum\MessageRole;
 use DateTimeImmutable;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -15,22 +16,9 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\Index(name: 'idx_messages_conversation_created', columns: ['conversation_id', 'created_at'])]
 class Message
 {
-    public const ROLE_USER = 'user';
-    public const ROLE_ASSISTANT = 'assistant';
-
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
-
-    #[ORM\ManyToOne(targetEntity: Conversation::class, inversedBy: 'messages')]
-    #[ORM\JoinColumn(name: 'conversation_id', nullable: false, onDelete: 'CASCADE')]
-    private Conversation $conversation;
-
-    #[ORM\Column(length: 32)]
-    private string $role;
-
-    #[ORM\Column(type: Types::TEXT)]
-    private string $content;
 
     /**
      * @var array<string, mixed>
@@ -47,13 +35,18 @@ class Message
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
     private DateTimeImmutable $createdAt;
 
-    public function __construct(Conversation $conversation, string $role, string $content)
-    {
+    public function __construct(
+        #[ORM\ManyToOne(targetEntity: Conversation::class, inversedBy: 'messages')]
+        #[ORM\JoinColumn(name: 'conversation_id', nullable: false, onDelete: 'CASCADE')]
+        private Conversation $conversation,
+        #[ORM\Column(length: 32, enumType: MessageRole::class)]
+        private MessageRole $role,
+        #[ORM\Column(type: Types::TEXT)]
+        private string $content,
+        ?DateTimeImmutable $createdAt = null,
+    ) {
         $this->id = Uuid::v7();
-        $this->conversation = $conversation;
-        $this->role = $role;
-        $this->content = $content;
-        $this->createdAt = new DateTimeImmutable();
+        $this->createdAt = $createdAt ?? new DateTimeImmutable();
     }
 
     public function getId(): Uuid
@@ -73,28 +66,14 @@ class Message
         return $this;
     }
 
-    public function getRole(): string
+    public function getRole(): MessageRole
     {
         return $this->role;
-    }
-
-    public function setRole(string $role): self
-    {
-        $this->role = $role;
-
-        return $this;
     }
 
     public function getContent(): string
     {
         return $this->content;
-    }
-
-    public function setContent(string $content): self
-    {
-        $this->content = $content;
-
-        return $this;
     }
 
     /**
@@ -136,12 +115,5 @@ class Message
     public function getCreatedAt(): DateTimeImmutable
     {
         return $this->createdAt;
-    }
-
-    public function setCreatedAt(DateTimeImmutable $createdAt): self
-    {
-        $this->createdAt = $createdAt;
-
-        return $this;
     }
 }

@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\OutboxMessage;
 use App\Models\Payment;
 
-beforeEach(function () {
+beforeEach(function (): void {
     mockRedis();
 });
 
@@ -23,22 +24,23 @@ function accessOrder(int $userId): Order
     ]);
 }
 
-it('shows a customer only their orders while admin and analyst see all', function () {
+it('shows a customer only their orders while admin and analyst see all', function (): void {
     $own = accessOrder(5);
     $foreign = accessOrder(6);
 
     $customer = $this->withToken(orderJwt(5))->getJson('/api/orders');
     $customer->assertOk();
-    expect(collect($customer->json('data'))->pluck('id')->all())->toBe([$own->id]);
+    expect($customer->collect('data')->pluck('id')->all())->toBe([$own->id]);
 
     $this->withToken(orderJwt(5))
         ->getJson("/api/orders/{$foreign->id}")
-        ->assertForbidden();
+        ->assertForbidden()
+        ->assertHeader('content-type', 'application/problem+json');
 
     foreach (['admin', 'analyst'] as $role) {
         $response = $this->withToken(orderJwt(9, $role))->getJson('/api/orders');
         $response->assertOk();
-        expect(collect($response->json('data'))->pluck('id')->all())->toEqualCanonicalizing([$own->id, $foreign->id]);
+        expect($response->collect('data')->pluck('id')->all())->toEqualCanonicalizing([$own->id, $foreign->id]);
 
         $this->withToken(orderJwt(9, $role))
             ->getJson("/api/orders/{$foreign->id}")
@@ -47,15 +49,18 @@ it('shows a customer only their orders while admin and analyst see all', functio
     }
 });
 
-it('lets the owner delete an order and request stock release', function () {
+it('lets the owner cancel an order and request stock release without deleting the record', function (): void {
     $order = accessOrder(5);
-    $order->update(['status' => 'payment_pending']);
 
     $this->withToken(orderJwt(5))
-        ->deleteJson("/api/orders/{$order->id}")
-        ->assertNoContent();
+        ->postJson("/api/orders/{$order->id}/cancel")
+        ->assertOk()
+        ->assertJsonPath('data.status', OrderStatus::Cancelled->value);
 
-    $this->assertSoftDeleted('orders', ['id' => $order->id]);
+    $this->assertDatabaseHas('orders', [
+        'id' => $order->id,
+        'status' => OrderStatus::Cancelled->value,
+    ]);
     expect(
         OutboxMessage::query()
             ->where('event_type', 'stock.release_requested')
@@ -64,7 +69,17 @@ it('lets the owner delete an order and request stock release', function () {
     )->toBeTrue();
 });
 
-it('hides the payment secret and buyer email from an analyst', function () {
+it('rejects DELETE /api/orders/{order} because financial order records are never deleted', function (): void {
+    $order = accessOrder(5);
+
+    $this->withToken(orderJwt(5))
+        ->deleteJson("/api/orders/{$order->id}")
+        ->assertMethodNotAllowed();
+
+    $this->assertDatabaseHas('orders', ['id' => $order->id]);
+});
+
+it('hides the payment secret and buyer email from an analyst', function (): void {
     $order = accessOrder(6);
     Payment::query()->create([
         'order_id' => $order->id,
@@ -79,21 +94,31 @@ it('hides the payment secret and buyer email from an analyst', function () {
         ->getJson("/api/orders/{$order->id}")
         ->assertOk();
 
-    expect($response->json('data.email'))->toBeNull()
+    expect($response->json('data'))->not->toHaveKey('deleted_at')
+        ->and($response->json('data.email'))->toBeNull()
+        ->and($response->json('data.payment'))->not->toHaveKey('stripe_payment_intent_id')
+        ->and($response->json('data.payment'))->not->toHaveKey('stripe_refund_id')
+        ->and($response->json('data.payment'))->not->toHaveKey('raw_response')
         ->and($response->json('data.payment.stripe_client_secret'))->toBeNull();
 
-    $this->withToken(orderJwt(6))
+    $owner = $this->withToken(orderJwt(6))
         ->getJson("/api/orders/{$order->id}")
         ->assertOk()
         ->assertJsonPath('data.payment.stripe_client_secret', 'cs_secret');
+
+    expect($owner->json('data'))->not->toHaveKey('deleted_at')
+        ->and($owner->json('data.payment'))->not->toHaveKey('stripe_payment_intent_id');
 });
 
-it('forbids a customer from deleting someone elses order', function () {
+it('forbids a customer from cancelling someone elses order', function (): void {
     $foreign = accessOrder(6);
 
     $this->withToken(orderJwt(5))
-        ->deleteJson("/api/orders/{$foreign->id}")
+        ->postJson("/api/orders/{$foreign->id}/cancel")
         ->assertForbidden();
 
-    $this->assertDatabaseHas('orders', ['id' => $foreign->id]);
+    $this->assertDatabaseHas('orders', [
+        'id' => $foreign->id,
+        'status' => OrderStatus::Created->value,
+    ]);
 });

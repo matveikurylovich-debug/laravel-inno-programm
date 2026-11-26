@@ -1,21 +1,46 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
-import { apiFetch, clearSession, readError } from "@/app/lib/api";
-import { formatBelarusPhone } from "@/app/lib/phone";
+import {
+  deleteAccountRequest,
+  logoutAllSessions,
+  requestEmailChange,
+  updatePasswordRequest,
+  updateProfileRequest,
+} from "@/app/lib/api/auth";
+import {
+  applyPhoneChange,
+  formatBelarusPhone,
+  phoneFromProfile,
+  phoneToSubmit,
+} from "@/app/lib/phone";
+import { resetCartOnLogout } from "@/app/lib/cart";
 import type { AuthUser } from "@/app/lib/types";
+import { SessionUnavailableScreen, useSession } from "@/app/providers/SessionProvider";
 
 const fieldClass = "input";
 
-export default function ProfilePage() {
-  const [ready, setReady] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [savedEmail, setSavedEmail] = useState("");
+function ProfileFormBody({
+  user,
+  onUserUpdated,
+  onSessionCleared,
+}: {
+  user: AuthUser;
+  onUserUpdated: () => Promise<AuthUser | null>;
+  onSessionCleared: () => void;
+}) {
+  const router = useRouter();
+  const initialPhone = phoneFromProfile(user.phone);
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [savedEmail, setSavedEmail] = useState(user.email);
   const [emailPassword, setEmailPassword] = useState("");
   const [emailNotice, setEmailNotice] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
+  const [storedPhone, setStoredPhone] = useState(initialPhone);
+  const [phoneEdited, setPhoneEdited] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
   const [profilePending, setProfilePending] = useState(false);
@@ -31,59 +56,44 @@ export default function ProfilePage() {
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
 
-  useEffect(() => {
-    apiFetch("/api/auth/me")
-      .then(async (response) => {
-        if (!response.ok) {
-          if (response.status === 401) window.location.href = "/login";
-          return;
-        }
-
-        const body = (await response.json()) as { user: AuthUser };
-        setName(body.user.name);
-        setEmail(body.user.email);
-        setSavedEmail(body.user.email);
-        setPhone(body.user.phone ? formatBelarusPhone(body.user.phone) : "");
-        setReady(true);
-      })
-      .catch(() => undefined);
-  }, []);
-
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
     setProfileError("");
     setProfileMessage("");
     setProfilePending(true);
 
-    const response = await apiFetch("/api/auth/profile", {
-      method: "PATCH",
-      body: JSON.stringify({ name, email: savedEmail, phone }),
-    });
-
-    if (!response.ok) {
-      setProfilePending(false);
-      setProfileError(await readError(response));
-      return;
-    }
-
-    if (email !== savedEmail) {
-      const change = await apiFetch("/api/auth/profile/email", {
-        method: "POST",
-        body: JSON.stringify({ email, current_password: emailPassword }),
+    try {
+      const updated = await updateProfileRequest({
+        name,
+        email: savedEmail,
+        phone: phoneToSubmit(storedPhone, phone, phoneEdited),
       });
-      setProfilePending(false);
-      if (!change.ok) {
-        setProfileError(await readError(change));
+
+      if (updated.user) {
+        const nextStoredPhone = phoneFromProfile(updated.user.phone);
+        setStoredPhone(nextStoredPhone);
+        setPhoneEdited(false);
+      }
+
+      if (email !== savedEmail) {
+        await requestEmailChange({ email, current_password: emailPassword });
+        setEmailPassword("");
+        setEmailNotice(
+          "Ждём подтверждения нового адреса. До этого вход работает по старому email.",
+        );
+        setProfileMessage("Данные сохранены.");
+        await onUserUpdated();
         return;
       }
-      setEmailPassword("");
-      setEmailNotice("Ждём подтверждения нового адреса. До этого вход работает по старому email.");
-      setProfileMessage("Данные сохранены.");
-      return;
-    }
 
-    setProfilePending(false);
-    setProfileMessage("Сохранено.");
+      setSavedEmail(email);
+      setProfileMessage("Профиль сохранён.");
+      await onUserUpdated();
+    } catch (reason: unknown) {
+      setProfileError(reason instanceof Error ? reason.message : "Запрос не выполнен");
+    } finally {
+      setProfilePending(false);
+    }
   }
 
   async function savePassword(event: FormEvent) {
@@ -92,26 +102,21 @@ export default function ProfilePage() {
     setPasswordMessage("");
     setPasswordPending(true);
 
-    const response = await apiFetch("/api/auth/profile/password", {
-      method: "PUT",
-      body: JSON.stringify({
+    try {
+      await updatePasswordRequest({
         current_password: currentPassword,
         password,
         password_confirmation: passwordConfirmation,
-      }),
-    });
-
-    setPasswordPending(false);
-
-    if (!response.ok) {
-      setPasswordError(await readError(response));
-      return;
+      });
+      setCurrentPassword("");
+      setPassword("");
+      setPasswordConfirmation("");
+      setPasswordMessage("Пароль обновлён.");
+    } catch (reason: unknown) {
+      setPasswordError(reason instanceof Error ? reason.message : "Запрос не выполнен");
+    } finally {
+      setPasswordPending(false);
     }
-
-    setCurrentPassword("");
-    setPassword("");
-    setPasswordConfirmation("");
-    setPasswordMessage("Пароль обновлён.");
   }
 
   async function deleteAccount(event: FormEvent) {
@@ -119,23 +124,21 @@ export default function ProfilePage() {
     setDeleteError("");
     setDeletePending(true);
 
-    const response = await apiFetch("/api/auth/profile", {
-      method: "DELETE",
-      body: JSON.stringify({ password: deletePassword }),
-    });
-
-    if (!response.ok) {
-      setDeleteError(await readError(response));
+    try {
+      await deleteAccountRequest({ password: deletePassword });
+      resetCartOnLogout();
+      onSessionCleared();
+      router.replace("/login");
+    } catch (reason: unknown) {
+      setDeleteError(reason instanceof Error ? reason.message : "Запрос не выполнен");
       setDeletePending(false);
-      return;
     }
-
-    clearSession();
-    window.location.href = "/login";
   }
 
-  if (!ready) {
-    return <main className="state-screen">Загружаем профиль...</main>;
+  async function handleLogoutAll() {
+    await logoutAllSessions();
+    onSessionCleared();
+    router.replace("/login");
   }
 
   return (
@@ -147,13 +150,23 @@ export default function ProfilePage() {
           <p className="page-subtitle">Управление данными аккаунта и безопасностью.</p>
         </div>
 
-        <form onSubmit={saveProfile} className="card p-6 sm:p-7">
+        <form
+          onSubmit={(event) => {
+            void saveProfile(event);
+          }}
+          className="card p-6 sm:p-7"
+        >
           <h2 className="text-lg font-semibold tracking-tight">Данные аккаунта</h2>
           <p className="mt-1 text-sm text-slate-500">Имя, телефон и email.</p>
 
           <label className="field mt-6">
             Имя
-            <input required value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} />
+            <input
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className={fieldClass}
+            />
           </label>
 
           <label className="field mt-4">
@@ -163,7 +176,16 @@ export default function ProfilePage() {
               type="tel"
               value={phone}
               placeholder="+375 (29) 123-45-67"
-              onChange={(event) => setPhone(formatBelarusPhone(event.target.value))}
+              onChange={(event) => {
+                setPhoneEdited(true);
+                setPhone(applyPhoneChange(phone, event.target.value));
+              }}
+              onBlur={() => {
+                if (!phoneEdited) {
+                  return;
+                }
+                setPhone((current) => formatBelarusPhone(current));
+              }}
               className={fieldClass}
             />
           </label>
@@ -192,21 +214,28 @@ export default function ProfilePage() {
           ) : null}
           {emailNotice ? <p className="alert alert-success mt-4">{emailNotice}</p> : null}
 
-          {profileError ? <p className="alert alert-error mt-4">{profileError}</p> : null}
+          {profileError ? (
+            <p role="alert" className="alert alert-error mt-4">
+              {profileError}
+            </p>
+          ) : null}
           {profileMessage ? <p className="alert alert-success mt-4">{profileMessage}</p> : null}
 
-          <button
-            type="submit"
-            disabled={profilePending}
-            className="btn btn-primary mt-6"
-          >
+          <button type="submit" disabled={profilePending} className="btn btn-primary mt-6">
             {profilePending ? "Сохраняем..." : "Сохранить"}
           </button>
         </form>
 
-        <form onSubmit={savePassword} className="card p-6 sm:p-7">
+        <form
+          onSubmit={(event) => {
+            void savePassword(event);
+          }}
+          className="card p-6 sm:p-7"
+        >
           <h2 className="text-lg font-semibold tracking-tight">Пароль</h2>
-          <p className="mt-1 text-sm text-slate-500">Используйте длинный пароль, который вы нигде больше не применяете.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Используйте длинный пароль, который вы нигде больше не применяете.
+          </p>
 
           <label className="field mt-6">
             Текущий пароль
@@ -242,38 +271,44 @@ export default function ProfilePage() {
             />
           </label>
 
-          {passwordError ? <p className="alert alert-error mt-4">{passwordError}</p> : null}
+          {passwordError ? (
+            <p role="alert" className="alert alert-error mt-4">
+              {passwordError}
+            </p>
+          ) : null}
           {passwordMessage ? <p className="alert alert-success mt-4">{passwordMessage}</p> : null}
 
-          <button
-            type="submit"
-            disabled={passwordPending}
-            className="btn btn-primary mt-6"
-          >
+          <button type="submit" disabled={passwordPending} className="btn btn-primary mt-6">
             {passwordPending ? "Обновляем..." : "Обновить пароль"}
           </button>
         </form>
 
         <section className="card p-6 sm:p-7">
           <h2 className="text-lg font-semibold tracking-tight">Сессии</h2>
-          <p className="mt-1 text-sm text-slate-500">Завершить вход на всех устройствах, включая это.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Завершить вход на всех устройствах, включая это.
+          </p>
           <button
             type="button"
             className="btn btn-secondary mt-6"
             onClick={() => {
-              void apiFetch("/api/auth/logout-all", { method: "POST" }).finally(() => {
-                clearSession();
-                window.location.href = "/login";
-              });
+              void handleLogoutAll();
             }}
           >
             Выйти на всех устройствах
           </button>
         </section>
 
-        <form onSubmit={deleteAccount} className="card card-danger p-6 sm:p-7">
+        <form
+          onSubmit={(event) => {
+            void deleteAccount(event);
+          }}
+          className="card card-danger p-6 sm:p-7"
+        >
           <h2 className="text-lg font-semibold text-rose-700">Удалить аккаунт</h2>
-          <p className="mt-1 text-sm text-slate-500">После удаления войти с этим email будет нельзя.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            После удаления войти с этим email будет нельзя.
+          </p>
 
           <label className="field mt-6">
             Пароль
@@ -286,17 +321,47 @@ export default function ProfilePage() {
             />
           </label>
 
-          {deleteError ? <p className="alert alert-error mt-4">{deleteError}</p> : null}
+          {deleteError ? (
+            <p role="alert" className="alert alert-error mt-4">
+              {deleteError}
+            </p>
+          ) : null}
 
-          <button
-            type="submit"
-            disabled={deletePending}
-            className="btn btn-danger mt-6"
-          >
+          <button type="submit" disabled={deletePending} className="btn btn-danger mt-6">
             {deletePending ? "Удаляем..." : "Удалить аккаунт"}
           </button>
         </form>
       </main>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const { user, status, error, refresh, clear } = useSession();
+
+  useEffect(() => {
+    if (status === "guest") {
+      router.replace("/login?next=%2Fprofile");
+    }
+  }, [router, status]);
+
+  if (status === "unavailable") {
+    return (
+      <SessionUnavailableScreen
+        message={error}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
+    );
+  }
+
+  if (status !== "authenticated" || !user) {
+    return <main className="state-screen">Загружаем профиль...</main>;
+  }
+
+  return (
+    <ProfileFormBody key={user.id} user={user} onUserUpdated={refresh} onSessionCleared={clear} />
   );
 }

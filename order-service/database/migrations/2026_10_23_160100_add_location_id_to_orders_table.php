@@ -14,7 +14,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('orders', function (Blueprint $table) {
+        Schema::table('orders', function (Blueprint $table): void {
             $table->unsignedBigInteger('location_id')->nullable()->after('store_id');
             $table->index('location_id');
         });
@@ -26,7 +26,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('orders', function (Blueprint $table) {
+        Schema::table('orders', function (Blueprint $table): void {
             $table->dropIndex(['location_id']);
             $table->dropColumn('location_id');
         });

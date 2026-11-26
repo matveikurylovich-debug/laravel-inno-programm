@@ -1,7 +1,22 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
 parameters:
-    level: 5
+    level: 8
     paths:
         - app
+        - config
+        - routes
+        - tests
+    excludePaths:
+        - config/l5-swagger.php
     tmpDir: /tmp/phpstan-search
+    reportUnmatchedIgnoredErrors: true
+    ignoreErrors:
+        -
+            identifier: variable.undefined
+            message: '#^Undefined variable: \$this$#'
+            paths:
+                - tests/*
+            reportUnmatched: false

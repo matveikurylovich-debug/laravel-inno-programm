@@ -4,83 +4,133 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
+import NotFoundState from "@/app/components/NotFoundState";
 import CardPayment from "@/app/components/CardPayment";
-import { apiFetch, readError } from "@/app/lib/api";
-import { canCancel, isFinalStatus, money, statusLabel, type Order } from "@/app/lib/orders";
+import { ApiError } from "@/app/lib/api";
+import { cancelOrderById, getOrder, type Order } from "@/app/lib/api/orders";
+import { formatMoney } from "@/app/lib/format";
+import { isMissingResourceMessage } from "@/app/lib/not-found";
+import { isFinalStatus, statusLabel } from "@/app/lib/orders";
+import { canCancelOrder } from "@/app/lib/permissions";
+import { useSession } from "@/app/providers/SessionProvider";
+
+const MAX_TRANSIENT_POLL_ERRORS = 3;
 
 export default function OrderPage() {
   const params = useParams<{ id: string }>();
+  const { user } = useSession();
   const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
 
-  const load = useCallback(async (): Promise<Order | null> => {
-    const response = await apiFetch(`/api/orders/${params.id}`);
-    if (!response.ok) {
-      setError(await readError(response));
-      return null;
-    }
-
-    const body = (await response.json()) as { data: Order };
-    setOrder(body.data);
-    setError("");
-
-    return body.data;
-  }, [params.id]);
+  const loadOrder = useCallback(
+    async (signal?: AbortSignal): Promise<{ order: Order | null; fatal: boolean }> => {
+      try {
+        const fetched = await getOrder(params.id, signal);
+        setOrder(fetched);
+        setError("");
+        setLoading(false);
+        return { order: fetched, fatal: false };
+      } catch (reason: unknown) {
+        if (reason instanceof Error && reason.name === "AbortError") {
+          return { order: null, fatal: true };
+        }
+        setLoading(false);
+        if (reason instanceof ApiError) {
+          setError(reason.message);
+          const unrecoverable =
+            reason.status >= 400 && reason.status < 500 && reason.status !== 429;
+          return { order: null, fatal: unrecoverable };
+        }
+        setError("Не удалось загрузить заказ");
+        return { order: null, fatal: false };
+      }
+    },
+    [params.id],
+  );
 
   useEffect(() => {
+    const controller = new AbortController();
     let timer = 0;
     let stopped = false;
+    let transientErrors = 0;
 
     async function poll() {
-      const current = await load().catch(() => {
-        setError("Не удалось загрузить заказ");
-        return null;
-      });
+      const { order: current, fatal } = await loadOrder(controller.signal);
 
-      if (stopped || (current && isFinalStatus(current.status))) {
+      if (stopped || controller.signal.aborted || fatal) {
         return;
       }
 
-      timer = window.setTimeout(() => void poll(), 2000);
+      if (!current) {
+        transientErrors += 1;
+        if (transientErrors >= MAX_TRANSIENT_POLL_ERRORS) {
+          return;
+        }
+      } else {
+        transientErrors = 0;
+        if (isFinalStatus(current.status)) {
+          return;
+        }
+      }
+
+      timer = window.setTimeout(() => {
+        void poll();
+      }, 2000);
     }
 
     void poll();
 
     return () => {
       stopped = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
-  }, [load]);
+  }, [loadOrder]);
 
-  async function cancelOrder() {
+  async function handleCancelOrder() {
     if (!order || cancelling) {
       return;
     }
 
     setCancelling(true);
     setError("");
-    const response = await apiFetch(`/api/orders/${order.id}/cancel`, { method: "POST" });
-    setCancelling(false);
 
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
+    try {
+      const updated = await cancelOrderById(order.id);
+      setOrder((prev) => (prev ? { ...prev, ...updated } : updated));
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Не удалось отменить заказ");
+    } finally {
+      setCancelling(false);
     }
+  }
 
-    await load();
+  if (!loading && !order && isMissingResourceMessage(error)) {
+    return <NotFoundState />;
   }
 
   const clientSecret = order?.payment?.stripe_client_secret;
   const waitingForPayment = order?.status === "payment_pending" && Boolean(clientSecret);
-  const waitingForSaga = order !== null && !isFinalStatus(order.status) && !waitingForPayment;
+  const waitingForSaga =
+    order !== null && !isFinalStatus(order.status) && !waitingForPayment && !error;
 
   return (
     <div className="min-h-screen">
       <AppHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-        <Link href="/orders" className="btn btn-ghost btn-sm -ml-3">← Все заказы</Link>
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        <Link href="/orders" className="btn btn-ghost btn-sm -ml-3">
+          ← Все заказы
+        </Link>
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
+        {loading && !order ? (
+          <p className="mt-6 text-sm text-slate-500">Загружаем заказ...</p>
+        ) : null}
         {order ? (
           <article className="card mt-4 p-6">
             <div className="flex items-start justify-between gap-4">
@@ -88,26 +138,34 @@ export default function OrderPage() {
                 <h1 className="page-title">{statusLabel(order.status)}</h1>
                 <p className="page-subtitle">{order.id}</p>
               </div>
-              <p className="text-xl font-semibold">{money(order.total_amount, order.currency)}</p>
+              <p className="text-xl font-semibold">
+                {formatMoney(order.total_amount, order.currency)}
+              </p>
             </div>
 
             <ul className="mt-6 divide-y divide-slate-100">
               {(order.items ?? []).map((item) => (
                 <li key={item.id} className="flex justify-between py-3 text-sm">
-                  <span>{item.product_name} × {item.quantity}</span>
-                  <span>{money(item.subtotal, order.currency)}</span>
+                  <span>
+                    {item.product_name} × {item.quantity}
+                  </span>
+                  <span>{formatMoney(item.subtotal, order.currency)}</span>
                 </li>
               ))}
             </ul>
 
-            {waitingForSaga ? <p className="mt-4 text-sm text-slate-500">Обновляем статус заказа...</p> : null}
+            {waitingForSaga ? (
+              <p className="mt-4 text-sm text-slate-500">Обновляем статус заказа...</p>
+            ) : null}
 
-            {canCancel(order.status) ? (
+            {canCancelOrder(user, order) ? (
               <button
                 type="button"
                 className="btn btn-danger mt-6"
                 disabled={cancelling}
-                onClick={() => void cancelOrder()}
+                onClick={() => {
+                  void handleCancelOrder();
+                }}
               >
                 {cancelling ? "Отменяем..." : "Отменить заказ"}
               </button>
@@ -120,7 +178,9 @@ export default function OrderPage() {
                   orderId={order.id}
                   clientSecret={clientSecret}
                   publishableKey={order.payment?.publishable_key ?? ""}
-                  onPaid={() => void load()}
+                  onPaid={() => {
+                    void loadOrder();
+                  }}
                 />
               </div>
             ) : null}

@@ -1,87 +1,117 @@
 <?php
 
-namespace Tests\Feature\Api;
+declare(strict_types=1);
 
+use App\Enums\NotificationStatus;
 use App\Mail\Auth\UserRegisteredMail;
-use App\Models\NotificationLog;
-use Firebase\JWT\JWT;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Tests\TestCase;
 
-class NotificationApiTest extends TestCase
-{
-    private string $secret = 'test-secret-key-for-jwt-testing-12345';
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+it('allows admin and analyst to list notifications with filters and exposes user_id and event_id', function (): void {
+    seedNotificationLog([
+        'event_id' => 'evt-ann-1',
+        'user_id' => 101,
+        'event' => 'user.registered',
+        'status' => NotificationStatus::Sent,
+        'recipient' => 'ann@example.com',
+        'created_at' => now(),
+    ]);
 
-        config(['jwt.keys.access' => $this->secret, 'jwt.algo' => 'HS256']);
-        NotificationLog::query()->delete();
-    }
+    seedNotificationLog([
+        'event_id' => 'evt-bob-1',
+        'user_id' => 202,
+        'event' => 'order.paid',
+        'status' => NotificationStatus::Failed,
+        'recipient' => 'bob@example.com',
+        'created_at' => now()->subDays(3),
+        'error_message' => 'smtp down',
+    ]);
 
-    protected function tearDown(): void
-    {
-        if ($this->app !== null) {
-            NotificationLog::query()->delete();
-        }
-        parent::tearDown();
-    }
+    $old = seedNotificationLog([
+        'event_id' => 'evt-ann-old',
+        'user_id' => 101,
+        'event' => 'order.cancelled',
+        'status' => NotificationStatus::Sent,
+        'recipient' => 'ann@example.com',
+        'created_at' => now()->subDays(20),
+    ]);
 
-    public function test_admin_lists_notifications_with_filters(): void
-    {
-        $this->log('user.registered', 'sent', 'ann@example.com', now());
-        $this->log('order.paid', 'failed', 'bob@example.com', now()->subDays(3));
-        $old = $this->log('order.cancelled', 'sent', 'ann@example.com', now()->subDays(20));
-
-        $this->asRole('admin')
-            ->getJson('/api/notifications?status=sent&recipient=ann')
-            ->assertOk()
-            ->assertJsonCount(2, 'data')
-            ->assertJsonFragment(['recipient' => 'ann@example.com', 'status' => 'sent']);
-
-        $this->asRole('analyst')
-            ->getJson('/api/notifications?status=failed&channel=email')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonFragment(['recipient' => 'bob@example.com', 'status' => 'failed']);
-
-        $recent = $this->asRole('admin')
-            ->getJson('/api/notifications?'.http_build_query([
-                'date_from' => now()->subDays(5)->toDateString(),
-                'date_to' => now()->toDateString(),
-                'channel' => 'email',
-            ]))
-            ->assertOk();
-
-        $ids = collect($recent->json('data'))->pluck('id');
-        $this->assertFalse($ids->contains((string) $old->_id));
-        $this->assertCount(2, $ids);
-    }
-
-    public function test_show_returns_payload_and_missing_id_is_not_found(): void
-    {
-        $log = $this->log('user.registered', 'sent', 'ann@example.com', now(), [
-            'event' => 'user.registered',
-            'email' => 'ann@example.com',
-            'data' => ['name' => 'Ann'],
+    getJson('/api/v1/notifications?status=sent&recipient=ann', roleHeaders('admin'))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonFragment([
+            'recipient' => 'ann@example.com',
+            'status' => 'sent',
+            'user_id' => 101,
         ]);
 
-        $this->asRole('analyst')
-            ->getJson('/api/notifications/'.$log->_id)
-            ->assertOk()
-            ->assertJsonPath('data.event', 'user.registered')
-            ->assertJsonPath('data.recipient', 'ann@example.com')
-            ->assertJsonMissingPath('data.payload');
+    getJson('/api/v1/notifications?status=failed&channel=email', roleHeaders('analyst'))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonFragment([
+            'event_id' => 'evt-bob-1',
+            'recipient' => 'bob@example.com',
+            'status' => 'failed',
+            'user_id' => 202,
+        ]);
 
-        $this->asRole('admin')
-            ->getJson('/api/notifications/missing-id')
-            ->assertNotFound();
-    }
+    $recent = getJson('/api/v1/notifications?'.http_build_query([
+        'date_from' => now()->subDays(5)->toDateString(),
+        'date_to' => now()->toDateString(),
+        'channel' => 'email',
+    ]), roleHeaders('admin'))->assertOk();
 
-    public function test_api_does_not_return_codes_or_reset_links(): void
-    {
-        $log = $this->log('auth.two_factor_code', 'sent', 'ann@example.com', now(), [
+    /** @var list<array<string, mixed>> $recentData */
+    $recentData = $recent->json('data');
+    $ids = collect($recentData)->pluck('id');
+
+    expect($ids->contains((string) $old->getKey()))->toBeFalse()
+        ->and($ids)->toHaveCount(2);
+});
+
+it('validates index query parameters strictly and returns 422 on per_page=101 or invalid date range', function (): void {
+    getJson('/api/v1/notifications?per_page=101', roleHeaders('admin'))
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json')
+        ->assertJsonPath('errors.per_page.0', static fn (string $msg): bool => $msg !== '');
+
+    getJson('/api/v1/notifications?status=unknown', roleHeaders('admin'))
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json');
+
+    getJson('/api/v1/notifications?date_from=2026-11-25&date_to=2026-11-20', roleHeaders('admin'))
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json');
+});
+
+it('forbids customer access to notifications and forbids analyst from replaying', function (): void {
+    $log = seedNotificationLog([
+        'event' => 'user.registered',
+        'status' => NotificationStatus::Failed,
+        'recipient' => 'ann@example.com',
+        'payload' => ['event' => 'user.registered', 'email' => 'ann@example.com', 'data' => ['name' => 'Ann']],
+    ]);
+
+    $id = (string) $log->getKey();
+
+    getJson('/api/v1/notifications', roleHeaders('customer'))->assertForbidden();
+    getJson('/api/v1/notifications/'.$id, roleHeaders('customer'))->assertForbidden();
+    postJson('/api/v1/notifications/'.$id.'/replay', [], roleHeaders('customer'))->assertForbidden();
+    postJson('/api/v1/notifications/'.$id.'/replay', [], roleHeaders('analyst'))->assertForbidden();
+});
+
+it('returns notification details without payload secrets and 404 for missing id', function (): void {
+    $log = seedNotificationLog([
+        'event_id' => 'evt-sec-1',
+        'user_id' => 9,
+        'event' => 'auth.two_factor_code',
+        'status' => NotificationStatus::Sent,
+        'recipient' => 'ann@example.com',
+        'payload' => [
             'event' => 'auth.two_factor_code',
             'email' => 'ann@example.com',
             'data' => [
@@ -89,131 +119,120 @@ class NotificationApiTest extends TestCase
                 'reset_url' => 'http://localhost:3000/reset-password/token',
                 'ttl_minutes' => 5,
             ],
-        ]);
+        ],
+    ]);
 
-        $response = $this->asRole('analyst')
-            ->getJson('/api/notifications?recipient=ann@example.com')
-            ->assertOk()
-            ->assertJsonMissingPath('data.0.payload');
+    $response = getJson('/api/v1/notifications/'.$log->getKey(), roleHeaders('analyst'))
+        ->assertOk()
+        ->assertJsonPath('data.event', 'auth.two_factor_code')
+        ->assertJsonPath('data.user_id', 9)
+        ->assertJsonPath('data.event_id', 'evt-sec-1')
+        ->assertJsonMissingPath('data.payload');
 
-        $this->assertStringNotContainsString('123456', $response->getContent());
-        $this->assertStringNotContainsString('reset-password/token', $response->getContent());
-    }
+    $body = (string) $response->getContent();
+    expect(str_contains($body, '123456'))->toBeFalse()
+        ->and(str_contains($body, 'reset-password/token'))->toBeFalse();
 
-    public function test_replay_refuses_to_resend_a_stored_secret(): void
-    {
-        Mail::fake();
+    getJson('/api/v1/notifications/65f999999999999999999999', roleHeaders('admin'))
+        ->assertNotFound();
+});
 
-        $log = $this->log('auth.two_factor_code', 'failed', 'ann@example.com', now(), [
-            'event' => 'auth.two_factor_code',
-            'email' => 'ann@example.com',
-            'data' => ['code' => '123456', 'ttl_minutes' => 5],
-        ], true);
+it('rejects replay of two_factor_code and password_reset with domain 422 problem code', function (): void {
+    Mail::fake();
 
-        $this->asRole('admin')
-            ->postJson('/api/notifications/'.$log->_id.'/replay')
-            ->assertStatus(422);
+    $twoFactor = seedNotificationLog([
+        'event' => 'auth.two_factor_code',
+        'status' => NotificationStatus::Failed,
+        'recipient' => 'ann@example.com',
+        'payload' => ['event' => 'auth.two_factor_code', 'email' => 'ann@example.com', 'data' => ['ttl_minutes' => 5]],
+        'is_dlq' => true,
+    ]);
 
-        $reset = $this->log('auth.password_reset', 'failed', 'ann@example.com', now(), [
-            'event' => 'auth.password_reset',
-            'email' => 'ann@example.com',
-            'data' => ['reset_url' => 'http://localhost:3000/reset-password/token'],
-        ], true);
+    postJson('/api/v1/notifications/'.$twoFactor->getKey().'/replay', [], roleHeaders('admin'))
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json')
+        ->assertJsonPath('code', 'notification_secret_redacted');
 
-        $this->asRole('admin')
-            ->postJson('/api/notifications/'.$reset->_id.'/replay')
-            ->assertStatus(422);
+    $reset = seedNotificationLog([
+        'event' => 'auth.password_reset',
+        'status' => NotificationStatus::Failed,
+        'recipient' => 'ann@example.com',
+        'payload' => ['event' => 'auth.password_reset', 'email' => 'ann@example.com', 'data' => ['expires_in' => 15]],
+        'is_dlq' => true,
+    ]);
 
-        Mail::assertNothingSent();
-    }
+    postJson('/api/v1/notifications/'.$reset->getKey().'/replay', [], roleHeaders('admin'))
+        ->assertStatus(422)
+        ->assertHeader('content-type', 'application/problem+json')
+        ->assertJsonPath('code', 'notification_secret_redacted');
 
-    public function test_redact_command_removes_stored_secrets(): void
-    {
-        $log = $this->log('auth.password_reset', 'sent', 'ann@example.com', now(), [
-            'event' => 'auth.password_reset',
-            'email' => 'ann@example.com',
-            'data' => [
-                'reset_url' => 'http://localhost:3000/reset-password/token',
-                'code' => '123456',
-                'expires_in' => 60,
-            ],
-        ]);
+    Mail::assertNothingSent();
+});
 
-        $this->artisan('notifications:purge-secrets')->assertSuccessful();
+it('replays failed notification, updates replayed_by and replayed_at, and writes audit log', function (): void {
+    Mail::fake();
 
-        $fresh = NotificationLog::query()->find($log->_id);
-        $this->assertNotNull($fresh);
-        $data = is_array($fresh->payload['data'] ?? null) ? $fresh->payload['data'] : [];
-        $this->assertArrayNotHasKey('code', $data);
-        $this->assertArrayNotHasKey('reset_url', $data);
-        $this->assertSame(60, $data['expires_in'] ?? null);
-    }
+    /** @var list<array{level: string, message: string, context: array<string, mixed>}> $logged */
+    $logged = [];
+    Log::listen(static function (MessageLogged $event) use (&$logged): void {
+        $logged[] = [
+            'level' => $event->level,
+            'message' => $event->message,
+            'context' => $event->context,
+        ];
+    });
 
-    public function test_admin_can_replay_failed_notification(): void
-    {
-        Mail::fake();
-
-        $log = $this->log('user.registered', 'failed', 'ann@example.com', now(), [
+    $log = seedNotificationLog([
+        'event_id' => 'evt-replay-1',
+        'user_id' => 7,
+        'event' => 'user.registered',
+        'status' => NotificationStatus::Failed,
+        'recipient' => 'ann@example.com',
+        'payload' => [
             'event' => 'user.registered',
             'email' => 'ann@example.com',
             'data' => ['name' => 'Ann'],
-        ], true);
+        ],
+        'attempts' => 1,
+        'is_dlq' => true,
+        'error_message' => 'smtp down',
+    ]);
 
-        $this->asRole('admin')
-            ->postJson('/api/notifications/'.$log->_id.'/replay')
-            ->assertOk()
-            ->assertJsonPath('data.status', 'sent')
-            ->assertJsonPath('data.is_dlq', false);
+    $id = (string) $log->getKey();
 
-        Mail::assertSent(UserRegisteredMail::class, fn (UserRegisteredMail $mail) => $mail->hasTo('ann@example.com'));
-        $this->assertSame('sent', $log->fresh()->status);
-    }
+    postJson('/api/v1/notifications/'.$id.'/replay', [], roleHeaders('admin', 42))
+        ->assertOk()
+        ->assertJsonPath('data.status', 'sent')
+        ->assertJsonPath('data.is_dlq', false)
+        ->assertJsonPath('data.replayed_by', 42);
 
-    public function test_replay_rejects_notifications_that_are_not_failed(): void
-    {
-        $log = $this->log('user.registered', 'sent', 'ann@example.com', now());
+    Mail::assertSent(UserRegisteredMail::class, static fn (UserRegisteredMail $mail): bool => $mail->hasTo('ann@example.com'));
 
-        $this->asRole('admin')
-            ->postJson('/api/notifications/'.$log->_id.'/replay')
-            ->assertStatus(422);
+    $updated = findNotificationLog($id);
+    expect($updated->status)->toBe(NotificationStatus::Sent)
+        ->and($updated->replayed_by)->toBe(42)
+        ->and($updated->replayed_at)->not->toBeNull();
 
-        $this->asRole('admin')
-            ->postJson('/api/notifications/missing-id/replay')
-            ->assertNotFound();
-    }
+    expect($logged)->toContain([
+        'level' => 'info',
+        'message' => 'notification.replayed',
+        'context' => [
+            'notification_id' => $id,
+            'actor_id' => 42,
+        ],
+    ]);
+});
 
-    private function asRole(string $role): static
-    {
-        $pem = (string) file_get_contents(dirname(__DIR__, 4).'/packages/platform-kit/tests/fixtures/access-private.pem');
-        $token = (new \Ecommerce\PlatformKit\Token\AccessTokenSigner($pem, 'test-1', 'http://auth-app', 'ecommerce'))
-            ->issue(1, [$role]);
+it('rejects replay of non-failed notification and disables swagger UI outside local env', function (): void {
+    $sent = seedNotificationLog([
+        'event' => 'user.registered',
+        'status' => NotificationStatus::Sent,
+        'recipient' => 'ann@example.com',
+    ]);
 
-        return $this->withHeader('Authorization', 'Bearer '.$token);
-    }
+    postJson('/api/v1/notifications/'.$sent->getKey().'/replay', [], roleHeaders('admin'))
+        ->assertStatus(422)
+        ->assertJsonPath('code', 'notification_not_failed');
 
-    private function log(
-        string $event,
-        string $status,
-        string $recipient,
-        \DateTimeInterface $createdAt,
-        array $payload = [],
-        bool $dlq = false,
-    ): NotificationLog {
-        $log = NotificationLog::query()->create([
-            'event' => $event,
-            'channel' => 'email',
-            'recipient' => $recipient,
-            'payload' => $payload ?: ['event' => $event, 'email' => $recipient, 'data' => []],
-            'status' => $status,
-            'attempts' => $status === 'failed' ? 3 : 1,
-            'is_dlq' => $dlq,
-            'error_message' => $status === 'failed' ? 'smtp down' : null,
-            'sent_at' => $status === 'sent' ? now() : null,
-        ]);
-
-        $log->created_at = $createdAt;
-        $log->save();
-
-        return $log->fresh();
-    }
-}
+    getJson('/api/documentation')->assertNotFound();
+});

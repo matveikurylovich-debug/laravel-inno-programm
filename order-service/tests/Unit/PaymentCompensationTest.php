@@ -2,19 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OutboxMessage;
 use App\Models\Payment;
-use App\Services\OrderService;
+use App\Services\Orders\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-beforeEach(function () {
+beforeEach(function (): void {
     mockRedis();
 });
 
-it('requests stock release after a failed payment', function () {
+it('keeps the reservation when a card is declined', function (): void {
     $order = Order::query()->create([
         'user_id' => 1,
         'email' => 'buyer@example.com',
@@ -33,18 +35,14 @@ it('requests stock release after a failed payment', function () {
         'status' => 'pending',
     ]);
 
-    app(OrderService::class)->handlePaymentFailed([
-        'id' => 'pi_fail',
-        'metadata' => ['order_id' => $order->id],
-    ]);
+    resolve(OrderService::class)->handlePaymentFailed(stripeIntent('pi_fail', $order->id));
 
     $order->refresh();
     $release = OutboxMessage::query()->where('event_type', 'stock.release_requested')->first();
 
-    expect($order->status)->toBe('payment_failed')
-        ->and($order->payment->status)->toBe('failed')
-        ->and($release)->not->toBeNull()
-        ->and($release->payload['order_id'])->toBe($order->id)
-        ->and($release->payload['store_id'])->toBe(4)
+    expect($order->status)->toBe(OrderStatus::PaymentPending)
+        ->and($order->payment_status)->toBe(PaymentStatus::Failed)
+        ->and($order->payment->status)->toBe(PaymentStatus::Failed)
+        ->and($release)->toBeNull()
         ->and(OutboxMessage::query()->where('event_type', 'order.payment_failed')->exists())->toBeTrue();
 });

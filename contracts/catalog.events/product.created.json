@@ -1,0 +1,30 @@
+{
+  "event_id": "44444444-4444-4444-8444-444444444441",
+  "event_type": "product.created",
+  "schema_version": 1,
+  "occurred_at": "2026-11-25T12:00:00+00:00",
+  "producer": "catalog-service",
+  "data": {
+    "event": "product.created",
+    "event_id": "44444444-4444-4444-8444-444444444441",
+    "id": 10,
+    "product_id": 10,
+    "store_id": 1,
+    "category_id": 3,
+    "category_path": [1, 3],
+    "category_name": "Смартфоны",
+    "name": "Смартфон X",
+    "slug": "smartfon-x",
+    "sku": "SKU-10",
+    "description": "Флагманский смартфон",
+    "brand": "Acme",
+    "price": "600.00",
+    "currency": "BYN",
+    "available": 5,
+    "is_in_stock": true,
+    "is_active": true,
+    "attributes": {
+      "color": "black"
+    }
+  }
+}

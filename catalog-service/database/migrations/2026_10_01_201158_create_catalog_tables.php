@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -9,12 +11,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasTable('stores')) {
-            return;
-        }
-
-        // 1. Сторы (Тенанты)
-        Schema::create('stores', function (Blueprint $table) {
+        Schema::create('stores', static function (Blueprint $table): void {
             $table->id();
             $table->string('name');
             $table->string('slug')->unique();
@@ -24,8 +21,7 @@ return new class extends Migration
             $table->index('is_active');
         });
 
-        // 2. Дерево категорий (Adjacency List)
-        Schema::create('categories', function (Blueprint $table) {
+        Schema::create('categories', static function (Blueprint $table): void {
             $table->id();
             $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
             $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
@@ -34,13 +30,11 @@ return new class extends Migration
             $table->integer('position')->default(0);
             $table->timestamps();
 
-            // В рамках одного магазина slug категории уникален
             $table->unique(['store_id', 'slug']);
             $table->index(['store_id', 'parent_id', 'position']);
         });
 
-        // 3. Товары
-        Schema::create('products', function (Blueprint $table) {
+        Schema::create('products', static function (Blueprint $table): void {
             $table->id();
             $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
             $table->foreignId('category_id')->nullable()->constrained('categories')->nullOnDelete();
@@ -53,7 +47,6 @@ return new class extends Migration
             $table->jsonb('attributes')->default('{}');
             $table->timestamps();
 
-            // SKU уникален в пределах одного стора
             $table->unique(['store_id', 'sku']);
             $table->unique(['store_id', 'slug']);
             $table->index(['store_id', 'category_id', 'is_active']);
@@ -63,12 +56,11 @@ return new class extends Migration
             DB::statement('CREATE INDEX IF NOT EXISTS products_attributes_gin_idx ON products USING gin (attributes);');
         }
 
-        // 4. Изображения товаров (MinIO)
-        Schema::create('product_images', function (Blueprint $table) {
+        Schema::create('product_images', static function (Blueprint $table): void {
             $table->id();
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
-            $table->string('path'); // Путь к объекту в бакете MinIO (напр. products/1/uuid.webp)
-            $table->string('url');  // Публичный URL
+            $table->string('path');
+            $table->string('url');
             $table->boolean('is_primary')->default(false);
             $table->integer('position')->default(0);
             $table->timestamps();
@@ -76,30 +68,27 @@ return new class extends Migration
             $table->index(['product_id', 'is_primary']);
         });
 
-        // 5. Источник истины по остаткам (Stocks)
-        Schema::create('stocks', function (Blueprint $table) {
+        Schema::create('stocks', static function (Blueprint $table): void {
             $table->id();
             $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
-            $table->integer('quantity')->default(0);          // Физический остаток
-            $table->integer('reserved_quantity')->default(0); // Заблокировано под заказы
+            $table->integer('quantity')->default(0);
+            $table->integer('reserved_quantity')->default(0);
             $table->timestamps();
 
             $table->unique(['store_id', 'product_id']);
             $table->index(['store_id', 'quantity']);
         });
 
-        // 6. Журнал резерваций (Сага и защита от дублирования сообщений Kafka)
-        Schema::create('stock_reservations', function (Blueprint $table) {
+        Schema::create('stock_reservations', static function (Blueprint $table): void {
             $table->id();
             $table->uuid('order_id');
             $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
             $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
             $table->integer('quantity');
-            $table->string('status')->default('reserved'); // reserved, confirmed, released
+            $table->string('status')->default('reserved');
             $table->timestamps();
 
-            // Идемпотентность: один товар в заказе резервируется строго один раз
             $table->unique(['order_id', 'product_id']);
             $table->index(['order_id', 'status']);
         });

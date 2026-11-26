@@ -1,29 +1,36 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Console\Commands;
 
-use App\Kafka\Consumers\CatalogEventsConsumer;
+use App\Messaging\ConsumerFactory;
+use App\Messaging\Consumers\CatalogEventsConsumer;
 use Illuminate\Console\Command;
-use Junges\Kafka\Facades\Kafka;
+use Illuminate\Contracts\Config\Repository;
+use Override;
 
 class ConsumeCatalogEventsCommand extends Command
 {
-    protected $signature = 'kafka:consume-catalog';
+    #[Override]
+    protected $signature = 'search:consume-catalog-events';
 
+    #[Override]
     protected $description = 'Индексирует события каталога в Elasticsearch';
 
-    public function handle(CatalogEventsConsumer $handler): int
+    public function handle(CatalogEventsConsumer $handler, ConsumerFactory $consumers, Repository $config): int
     {
-        $topic = (string) config('kafka.topics.catalog_events', 'catalog.events');
-        $group = (string) config('kafka.consumer_group_id', 'search-service-catalog-group');
+        $rawTopic = $config->get('kafka.topics.catalog_events', 'catalog.events');
+        $rawGroup = $config->get('kafka.consumer_group_id', 'search-service-catalog-group');
+        $rawDlq = $config->get('kafka.dlq.catalog_events', 'catalog.events.dlq.search-service');
+
+        $topic = is_scalar($rawTopic) ? (string) $rawTopic : 'catalog.events';
+        $group = is_scalar($rawGroup) ? (string) $rawGroup : 'search-service-catalog-group';
+        $dlq = is_scalar($rawDlq) ? (string) $rawDlq : 'catalog.events.dlq.search-service';
 
         $this->info("Слушаем {$topic}, группа {$group}");
 
-        Kafka::consumer([$topic])
-            ->withConsumerGroupId($group)
-            ->withHandler($handler)
-            ->build()
-            ->consume();
+        $consumers->run($topic, $group, $dlq, $handler);
 
         return self::SUCCESS;
     }

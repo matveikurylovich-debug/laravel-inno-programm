@@ -4,10 +4,12 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/app/components/AppHeader";
-import { apiFetch, readError } from "@/app/lib/api";
-import { clearCart, setQuantity, type CartLine } from "@/app/lib/cart";
+import QuantityInput from "@/app/components/QuantityInput";
+import { ApiError } from "@/app/lib/api";
+import { createOrder } from "@/app/lib/api/orders";
+import { removeLine, removeLines, setQuantity, type CartLine } from "@/app/lib/cart";
+import { formatMoney } from "@/app/lib/format";
 import { useCart } from "@/app/lib/use-cart";
-import { money } from "@/app/lib/orders";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -18,6 +20,11 @@ export default function CheckoutPage() {
 
   function changeQuantity(productId: number, locationId: number, quantity: number) {
     setQuantity(productId, locationId, quantity);
+    idempotencyKey.current = "";
+  }
+
+  function removeItem(productId: number, locationId: number) {
+    removeLine(productId, locationId);
     idempotencyKey.current = "";
   }
 
@@ -41,36 +48,37 @@ export default function CheckoutPage() {
 
     const created: string[] = [];
 
-    for (const [key, group] of groups) {
-      const response = await apiFetch("/api/orders", {
-        method: "POST",
-        headers: { "Idempotency-Key": `${idempotencyKey.current}:${key}` },
-        body: JSON.stringify({
-          store_id: group[0].storeId,
-          location_id: group[0].locationId,
-          items: group.map((line) => ({
-            product_id: line.productId,
-            quantity: line.quantity,
-          })),
-        }),
-      });
+    try {
+      for (const [key, group] of groups) {
+        const order = await createOrder(
+          {
+            store_id: group[0].storeId,
+            location_id: group[0].locationId,
+            items: group.map((line) => ({
+              product_id: line.productId,
+              quantity: line.quantity,
+            })),
+          },
+          `${idempotencyKey.current}:${key}`,
+        );
 
-      if (!response.ok) {
-        setPending(false);
-        setError(await readError(response));
-        idempotencyKey.current = "";
-        return;
+        created.push(order.id);
+        removeLines(group);
       }
 
-      const body = (await response.json()) as { data: { id: string } };
-      created.push(body.data.id);
+      router.push(created.length === 1 ? `/orders/${created[0]}` : "/orders");
+    } catch (reason: unknown) {
+      if (reason instanceof ApiError) {
+        setError(reason.message);
+      } else {
+        setError("Нет связи с сервером. Повторите попытку — заказ не задублируется.");
+      }
+    } finally {
+      setPending(false);
     }
-
-    setPending(false);
-    clearCart();
-    router.push(created.length === 1 ? `/orders/${created[0]}` : "/orders");
   }
 
+  const currency = lines[0]?.currency ?? "USD";
   const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
 
   return (
@@ -79,42 +87,74 @@ export default function CheckoutPage() {
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <h1 className="page-title">Оформление заказа</h1>
         <p className="page-subtitle">
-          Количество можно изменить перед отправкой. Повтор того же запроса использует один Idempotency-Key.{" "}
-          <Link href="/cart" className="text-brand-700">Вернуться в корзину</Link>
+          Проверьте выбранные позиции перед подтверждением.{" "}
+          <Link href="/cart" className="text-brand-700">
+            Вернуться в корзину
+          </Link>
         </p>
 
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
 
         {lines.length === 0 ? (
           <div className="card mt-6 px-6 py-12 text-center text-sm text-slate-500">
-            Корзина пуста. <Link href="/catalog" className="text-brand-700">Перейти в каталог</Link>
+            Корзина пуста.{" "}
+            <Link href="/catalog" className="text-brand-700">
+              Перейти в каталог
+            </Link>
           </div>
         ) : (
           <section className="card mt-6 p-6">
             <ul className="divide-y divide-slate-100">
               {lines.map((line) => (
-                <li key={`${line.productId}-${line.locationId}`} className="flex items-center justify-between gap-4 py-4">
+                <li
+                  key={`${line.productId}-${line.locationId}`}
+                  className="flex flex-wrap items-center justify-between gap-4 py-4"
+                >
                   <div>
                     <p className="font-medium">{line.name}</p>
-                    <p className="text-sm text-slate-500">{money(line.price)}</p>
+                    <p className="text-sm text-slate-500">
+                      {formatMoney(line.price, line.currency ?? currency)}
+                    </p>
                     <p className="text-sm text-slate-500">Самовывоз: {line.locationLabel}</p>
                   </div>
-                  <label className="text-sm text-slate-500">
-                    Кол-во
-                    <input
-                      className="input mt-1 w-20"
-                      type="number"
-                      min={1}
+                  <div className="flex items-end gap-3">
+                    <QuantityInput
+                      label="Кол-во"
                       value={line.quantity}
-                      onChange={(event) => changeQuantity(line.productId, line.locationId, Number(event.target.value))}
+                      disabled={pending}
+                      onChange={(nextQuantity) =>
+                        changeQuantity(line.productId, line.locationId, nextQuantity)
+                      }
                     />
-                  </label>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => removeItem(line.productId, line.locationId)}
+                    >
+                      Убрать
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-lg font-semibold">{money(total)}</p>
-              <button type="button" className="btn btn-primary" disabled={pending} onClick={() => void placeOrder()}>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+              <div>
+                <p className="text-lg font-semibold">{formatMoney(total, currency)}</p>
+                <p className="mt-0.5 text-xs text-slate-500">Итоговую сумму рассчитает сервер</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={pending}
+                onClick={() => {
+                  void placeOrder();
+                }}
+              >
                 {pending ? "Отправляем..." : "Оформить заказ"}
               </button>
             </div>

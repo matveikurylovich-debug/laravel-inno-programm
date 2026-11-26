@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use App\Models\Category;
@@ -79,7 +81,7 @@ class DemoProductsSeeder extends Seeder
         );
 
         foreach ($locations as $index => $location) {
-            $quantity = $index === 0 ? (int) $stock : (int) max(0, intdiv((int) $stock, 3));
+            $quantity = $index === 0 ? (int) $stock : max(0, intdiv((int) $stock, 3));
 
             Stock::query()->updateOrCreate(
                 ['location_id' => $location->id, 'product_id' => $product->id],

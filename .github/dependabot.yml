@@ -1,64 +1,52 @@
 version: 2
 updates:
+  - package-ecosystem: composer
+    directories:
+      - /packages/platform-kit
+      - /auth-service
+      - /catalog-service
+      - /order-service
+      - /search-service
+      - /notification-service
+      - /recommendation-service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      laravel:
+        patterns:
+          - "laravel/*"
+          - "illuminate/*"
+      symfony:
+        patterns:
+          - "symfony/*"
+      dev-tools:
+        dependency-type: development
+        patterns:
+          - "*"
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    groups:
+      next:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+          - "react"
+          - "react-dom"
   - package-ecosystem: gomod
-    directory: /analytics-service/backend
+    directory: /analytics-service
     schedule:
       interval: weekly
-  - package-ecosystem: composer
-    directory: /auth-service
+  - package-ecosystem: docker
+    directories:
+      - /infra/php
+      - /frontend
+      - /analytics-service
     schedule:
       interval: weekly
-    groups:
-      laravel:
-        patterns: ["laravel/*"]
-      symfony:
-        patterns: ["symfony/*"]
-  - package-ecosystem: composer
-    directory: /catalog-service
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
       interval: weekly
-    groups:
-      laravel:
-        patterns: ["laravel/*"]
-      symfony:
-        patterns: ["symfony/*"]
-  - package-ecosystem: composer
-    directory: /order-service
-    schedule:
-      interval: weekly
-    groups:
-      laravel:
-        patterns: ["laravel/*"]
-      symfony:
-        patterns: ["symfony/*"]
-  - package-ecosystem: composer
-    directory: /search-service
-    schedule:
-      interval: weekly
-    groups:
-      laravel:
-        patterns: ["laravel/*"]
-      symfony:
-        patterns: ["symfony/*"]
-  - package-ecosystem: composer
-    directory: /notification-service
-    schedule:
-      interval: weekly
-    groups:
-      laravel:
-        patterns: ["laravel/*"]
-      symfony:
-        patterns: ["symfony/*"]
-  - package-ecosystem: composer
-    directory: /recommendation-service
-    schedule:
-      interval: weekly
-    groups:
-      laravel:
-        patterns: ["laravel/*"]
-      symfony:
-        patterns: ["symfony/*"]

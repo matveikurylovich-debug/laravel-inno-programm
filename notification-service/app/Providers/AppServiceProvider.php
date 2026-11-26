@@ -1,23 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
+use App\Contracts\NotificationLogRepository;
+use App\Services\Notifications\MongoNotificationLogRepository;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
+        $this->app->bind(NotificationLogRepository::class, MongoNotificationLogRepository::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        //
-    }
+    public function boot(): void {}
 }

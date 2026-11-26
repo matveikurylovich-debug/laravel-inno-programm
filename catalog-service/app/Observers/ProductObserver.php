@@ -1,58 +1,50 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Observers;
 
 use App\Models\Product;
-use App\Services\CatalogCacheService;
-use App\Services\Kafka\CatalogEventProducer;
+use App\Services\Products\CatalogCacheService;
+use App\Services\Products\ProductEventPublisher;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ProductObserver
 {
     public function __construct(
-        protected CatalogCacheService $cacheService,
-        protected CatalogEventProducer $events,
+        private readonly CatalogCacheService $cacheService,
+        private readonly ProductEventPublisher $productEvents,
     ) {}
 
     public function created(Product $product): void
     {
-        $this->cacheService->forgetProductList($product->store_id);
+        $this->cacheService->forgetProductList((int) $product->store_id);
     }
 
     public function updated(Product $product): void
     {
-        $this->cacheService->forgetProduct($product->id);
-        $this->cacheService->forgetProductList($product->store_id);
-        $this->events->productUpdated(
-            (int) $product->id,
-            (int) $product->store_id,
-            (string) $product->name,
-            (string) $product->price,
-            (bool) $product->is_active,
-            $this->searchFields($product),
-        );
+        $this->cacheService->forgetProduct((int) $product->id);
+        $this->cacheService->forgetProductList((int) $product->store_id);
+        $this->productEvents->publishUpdated($product);
+    }
+
+    public function deleting(Product $product): void
+    {
+        /** @var list<string> $paths */
+        $paths = $product->images()->pluck('path')->all();
+
+        DB::afterCommit(static function () use ($paths): void {
+            if ($paths !== []) {
+                Storage::disk('minio')->delete($paths);
+            }
+        });
     }
 
     public function deleted(Product $product): void
     {
-        $this->cacheService->forgetProduct($product->id);
-        $this->cacheService->forgetProductList($product->store_id);
-        $this->events->productDeleted((int) $product->id, (int) $product->store_id);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function searchFields(Product $product): array
-    {
-        $product->loadMissing(['category', 'stock']);
-
-        return [
-            'description' => (string) ($product->description ?? ''),
-            'category_id' => $product->category_id,
-            'category_name' => (string) ($product->category->name ?? ''),
-            'attributes' => $product->attributes ?? [],
-            'quantity' => (int) $product->stock->sum('quantity'),
-            'available' => $product->available_stock,
-        ];
+        $this->cacheService->forgetProduct((int) $product->id);
+        $this->cacheService->forgetProductList((int) $product->store_id);
+        $this->productEvents->publishDeleted((int) $product->id, (int) $product->store_id);
     }
 }

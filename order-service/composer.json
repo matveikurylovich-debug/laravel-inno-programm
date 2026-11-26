@@ -1,36 +1,43 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "ecommerce/order",
+    "name": "ecommerce/order-service",
     "type": "project",
     "description": "Orders, payments and the saga for the shop.",
     "keywords": [
         "laravel",
         "framework"
     ],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
-        "php": "^8.3",
+        "php": "~8.5.0",
+        "ext-bcmath": "*",
+        "ext-intl": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-rdkafka": "*",
+        "ext-redis": "*",
         "darkaonline/l5-swagger": "^11.2",
+        "ecommerce/platform-kit": "^1.0",
         "firebase/php-jwt": "^7.2",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "mateusjunges/laravel-kafka": "^2.11",
         "php-amqplib/php-amqplib": "^3.7",
-        "stripe/stripe-php": "^22.0",
-        "ecommerce/platform-kit": "^1.0"
+        "stripe/stripe-php": "^22.0"
     },
     "require-dev": {
+        "driftingly/rector-laravel": "^2.7",
         "fakerphp/faker": "^1.23",
-        "larastan/larastan": "*",
-        "laravel/boost": "*",
+        "larastan/larastan": "^3.13",
+        "laravel/boost": "^2.10",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
-        "laravel/pint": "*",
+        "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "pestphp/pest": "*",
-        "pestphp/pest-plugin-laravel": "*",
-        "phpunit/phpunit": "^12.5.12"
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0",
+        "phpunit/phpunit": "^12.5.12",
+        "rector/rector": "^2.7"
     },
     "autoload": {
         "psr-4": {
@@ -49,9 +56,7 @@
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
-            "@php artisan migrate --force",
-            "npm install --ignore-scripts",
-            "npm run build"
+            "@php artisan migrate --force"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
@@ -77,19 +82,20 @@
         ],
         "lint": "pint --test",
         "lint:fix": "pint",
-        "phpstan": "phpstan analyse --memory-limit=1G",
+        "analyse": "phpstan analyse --memory-limit=1G --no-progress",
+        "analyse:baseline": "phpstan analyse --memory-limit=1G --generate-baseline",
+        "refactor": "rector process --dry-run --no-progress-bar",
+        "refactor:fix": "rector process --no-progress-bar",
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",
-            "@php artisan test"
+            "@php artisan test --exclude-group=pgsql"
         ],
-        "quality": [
+        "check": [
             "@lint",
-            "@phpstan",
+            "@refactor",
+            "@analyse",
             "@test"
-        ],
-        "analyse": "phpstan analyse --memory-limit=1G --no-progress",
-        "check": ["@lint", "@analyse", "@test"],
-        "refactor": "bash ../scripts/ci/rector-dry-run.sh"
+        ]
     },
     "extra": {
         "laravel": {
@@ -98,6 +104,7 @@
     },
     "config": {
         "optimize-autoloader": true,
+        "platform-check": "php-only",
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {

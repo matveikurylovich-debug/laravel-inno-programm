@@ -1,212 +1,226 @@
 <?php
 
-namespace Tests\Feature\Api;
+declare(strict_types=1);
 
+use App\Enums\RoleName;
 use App\Events\TwoFactorCodeRequested;
+use App\Messaging\Producers\AuthEventsProducer;
 use App\Models\User;
-use App\Services\Kafka\AuthNotificationProducer;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Ecommerce\PlatformKit\Messaging\EventEnvelope;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Junges\Kafka\Facades\Kafka;
-use Spatie\Permission\Models\Role;
-use Tests\TestCase;
+use Mockery\MockInterface;
 
-class PasswordResetAndTwoFactorTest extends TestCase
-{
-    use RefreshDatabase;
+it('sends a two-factor challenge instead of issuing tokens directly on login', function (): void {
+    Event::fake([TwoFactorCodeRequested::class]);
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
 
-        Role::firstOrCreate(['name' => 'customer']);
-    }
+    $response = $this->postJson('/api/v1/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ])->assertOk()
+        ->assertJsonPath('two_factor', true)
+        ->assertJsonMissingPath('user_id')
+        ->assertJsonMissingPath('access_token');
 
-    public function test_login_sends_two_factor_challenge_instead_of_tokens(): void
-    {
-        Event::fake([TwoFactorCodeRequested::class]);
+    $challengeId = $response->json('challenge_id');
+    expect($challengeId)->toBeString()
+        ->and(strlen((string) $challengeId))->toBe(40);
 
-        $user = User::factory()->create();
-        $user->assignRole('customer');
+    $cached = Cache::get('2fa_challenge_'.$challengeId);
+    expect($cached)->toBeArray()
+        ->and($cached)->not->toHaveKey('code');
 
-        $response = $this->postJson('/api/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ])->assertOk()
-            ->assertJsonPath('two_factor', true)
-            ->assertJsonMissingPath('user_id')
-            ->assertJsonMissingPath('access_token');
+    Event::assertDispatched(TwoFactorCodeRequested::class, fn (TwoFactorCodeRequested $event): bool => is_array($cached)
+        && isset($cached['code_hash'])
+        && is_string($cached['code_hash'])
+        && preg_match('/^\d{6}$/', $event->code) === 1
+        && hash_equals($cached['code_hash'], hash('sha256', $event->code)));
+});
 
-        $challengeId = $response->json('challenge_id');
-        $this->assertIsString($challengeId);
-        $cached = Cache::get('2fa_challenge_'.$challengeId);
-        $this->assertIsArray($cached);
-        $this->assertArrayNotHasKey('code', $cached);
+it('issues JWT on valid two-factor code and rejects wrong code', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
 
-        $this->assertSame(40, strlen((string) $challengeId));
+    $challenge = $this->twoFactorChallenge($user);
 
-        Event::assertDispatched(TwoFactorCodeRequested::class, function (TwoFactorCodeRequested $event) use ($cached) {
-            return preg_match('/^\d{6}$/', $event->code) === 1
-                && hash_equals($cached['code_hash'], hash('sha256', $event->code));
-        });
-    }
+    $this->postJson('/api/v1/two-factor/verify', [
+        'user_id' => $user->id,
+        'code' => $challenge['code'],
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('challenge_id');
 
-    public function test_two_factor_verify_issues_jwt_and_rejects_wrong_code(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole('customer');
+    $wrong = $challenge['code'] === '000000' ? '111111' : '000000';
+    $this->postJson('/api/v1/two-factor/verify', [
+        'challenge_id' => $challenge['challenge_id'],
+        'code' => $wrong,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('code');
 
-        $challenge = $this->twoFactorChallenge($user);
+    $this->postJson('/api/v1/two-factor/verify', [
+        'challenge_id' => $challenge['challenge_id'],
+        'code' => $challenge['code'],
+    ])->assertOk()
+        ->assertJsonStructure(['access_token', 'refresh_token', 'user']);
 
-        $this->postJson('/api/two-factor/verify', [
-            'user_id' => $user->id,
-            'code' => $challenge['code'],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors('challenge_id');
+    expect(Cache::get('2fa_challenge_'.$challenge['challenge_id']))->toBeNull();
+});
 
-        $wrong = $challenge['code'] === '000000' ? '111111' : '000000';
-        $this->postJson('/api/two-factor/verify', [
+it('locks two-factor challenge after five failed attempts and requires active challenge for resend', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
+
+    $this->postJson('/api/v1/two-factor/resend', [
+        'user_id' => $user->id,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('challenge_id');
+
+    $challenge = $this->twoFactorChallenge($user);
+    $wrong = $challenge['code'] === '000000' ? '111111' : '000000';
+
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $this->postJson('/api/v1/two-factor/verify', [
             'challenge_id' => $challenge['challenge_id'],
             'code' => $wrong,
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('code');
-
-        $this->postJson('/api/two-factor/verify', [
-            'challenge_id' => $challenge['challenge_id'],
-            'code' => $challenge['code'],
-        ])->assertOk()
-            ->assertJsonStructure(['access_token', 'refresh_token', 'user']);
-
-        $this->assertNull(Cache::get('2fa_challenge_'.$challenge['challenge_id']));
     }
 
-    public function test_two_factor_locks_after_five_attempts_and_resend_requires_challenge(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole('customer');
+    $this->postJson('/api/v1/two-factor/verify', [
+        'challenge_id' => $challenge['challenge_id'],
+        'code' => $wrong,
+    ])->assertStatus(429);
 
-        $this->postJson('/api/two-factor/resend', [
-            'user_id' => $user->id,
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors('challenge_id');
+    $this->postJson('/api/v1/two-factor/verify', [
+        'challenge_id' => $challenge['challenge_id'],
+        'code' => $challenge['code'],
+    ])->assertStatus(429);
 
-        $challenge = $this->twoFactorChallenge($user);
-        $wrong = $challenge['code'] === '000000' ? '111111' : '000000';
+    expect(Cache::get('2fa_challenge_'.$challenge['challenge_id']))->toBeNull();
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
-            $this->postJson('/api/two-factor/verify', [
-                'challenge_id' => $challenge['challenge_id'],
-                'code' => $wrong,
-            ])->assertUnprocessable()
-                ->assertJsonValidationErrors('code');
+    $replacement = $this->twoFactorChallenge($user);
+    $this->postJson('/api/v1/two-factor/resend', [
+        'challenge_id' => $replacement['challenge_id'],
+    ])->assertOk()
+        ->assertJsonPath('challenge_id', $replacement['challenge_id'])
+        ->assertJsonMissingPath('user_id');
+});
+
+it('clears outstanding password reset tokens via artisan command', function (): void {
+    DB::table('password_reset_tokens')->insert([
+        'email' => 'admin@example.com',
+        'token' => hash('sha256', 'stale-link'),
+        'created_at' => now(),
+    ]);
+
+    $this->artisan('auth:invalidate-password-resets')->assertSuccessful();
+
+    $this->assertDatabaseCount('password_reset_tokens', 0);
+});
+
+it('publishes two-factor code event to Kafka with required fields', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
+    $challenge = $this->twoFactorChallenge($user);
+
+    Kafka::assertPublishedOn('auth.events', null, function (mixed $message) use ($user, $challenge): bool {
+        if (! is_object($message) || ! method_exists($message, 'getBody')) {
+            return false;
         }
+        $rawBody = $message->getBody();
+        $body = EventEnvelope::flatten(is_array($rawBody) ? $rawBody : []);
+        $data = is_array($body['data'] ?? null) ? $body['data'] : [];
 
-        $this->postJson('/api/two-factor/verify', [
-            'challenge_id' => $challenge['challenge_id'],
-            'code' => $wrong,
-        ])->assertStatus(429);
+        return ($body['event'] ?? null) === 'auth.two_factor_code'
+            && ($body['email'] ?? null) === $user->email
+            && (string) ($body['user_id'] ?? '') === (string) $user->id
+            && ($data['code'] ?? null) === $challenge['code']
+            && is_int($data['ttl_minutes'] ?? null);
+    });
+});
 
-        $this->postJson('/api/two-factor/verify', [
-            'challenge_id' => $challenge['challenge_id'],
-            'code' => $challenge['code'],
-        ])->assertStatus(429);
+it('publishes password reset link with frontend URL on forgot-password', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
 
-        $this->assertNull(Cache::get('2fa_challenge_'.$challenge['challenge_id']));
+    $this->postJson('/api/v1/forgot-password', [
+        'email' => $user->email,
+    ])->assertOk();
 
-        $replacement = $this->twoFactorChallenge($user);
-        $this->postJson('/api/two-factor/resend', [
-            'challenge_id' => $replacement['challenge_id'],
-        ])->assertOk()
-            ->assertJsonPath('challenge_id', $replacement['challenge_id'])
-            ->assertJsonMissingPath('user_id');
-    }
+    Kafka::assertPublishedOn('auth.events', null, function (mixed $message) use ($user): bool {
+        if (! is_object($message) || ! method_exists($message, 'getBody')) {
+            return false;
+        }
+        $rawBody = $message->getBody();
+        $body = EventEnvelope::flatten(is_array($rawBody) ? $rawBody : []);
+        $data = is_array($body['data'] ?? null) ? $body['data'] : [];
+        $resetUrl = $data['reset_url'] ?? null;
 
-    public function test_invalidate_password_resets_clears_outstanding_links(): void
-    {
-        DB::table('password_reset_tokens')->insert([
-            'email' => 'admin@example.com',
-            'token' => hash('sha256', 'stale-link'),
-            'created_at' => now(),
-        ]);
+        return ($body['event'] ?? null) === 'auth.password_reset'
+            && ($body['email'] ?? null) === $user->email
+            && (string) ($body['user_id'] ?? '') === (string) $user->id
+            && is_string($resetUrl)
+            && str_contains($resetUrl, '/reset-password/')
+            && is_int($data['expires_in'] ?? null);
+    });
+});
 
-        $this->artisan('auth:invalidate-password-resets')->assertSuccessful();
+it('builds the password reset link from the browser origin', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
 
-        $this->assertDatabaseCount('password_reset_tokens', 0);
-    }
+    $captured = null;
+    $this->mock(AuthEventsProducer::class, function (MockInterface $mock) use (&$captured): void {
+        $mock->shouldReceive('sendPasswordReset')
+            ->once()
+            ->andReturnUsing(function (mixed ...$args) use (&$captured): void {
+                $captured = $args[3] ?? null;
+            });
+    });
 
-    public function test_two_factor_code_is_published_with_required_fields(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole('customer');
-        $challenge = $this->twoFactorChallenge($user);
-
-        Kafka::assertPublishedOn('auth.notifications', null, function ($message) use ($user, $challenge): bool {
-            $body = $message->getBody();
-
-            return ($body['event'] ?? null) === 'auth.two_factor_code'
-                && ($body['email'] ?? null) === $user->email
-                && (string) ($body['user_id'] ?? '') === (string) $user->id
-                && ($body['data']['code'] ?? null) === $challenge['code']
-                && is_int($body['data']['ttl_minutes'] ?? null);
-        });
-    }
-
-    public function test_forgot_password_publishes_reset_link_with_frontend_url(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole('customer');
-
-        $this->postJson('/api/forgot-password', [
+    $this->withHeader('Origin', 'https://shop.example')
+        ->postJson('http://shop.example/api/v1/forgot-password', [
             'email' => $user->email,
         ])->assertOk();
 
-        Kafka::assertPublishedOn('auth.notifications', null, function ($message) use ($user): bool {
-            $body = $message->getBody();
-            $resetUrl = $body['data']['reset_url'] ?? null;
+    expect((string) $captured)->toStartWith('https://shop.example/reset-password/');
+});
 
-            return ($body['event'] ?? null) === 'auth.password_reset'
-                && ($body['email'] ?? null) === $user->email
-                && (string) ($body['user_id'] ?? '') === (string) $user->id
-                && is_string($resetUrl)
-                && str_contains($resetUrl, '/reset-password/')
-                && is_int($body['data']['expires_in'] ?? null);
-        });
-    }
+it('resets user password with a valid reset token', function (): void {
+    $user = User::factory()->create();
+    $user->assignRole(RoleName::Customer);
 
-    public function test_password_can_be_reset_with_valid_token(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole('customer');
+    $captured = null;
+    $this->mock(AuthEventsProducer::class, function (MockInterface $mock) use (&$captured): void {
+        $mock->shouldReceive('sendPasswordReset')
+            ->once()
+            ->andReturnUsing(function (mixed ...$args) use (&$captured): void {
+                $captured = $args[3] ?? null;
+            });
+    });
 
-        $captured = null;
-        $this->mock(AuthNotificationProducer::class, function ($mock) use (&$captured) {
-            $mock->shouldReceive('sendPasswordReset')
-                ->once()
-                ->andReturnUsing(function (...$args) use (&$captured) {
-                    $captured = $args[3] ?? null;
-                });
-        });
+    $this->postJson('/api/v1/forgot-password', [
+        'email' => $user->email,
+    ])->assertOk();
 
-        $this->postJson('/api/forgot-password', [
-            'email' => $user->email,
-        ])->assertOk();
+    expect($captured)->toBeString()
+        ->and((string) $captured)->toContain('http://localhost:3000/reset-password/');
 
-        $this->assertIsString($captured);
-        $this->assertStringContainsString('http://localhost:3000/reset-password/', $captured);
+    $parsedPath = parse_url((string) $captured, PHP_URL_PATH);
+    $token = is_string($parsedPath) ? basename($parsedPath) : '';
+    expect($token)->not->toBe('');
 
-        $token = (string) (parse_url($captured, PHP_URL_PATH) ? basename((string) parse_url($captured, PHP_URL_PATH)) : '');
-        $this->assertNotSame('', $token);
+    $this->postJson('/api/v1/reset-password', [
+        'token' => $token,
+        'email' => $user->email,
+        'password' => 'new-password',
+        'password_confirmation' => 'new-password',
+    ])->assertOk();
 
-        $this->postJson('/api/reset-password', [
-            'token' => $token,
-            'email' => $user->email,
-            'password' => 'new-password',
-            'password_confirmation' => 'new-password',
-        ])->assertOk();
-
-        $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
-    }
-}
+    expect(Hash::check('new-password', (string) $user->refresh()->password))->toBeTrue();
+});

@@ -1,17 +1,53 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Support;
 
+use Closure;
+use Illuminate\Contracts\Redis\Factory as RedisFactory;
+use Illuminate\Redis\Connections\Connection;
+
 /**
- * In-memory stand-in used when Redis is not running, so the suite does not need the docker stack.
+ * In-memory stand-in used when Redis is not running locally.
  */
-final class ArrayRedisConnection
+final class ArrayRedisConnection extends Connection implements RedisFactory
 {
     /** @var array<string, string> */
     private array $values = [];
 
     /** @var array<string, array<string, true>> */
     private array $sets = [];
+
+    public function connection($name = null): self
+    {
+        return $this;
+    }
+
+    /**
+     * @param  array<int, string>|string  $channels
+     */
+    public function createSubscription($channels, Closure $callback, $method = 'subscribe'): void {}
+
+    /**
+     * @param  string  $method
+     * @param  array<int, mixed>  $parameters
+     */
+    public function command($method, array $parameters = []): mixed
+    {
+        return match ($method) {
+            'setex' => $this->setex((string) ($parameters[0] ?? ''), (int) ($parameters[1] ?? 0), (string) ($parameters[2] ?? '')),
+            'exists' => $this->exists((string) ($parameters[0] ?? '')),
+            'get' => $this->get((string) ($parameters[0] ?? '')),
+            'expire' => $this->expire((string) ($parameters[0] ?? ''), (int) ($parameters[1] ?? 0)),
+            'sadd' => $this->sadd((string) ($parameters[0] ?? ''), ...array_map(strval(...), array_slice($parameters, 1))),
+            'srem' => $this->srem((string) ($parameters[0] ?? ''), ...array_map(strval(...), array_slice($parameters, 1))),
+            'smembers' => $this->smembers((string) ($parameters[0] ?? '')),
+            'del' => $this->del(...array_map(strval(...), $parameters)),
+            'flushdb' => $this->flushdb(),
+            default => null,
+        };
+    }
 
     public function setex(string $key, int $ttl, string $value): bool
     {

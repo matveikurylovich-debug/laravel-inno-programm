@@ -1,5 +1,3 @@
 {
-    "notPath": [
-        "config/l5-swagger.php"
-    ]
+    "extend": "../pint.json"
 }

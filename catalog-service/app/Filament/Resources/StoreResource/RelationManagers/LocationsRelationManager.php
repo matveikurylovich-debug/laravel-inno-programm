@@ -1,17 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Filament\Resources\StoreResource\RelationManagers;
 
+use App\Enums\ReservationStatus;
+use App\Models\Stock;
+use App\Models\StockReservation;
+use App\Models\StoreLocation;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Override;
 
 class LocationsRelationManager extends RelationManager
 {
+    #[Override]
     protected static string $relationship = 'locations';
 
+    #[Override]
     protected static ?string $title = 'Точки самовывоза';
 
     public function form(Form $form): Form
@@ -71,7 +81,15 @@ class LocationsRelationManager extends RelationManager
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->before(function (Tables\Actions\DeleteAction $action, StoreLocation $record): void {
+                        $blocked = Stock::query()->where('location_id', $record->id)->exists()
+                            || StockReservation::query()->where('location_id', $record->id)->whereIn('status', [ReservationStatus::Reserved, ReservationStatus::Confirmed])->exists();
+                        if ($blocked) {
+                            Notification::make()->danger()->title('У точки есть остатки или резервы. Отключите её.')->send();
+                            $action->cancel();
+                        }
+                    }),
             ]);
     }
 }

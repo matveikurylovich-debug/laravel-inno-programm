@@ -17,7 +17,7 @@ final class CatalogEventMessage
 
     public function getProductId(): int
     {
-        $source = isset($this->payload['data']) && is_array($this->payload['data'])
+        $source = isset($this->payload['data']) && \is_array($this->payload['data'])
             ? $this->payload['data']
             : $this->payload;
 

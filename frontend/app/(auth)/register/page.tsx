@@ -1,119 +1,182 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import Brand from "@/app/components/Brand";
-import { destinationFor, persistAuth } from "@/app/lib/auth";
-import { apiFetch, readError } from "@/app/lib/api";
-import { formatBelarusPhone } from "@/app/lib/phone";
-import type { AuthResponse } from "@/app/lib/types";
+import { registerRequest } from "@/app/lib/api/auth";
+import { destinationFor } from "@/app/lib/auth";
+import { registerFieldErrors, type RegisterField } from "@/app/lib/register-form";
+import { rememberChallengeId } from "@/app/lib/two-factor-challenge";
+import { applyPhoneChange, formatBelarusPhone } from "@/app/lib/phone";
+import { useSession } from "@/app/providers/SessionProvider";
 
-export default function RegisterPage() {
+function RegisterForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, status } = useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<RegisterField, string>>>({});
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
+  useEffect(() => {
+    if (status === "authenticated" && user) {
+      router.replace(destinationFor(user));
+    }
+  }, [router, status, user]);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    const nextErrors = registerFieldErrors({
+      name,
+      email,
+      phone,
+      password,
+      passwordConfirmation,
+    });
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     setError("");
     setPending(true);
 
-    const response = await apiFetch("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify({
+    try {
+      const data = await registerRequest({
         name,
         email,
         phone,
         password,
         password_confirmation: passwordConfirmation,
-      }),
-    });
-
-    if (!response.ok) {
-      setError(await readError(response));
+      });
+      rememberChallengeId(data.challenge_id);
+      const nextParam = searchParams.get("next");
+      router.push(nextParam ? `/two-factor?next=${encodeURIComponent(nextParam)}` : "/two-factor");
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Запрос не выполнен");
       setPending(false);
-      return;
     }
-
-    const data = (await response.json()) as AuthResponse;
-    persistAuth(data);
-    window.location.href = destinationFor(data.user.role);
   }
 
   return (
     <main className="auth-shell">
-      <form onSubmit={onSubmit} className="auth-card">
+      <form
+        noValidate
+        onSubmit={(event) => {
+          void onSubmit(event);
+        }}
+        className="auth-card"
+      >
         <Brand />
         <h1 className="auth-title">Регистрация</h1>
-        <p className="auth-hint">Новый аккаунт получает роль покупателя.</p>
+        <p className="auth-hint">
+          Все поля обязательны. После анкеты отправим код подтверждения на почту.
+        </p>
 
         <label className="field mt-6">
-          Имя
+          <span>
+            Имя <span className="text-rose-600">*</span>
+          </span>
           <input
-            required
             value={name}
+            aria-invalid={fieldErrors.name ? true : undefined}
             onChange={(event) => setName(event.target.value)}
             className="input"
           />
+          {fieldErrors.name ? (
+            <span role="alert" className="text-sm text-rose-600">
+              {fieldErrors.name}
+            </span>
+          ) : null}
         </label>
 
         <label className="field mt-4">
-          Email
+          <span>
+            Email <span className="text-rose-600">*</span>
+          </span>
           <input
             type="email"
-            required
             value={email}
+            aria-invalid={fieldErrors.email ? true : undefined}
             onChange={(event) => setEmail(event.target.value)}
             className="input"
           />
+          {fieldErrors.email ? (
+            <span role="alert" className="text-sm text-rose-600">
+              {fieldErrors.email}
+            </span>
+          ) : null}
         </label>
 
         <label className="field mt-4">
-          Телефон
+          <span>
+            Телефон <span className="text-rose-600">*</span>
+          </span>
           <input
             type="tel"
-            required
             value={phone}
+            aria-invalid={fieldErrors.phone ? true : undefined}
             placeholder="+375 (29) 123-45-67"
-            onChange={(event) => setPhone(formatBelarusPhone(event.target.value))}
+            onChange={(event) => setPhone(applyPhoneChange(phone, event.target.value))}
+            onBlur={() => setPhone((current) => formatBelarusPhone(current))}
             className="input"
           />
+          {fieldErrors.phone ? (
+            <span role="alert" className="text-sm text-rose-600">
+              {fieldErrors.phone}
+            </span>
+          ) : null}
         </label>
 
         <label className="field mt-4">
-          Пароль
+          <span>
+            Пароль <span className="text-rose-600">*</span>
+          </span>
           <input
             type="password"
-            required
-            minLength={8}
             value={password}
+            aria-invalid={fieldErrors.password ? true : undefined}
             onChange={(event) => setPassword(event.target.value)}
             className="input"
           />
+          {fieldErrors.password ? (
+            <span role="alert" className="text-sm text-rose-600">
+              {fieldErrors.password}
+            </span>
+          ) : null}
         </label>
 
         <label className="field mt-4">
-          Повторите пароль
+          <span>
+            Повторите пароль <span className="text-rose-600">*</span>
+          </span>
           <input
             type="password"
-            required
             value={passwordConfirmation}
+            aria-invalid={fieldErrors.passwordConfirmation ? true : undefined}
             onChange={(event) => setPasswordConfirmation(event.target.value)}
             className="input"
           />
+          {fieldErrors.passwordConfirmation ? (
+            <span role="alert" className="text-sm text-rose-600">
+              {fieldErrors.passwordConfirmation}
+            </span>
+          ) : null}
         </label>
 
-        {error ? <p className="alert alert-error mt-4">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="alert alert-error mt-4">
+            {error}
+          </p>
+        ) : null}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="btn btn-primary btn-block mt-6"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary btn-block mt-6">
           {pending ? "Создаём аккаунт..." : "Зарегистрироваться"}
         </button>
 
@@ -125,5 +188,13 @@ export default function RegisterPage() {
         </p>
       </form>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<main className="state-screen">Загрузка...</main>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

@@ -6,5 +6,9 @@ import { readCart, subscribeCart, type CartLine } from "@/app/lib/cart";
 const serverCart: CartLine[] = [];
 
 export function useCart(): CartLine[] {
-  return useSyncExternalStore(subscribeCart, readCart, () => serverCart);
+  return useSyncExternalStore(
+    subscribeCart,
+    () => readCart(),
+    () => serverCart,
+  );
 }

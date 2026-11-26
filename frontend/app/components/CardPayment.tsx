@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 
@@ -50,9 +50,18 @@ function PaymentForm({ orderId, onPaid }: { orderId: string; onPaid: () => void 
   }
 
   return (
-    <form onSubmit={submit} className="mt-4 space-y-4">
+    <form
+      onSubmit={(event) => {
+        void submit(event);
+      }}
+      className="mt-4 space-y-4"
+    >
       <PaymentElement />
-      {error ? <p className="alert alert-error">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="alert alert-error">
+          {error}
+        </p>
+      ) : null}
       <button type="submit" className="btn btn-primary" disabled={!stripe || pending}>
         {pending ? "Проводим оплату..." : "Оплатить"}
       </button>
@@ -72,7 +81,11 @@ export default function CardPayment({
   onPaid: () => void;
 }) {
   if (!publishableKey) {
-    return <p className="mt-4 text-sm text-slate-500">Сервис заказов не передал ключ Stripe.</p>;
+    return (
+      <p role="alert" className="mt-4 text-sm text-slate-500">
+        Платёжная форма временно недоступна.
+      </p>
+    );
   }
 
   return (

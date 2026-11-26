@@ -8,7 +8,9 @@ export default function Brand({ tone = "light" }: BrandProps) {
       <span className="brand-mark" aria-hidden="true">
         I
       </span>
-      <span className={`text-[0.95rem] ${tone === "dark" ? "text-white" : "text-slate-900"}`}>InnoTrainne</span>
+      <span className={`text-[0.95rem] ${tone === "dark" ? "text-white" : "text-slate-900"}`}>
+        InnoTrainne
+      </span>
     </span>
   );
 }
