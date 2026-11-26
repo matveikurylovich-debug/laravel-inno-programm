@@ -22,16 +22,27 @@ if [[ ! -s infra/certs/localhost.crt || ! -s infra/certs/localhost.key ]]; then
   chmod 600 infra/certs/localhost.key
 fi
 
-./scripts/ci/build-images.sh --load
+if [[ "${CI_PULL_IMAGES:-}" == "1" ]]; then
+  # The images job already built and pushed these. Pulling is much faster
+  # than compiling the PHP base image again on this runner.
+  docker compose pull \
+    auth-app catalog-app order-app search-app notification-app \
+    recommendation-app analytics-back frontend
+  docker buildx build --load --tag catalog-minio:local \
+    --file catalog-service/docker/minio/Dockerfile catalog-service/docker/minio
+  docker buildx build --load --tag catalog-mc:local \
+    --file catalog-service/docker/minio/Dockerfile.mc catalog-service/docker/minio
+else
+  ./scripts/ci/build-images.sh --load
+fi
 
 # Workers query application tables as soon as they start. Migrate first.
-# Dependencies (postgres, redis, mongo, elasticsearch) come up with the run;
-# the worker services stay down until the full stack starts below.
+# compose run starts postgres/redis/mongo for that app and leaves workers down.
 for app in auth-app catalog-app order-app notification-app; do
-  docker compose run --rm --no-build "$app" php artisan migrate --force
+  docker compose run --rm "$app" php artisan migrate --force
 done
-docker compose run --rm --no-build recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
-docker compose run --rm --no-build search-app php artisan search:setup-index
+docker compose run --rm recommendation-app php bin/console doctrine:migrations:migrate --no-interaction
+docker compose run --rm search-app php artisan search:setup-index
 
 docker compose up -d --wait --wait-timeout 300 --no-build
 
