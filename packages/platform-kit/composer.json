@@ -1,0 +1,42 @@
+{
+    "name": "ecommerce/platform-kit",
+    "description": "Shared access-token verification, the Laravel JWT guard, and problem+json errors.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "~8.5.0",
+        "firebase/php-jwt": "^7.0",
+        "symfony/http-kernel": "^8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ecommerce\\PlatformKit\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ecommerce\\PlatformKit\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Ecommerce\\PlatformKit\\Laravel\\PlatformKitServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "check": [
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "version": "1.0.0"
+}

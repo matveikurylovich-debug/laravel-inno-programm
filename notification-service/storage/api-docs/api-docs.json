@@ -1,0 +1,272 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Notification Service API",
+        "description": "Внутренний API журнала уведомлений и повторной отправки для ролей admin и analyst.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "Notification Service"
+        }
+    ],
+    "paths": {
+        "/api/v1/notifications": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Список уведомлений",
+                "description": "Журнал уведомлений. Доступен ролям admin и analyst.",
+                "operationId": "listNotifications",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Страница журнала"
+                    },
+                    "401": {
+                        "description": "Требуется авторизация"
+                    },
+                    "403": {
+                        "description": "Недостаточно прав"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications/{id}": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Карточка уведомления",
+                "operationId": "showNotification",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Уведомление без секретных полей"
+                    },
+                    "401": {
+                        "description": "Требуется авторизация"
+                    },
+                    "404": {
+                        "description": "Уведомление не найдено"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications/{id}/replay": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Повторная отправка",
+                "operationId": "replayNotification",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Отправка поставлена повторно"
+                    },
+                    "401": {
+                        "description": "Требуется авторизация"
+                    },
+                    "403": {
+                        "description": "Недостаточно прав"
+                    },
+                    "422": {
+                        "description": "Повторная отправка запрещена"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "NotificationLog": {
+                "required": [
+                    "id",
+                    "event",
+                    "channel",
+                    "status",
+                    "attempts",
+                    "is_dlq"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "65f000000000000000000001"
+                    },
+                    "event_id": {
+                        "type": "string",
+                        "example": "11111111-1111-4111-8111-111111111111",
+                        "nullable": true
+                    },
+                    "user_id": {
+                        "type": "integer",
+                        "example": 4,
+                        "nullable": true
+                    },
+                    "event": {
+                        "type": "string",
+                        "example": "order.paid"
+                    },
+                    "channel": {
+                        "type": "string",
+                        "example": "email",
+                        "enum": [
+                            "email"
+                        ]
+                    },
+                    "recipient": {
+                        "type": "string",
+                        "example": "buyer@example.com",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "sent",
+                        "enum": [
+                            "pending",
+                            "sent",
+                            "failed"
+                        ]
+                    },
+                    "attempts": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "is_dlq": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "error_message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "sent_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "replayed_by": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "replayed_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ProblemDetails": {
+                "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail"
+                ],
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "example": "about:blank"
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Unprocessable Content"
+                    },
+                    "status": {
+                        "type": "integer",
+                        "example": 422
+                    },
+                    "detail": {
+                        "type": "string",
+                        "example": "Секретные данные этого уведомления не сохраняются и не подлежат повторной отправке."
+                    },
+                    "code": {
+                        "type": "string",
+                        "example": "notification_secret_redacted",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Notifications",
+            "description": "Notifications"
+        }
+    ]
+}

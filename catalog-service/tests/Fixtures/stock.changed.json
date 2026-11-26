@@ -1,0 +1,22 @@
+{
+  "event": "stock.changed",
+  "timestamp": "2026-11-25T12:00:00.000000Z",
+  "product_id": 10,
+  "store_id": 1,
+  "available": 6,
+  "is_in_stock": true,
+  "locations": [
+    {
+      "location_id": 1,
+      "quantity": 4,
+      "reserved_quantity": 1,
+      "available": 3
+    },
+    {
+      "location_id": 2,
+      "quantity": 3,
+      "reserved_quantity": 0,
+      "available": 3
+    }
+  ]
+}

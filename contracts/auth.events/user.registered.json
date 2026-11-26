@@ -1,0 +1,14 @@
+{
+  "event_id": "33333333-3333-4333-8333-333333333331",
+  "event_type": "user.registered",
+  "schema_version": 1,
+  "occurred_at": "2026-11-25T12:00:00+00:00",
+  "producer": "auth-service",
+  "data": {
+    "event": "user.registered",
+    "event_id": "33333333-3333-4333-8333-333333333331",
+    "user_id": 4,
+    "email": "buyer@example.com",
+    "name": "Buyer"
+  }
+}

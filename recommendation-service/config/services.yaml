@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+parameters:
+    env(CONVERSATION_TTL_MINUTES): '30'
+    env(SIMILARITY_THRESHOLD): '0.57'
+    env(JWT_JWKS_PATH): ''
+    env(JWT_JWKS_URL): ''
+    env(JWT_ISSUER): 'http://auth-app'
+    env(JWT_AUDIENCE): 'ecommerce'
+    env(GEMINI_API_KEY): ''
+    env(GEMINI_EMBEDDING_MODEL): 'gemini-embedding-001'
+    env(GEMINI_CHAT_MODEL): 'gemini-3.5-flash'
+    recommendation.max_products_limit: 5
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Doctrine/'
+            - '../src/Dto/'
+            - '../src/Entity/'
+            - '../src/Enum/'
+            - '../src/Kernel.php'
+            - '../src/Message/'
+            - '../src/OpenApi/'

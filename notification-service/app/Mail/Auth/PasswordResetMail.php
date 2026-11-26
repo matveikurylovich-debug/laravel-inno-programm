@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail\Auth;
 
 use Illuminate\Bus\Queueable;
@@ -13,8 +15,8 @@ class PasswordResetMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public string $resetUrl,
-        public int $expiresIn = 15
+        public readonly string $resetUrl,
+        public readonly int $expiresIn,
     ) {}
 
     public function envelope(): Envelope

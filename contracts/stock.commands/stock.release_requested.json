@@ -1,0 +1,13 @@
+{
+  "event_id": "66666666-6666-4666-8666-666666666662",
+  "event_type": "stock.release_requested",
+  "schema_version": 1,
+  "occurred_at": "2026-11-25T12:03:00+00:00",
+  "producer": "order-service",
+  "data": {
+    "event": "stock.release_requested",
+    "event_id": "66666666-6666-4666-8666-666666666662",
+    "order_id": "22222222-2222-4222-8222-222222222222",
+    "reason": "payment_timeout"
+  }
+}

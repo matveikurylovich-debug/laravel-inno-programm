@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail\Order;
 
 use Illuminate\Bus\Queueable;
@@ -13,10 +15,9 @@ class OrderPaidMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public readonly string|int $orderId,
+        public readonly int|string $orderId,
         public readonly float|int $amount,
-        public readonly string $currency = 'RUB',
-        public readonly array $items = []
+        public readonly string $currency,
     ) {}
 
     public function envelope(): Envelope

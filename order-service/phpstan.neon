@@ -1,0 +1,21 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/pestphp/pest/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 8
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+    excludePaths:
+        - config/l5-swagger.php
+    checkModelProperties: true
+    reportUnmatchedIgnoredErrors: true
+    ignoreErrors:
+        -
+            message: '#Pest\\PendingCalls\\TestCall#'
+            path: tests/*

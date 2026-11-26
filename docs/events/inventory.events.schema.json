@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inno.local/events/inventory.events.schema.json",
+  "type": "object",
+  "events": {
+    "stock.reserved": {
+      "required": ["order_id", "store_id", "location_id"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "store_id": {"type": "integer"},
+        "location_id": {"type": "integer"}
+      }
+    },
+    "stock.reservation_failed": {
+      "required": ["order_id", "reason"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    },
+    "stock.committed": {
+      "required": ["order_id"],
+      "properties": {
+        "order_id": {"type": "string"}
+      }
+    },
+    "stock.commit_failed": {
+      "required": ["order_id", "reason"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    }
+  }
+}

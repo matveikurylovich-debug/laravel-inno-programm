@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inno.local/events/order.events.schema.json",
+  "type": "object",
+  "events": {
+    "order.created": {
+      "required": ["order_id", "user_id", "store_id", "total_amount", "items"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "user_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "total_amount": {"type": "string"},
+        "items": {"type": "array"}
+      }
+    },
+    "order.paid": {
+      "required": ["order_id", "user_id", "store_id", "email", "total_amount", "currency"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "user_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "email": {"type": "string"},
+        "total_amount": {"type": "string"},
+        "currency": {"type": "string"}
+      }
+    },
+    "order.confirmed": {
+      "required": ["order_id", "user_id", "email"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "user_id": {"type": "integer"},
+        "email": {"type": "string"}
+      }
+    },
+    "order.cancelled": {
+      "required": ["order_id", "user_id", "store_id", "total_amount", "reason"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "user_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "email": {"type": "string"},
+        "total_amount": {"type": "string"},
+        "refunded_amount": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    },
+    "order.refunded": {
+      "required": ["order_id", "user_id", "store_id", "refunded_amount"],
+      "properties": {
+        "order_id": {"type": "string"},
+        "user_id": {"type": "integer"},
+        "store_id": {"type": "integer"},
+        "refunded_amount": {"type": "string"}
+      }
+    }
+  }
+}

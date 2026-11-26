@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 return [
     /*
@@ -16,8 +18,8 @@ return [
      */
     'sasl' => [
         'mechanisms' => env('KAFKA_MECHANISMS', 'PLAINTEXT'),
-        'username' => env('KAFKA_USERNAME', null),
-        'password' => env('KAFKA_PASSWORD', null),
+        'username' => env('KAFKA_USERNAME'),
+        'password' => env('KAFKA_PASSWORD'),
     ],
 
     /*
@@ -37,7 +39,7 @@ return [
      | offset reset policy (auto.offset.reset). Typically, consumption starts either at the earliest offset or the latest offset.
      | You can choose between "latest", "earliest" or "none".
      */
-    'offset_reset' => env('KAFKA_OFFSET_RESET', 'latest'),
+    'offset_reset' => env('KAFKA_OFFSET_RESET', 'earliest'),
 
     /*
      | If you set enable.auto.commit (which is the default), then the consumer will automatically commit offsets periodically at the
@@ -83,4 +85,8 @@ return [
      | Kafka message id key name
      */
     'message_id_key' => env('MESSAGE_ID_KEY', 'laravel-kafka::message-id'),
+
+    'topics' => [
+        'auth_events' => env('KAFKA_TOPIC_AUTH_EVENTS', 'auth.events'),
+    ],
 ];

@@ -1,0 +1,22 @@
+{
+  "event_id": "44444444-4444-4444-8444-444444444442",
+  "event_type": "stock.changed",
+  "schema_version": 1,
+  "occurred_at": "2026-11-25T12:01:00+00:00",
+  "producer": "catalog-service",
+  "data": {
+    "event": "stock.changed",
+    "event_id": "44444444-4444-4444-8444-444444444442",
+    "id": 10,
+    "product_id": 10,
+    "store_id": 1,
+    "available": 3,
+    "is_in_stock": true,
+    "locations": [
+      {
+        "location_id": 1,
+        "available": 3
+      }
+    ]
+  }
+}

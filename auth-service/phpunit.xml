@@ -11,6 +11,9 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Arch">
+            <directory>tests/Arch</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -19,19 +22,33 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_LOCALE" value="ru" force="true"/>
+        <env name="APP_FALLBACK_LOCALE" value="en" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_DATABASE" value="testing"/>
+        <env name="JWT_ACCESS_SECRET" value="testing-jwt-access-secret-32b-min"/>
+        <env name="JWT_JWKS_PATH" value="../packages/platform-kit/tests/fixtures/jwks.json" force="true"/>
+        <env name="JWT_ISSUER" value="http://auth-app" force="true"/>
+        <env name="JWT_AUDIENCE" value="ecommerce" force="true"/>
+        <env name="JWT_ACCESS_PRIVATE_KEY_PATH" value="../packages/platform-kit/tests/fixtures/access-private.pem" force="true"/>
+        <env name="JWT_ACCESS_PUBLIC_KEY_PATH" value="../packages/platform-kit/tests/fixtures/access-public.pem" force="true"/>
+        <env name="JWT_ACCESS_KID" value="test-1" force="true"/>
+        <env name="JWT_REFRESH_SECRET" value="testing-jwt-refresh-secret-32b!!"/>
+        <env name="DB_CONNECTION" value="sqlite" force="false"/>
+        <env name="DB_DATABASE" value=":memory:" force="false"/>
         <env name="DB_URL" value=""/>
+        <env name="REDIS_HOST" value="127.0.0.1"/>
+        <env name="REDIS_PORT" value="6379"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="FRONTEND_URL" value="http://localhost:3000"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
-        <env name="REDIS_DB" value="1"/>
-        <env name="REDIS_CACHE_DB" value="2"/>
+        <env name="REDIS_DB" value="14"/>
+        <env name="REDIS_CACHE_DB" value="15"/>
     </php>
 </phpunit>

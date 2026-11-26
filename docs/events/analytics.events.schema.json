@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inno.local/events/analytics.events.schema.json",
+  "type": "object",
+  "events": {
+    "search.performed": {
+      "required": ["event_id", "query", "results_count", "took_ms", "occurred_at"],
+      "properties": {
+        "event_id": {"type": "string"},
+        "query": {"type": "string"},
+        "results_count": {"type": "integer"},
+        "took_ms": {"type": "integer"},
+        "filters": {"type": "object"},
+        "occurred_at": {"type": "string"}
+      }
+    }
+  }
+}

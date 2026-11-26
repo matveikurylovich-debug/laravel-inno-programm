@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Mail\Order;
 
 use Illuminate\Bus\Queueable;
@@ -13,14 +15,16 @@ class OrderCancelledMail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public readonly string|int $orderId,
-        public readonly string $reason = 'по запросу покупателя'
+        public readonly int|string $orderId,
+        public readonly string $reason,
+        public readonly float|int|null $refundedAmount = null,
+        public readonly ?string $currency = null,
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Заказ #{$this->orderId} отменен",
+            subject: "Заказ #{$this->orderId} отменён",
         );
     }
 

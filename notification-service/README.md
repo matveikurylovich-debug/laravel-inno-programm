@@ -1,58 +1,78 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Notification Service
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Микросервис доставки email-уведомлений и ведения журнала отправки для e-commerce платформы.
 
-## About Laravel
+## Назначение и архитектура
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+`notification-service` принимает асинхронные доменные события из Apache Kafka, валидирует входные контракты через `readonly`-DTO, отправляет локализованные HTML-письма, сохраняет историю доставки в MongoDB в виде нативных BSON-документов и предоставляет защищённый REST API для просмотра журнала и повторной отправки (`replay`) неуспешных уведомлений.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### Основные компоненты
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Kafka-консьюмеры** (`app/Messaging/Consumers/`):
+  - `AuthEventsConsumer` (`auth.events`) — обрабатывает `user.registered`, `auth.password_reset`, `auth.two_factor_code`.
+  - `OrderEventsConsumer` (`order.events`) — обрабатывает `order.paid`, `order.confirmed`, `order.cancelled` (прочие события топика `order.events` безопасно подтверждаются без отправки писем).
+  - Ретраи временных сбоев (`Sleep::usleep`), ручной коммит оффсетов (`withManualCommit()`) и маршрутизация битых сообщений (`NonRetryableException`) в Dead Letter Queue выполняются базовой командой `Ecommerce\PlatformKit\Laravel\ConsumeKafkaCommand`.
+  - Идемпотентность обеспечивается дедупликацией по `event_id` и уникальным частичным индексом MongoDB `notification_logs_event_id_unique`.
+- **Безопасность секретов**:
+  - Коды `2FA` (`code`) и ссылки сброса пароля (`reset_url`) вырезаются через `SensitivePayload::redact()` **до** сохранения документа в MongoDB.
+  - Повторная отправка (`replay`) уведомлений `auth.two_factor_code` и `auth.password_reset` запрещена и возвращает `422 application/problem+json` (`code: notification_secret_redacted`).
+  - Публичное WebSocket-вещание полностью отключено.
+- **Хранилище**: MongoDB (`laravel-mongodb` v5, коллекция `notification_logs`, TTL-индекс 90 дней и ежедневная очистка по расписанию).
 
-## Learning Laravel
+## REST API
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Все маршруты защищены JWT (`auth:api`, проверка подписи по JWKS через `ecommerce/platform-kit`) и RBAC-разрешениями:
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Метод | Маршрут | Разрешение | Роли | Описание |
+|---|---|---|---|---|
+| `GET` | `/api/v1/notifications` | `notifications.read` | `admin`, `analyst` | Пагинированный список уведомлений (`status`, `channel`, `recipient`, `date_from`, `date_to`, `per_page` 1..100) |
+| `GET` | `/api/v1/notifications/{id}` | `notifications.read` | `admin`, `analyst` | Детальная карточка записи журнала (без `payload`) |
+| `POST` | `/api/v1/notifications/{id}/replay` | `notifications.replay` | `admin` | Повторная отправка `failed`-уведомления с записью аудита (`replayed_by`, `replayed_at`, `notification.replayed`) |
+| `GET` | `/up` | — | — | Проверка работоспособности сервиса |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+OpenAPI-спецификация описана в `app/OpenApi/NotificationOpenApi.php`. Веб-интерфейс Swagger UI активен только при `APP_ENV=local`.
 
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Консольные команды
 
 ```bash
-composer require laravel/boost --dev
+# Запуск консьюмеров Kafka
+php artisan notification:consume-auth-events
+php artisan notification:consume-order-events
 
-php artisan boost:install
+# Принудительная зачистка секретов ($unset payload.data.code и payload.data.reset_url)
+php artisan notification:redact-secrets
+# Алиас:
+php artisan notifications:purge-secrets
+
+# Миграция устаревших JSON-строк payload в нативные BSON-объекты
+php artisan notifications:convert-payloads
+
+# Очистка устаревших записей журнала (по расписанию запускается ежедневно)
+php artisan notification:prune-logs --days=90
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Проверки качества и тестирование
 
-## Contributing
+Требования: PHP `~8.5.0`, расширения `intl`, `mongodb`, `rdkafka` (в контейнере `ecommerce-php-base:8.5`).
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+# Проверка composer.json и composer.lock
+composer validate --strict
 
-## Code of Conduct
+# Форматирование кода (Laravel Pint)
+composer lint
+composer lint:fix
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# Автоматический рефакторинг (Rector)
+composer refactor
+composer refactor:fix
 
-## Security Vulnerabilities
+# Статический анализ (PHPStan Level 8 + Larastan)
+composer analyse
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# Запуск тестов Pest (Unit, Feature, Arch)
+composer test
 
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# Полный конвейер проверок (@lint, @refactor, @analyse, @test)
+composer check
+```

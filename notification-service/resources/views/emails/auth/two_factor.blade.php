@@ -1,4 +1,4 @@
-@extends('emails.layout', ['subject' => 'Код подтверждения входа'])
+@extends('emails.layouts.base', ['subject' => 'Код подтверждения входа'])
 
 @section('content')
     <h2>Вход в аккаунт</h2>
@@ -8,6 +8,6 @@
         {{ $code }}
     </div>
 
-    <p>Код действует в течение {{ $ttlMinutes ?? 5 }} минут.</p>
+    <p>Код действует в течение {{ $ttlMinutes }} минут.</p>
     <p>Никому не сообщайте этот код.</p>
 @endsection

@@ -1,0 +1,28 @@
+security:
+    providers:
+        jwt_users:
+            id: App\Security\JwtUserProvider
+
+    firewalls:
+        dev:
+            pattern: ^/(_profiler|_wdt|assets|build)/
+            security: false
+        health:
+            pattern: ^/(recommendations/)?health$
+            stateless: true
+            security: false
+        api:
+            pattern: ^/recommendations
+            stateless: true
+            provider: jwt_users
+            access_token:
+                token_handler: App\Security\JwksAccessTokenHandler
+                failure_handler: App\Security\ProblemJsonAuthenticationFailureHandler
+            entry_point: App\Security\ProblemJsonAuthenticationFailureHandler
+        main:
+            lazy: true
+            provider: jwt_users
+
+    access_control:
+        - { path: ^/(recommendations/)?health$, roles: PUBLIC_ACCESS }
+        - { path: ^/recommendations, roles: ROLE_USER }

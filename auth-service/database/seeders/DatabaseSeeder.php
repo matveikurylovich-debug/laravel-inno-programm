@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
+use App\Enums\RoleName;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -12,33 +15,34 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Сбрасываем кэш ролей Spatie во избежание коллизий
+        if (! app()->isLocal()) {
+            return;
+        }
+
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // 2. Создаем роли (если их еще нет)
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $customerRole  = Role::firstOrCreate(['name' => 'customer']);
-        $analystRole  = Role::firstOrCreate(['name' => 'analyst']);
+        $adminRole = Role::findOrCreate(RoleName::Admin->value, 'web');
+        $customerRole = Role::findOrCreate(RoleName::Customer->value, 'web');
+        $analystRole = Role::findOrCreate(RoleName::Analyst->value, 'web');
 
-        // 3. Создаем администратора
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
-            [
-                'name' => 'Admin User',
-                'password' => Hash::make('password'),
-            ]
-        );
-        $admin->syncRoles($adminRole);
+        $users = [
+            ['email' => 'admin@example.com', 'name' => 'Admin User', 'role' => $adminRole],
+            ['email' => 'user@example.com', 'name' => 'Regular User', 'role' => $customerRole],
+            ['email' => 'analyst@example.com', 'name' => 'Анна Аналитик', 'role' => $analystRole],
+            ['email' => 'maria@example.com', 'name' => 'Мария Покупатель', 'role' => $customerRole],
+            ['email' => 'ivan@example.com', 'name' => 'Иван Петров', 'role' => $customerRole],
+            ['email' => 'olga@example.com', 'name' => 'Ольга Смирнова', 'role' => $customerRole],
+        ];
 
-        // 4. Создаем обычного пользователя
-        $user = User::firstOrCreate(
-            ['email' => 'user@example.com'],
-            [
-                'name' => 'Regular User',
-                'password' => Hash::make('password'),
-            ]
-        );
-
-        $user->syncRoles($customerRole);
+        foreach ($users as $item) {
+            $user = User::firstOrCreate(
+                ['email' => $item['email']],
+                [
+                    'name' => $item['name'],
+                    'password' => Hash::make('password'),
+                ]
+            );
+            $user->syncRoles($item['role']);
+        }
     }
 }

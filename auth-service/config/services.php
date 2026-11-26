@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
 
     /*
@@ -33,6 +35,20 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'gateway' => [
+        'catalog' => env('CATALOG_SERVICE_URL', 'https://catalog-nginx/api'),
+        'order' => env('ORDER_SERVICE_URL', 'https://order-nginx/api'),
+        'notifications' => env('NOTIFICATION_SERVICE_URL', 'https://notification_nginx/api'),
+        'search' => env('SEARCH_SERVICE_URL', 'https://search-nginx/api'),
+        'recommendations' => env('RECOMMENDATION_SERVICE_URL', 'https://recommendation-nginx'),
+        'analytics' => env('ANALYTICS_SERVICE_URL', 'http://analytics-back:8080/analytics'),
+    ],
+
+    'analytics_broker' => [
+        'url' => env('ANALYTICS_RABBITMQ_URL'),
+        'exchange' => env('ANALYTICS_RABBITMQ_EXCHANGE', 'analytics.events'),
     ],
 
 ];

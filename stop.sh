@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-echo "Остановка Auth Service..."
-(cd auth-service && ./vendor/bin/sail down)
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
-echo "Остановка Notification Service..."
-(cd notification-service && ./vendor/bin/sail down)
+case "${START_ENV:-local}" in
+  local) export COMPOSE_FILE="compose.yaml:compose.dev.yaml" ;;
+  *) export COMPOSE_FILE="compose.yaml" ;;
+esac
 
-echo "Все контейнеры остановлены."
+docker compose --profile '*' down --remove-orphans "$@"

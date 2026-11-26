@@ -1,0 +1,99 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\StoreResource\Pages;
+use App\Filament\Resources\StoreResource\RelationManagers\LocationsRelationManager;
+use App\Models\Store;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Override;
+
+class StoreResource extends Resource
+{
+    #[Override]
+    protected static ?string $model = Store::class;
+
+    #[Override]
+    protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
+
+    #[Override]
+    protected static ?string $navigationLabel = 'Магазины';
+
+    #[Override]
+    protected static ?string $modelLabel = 'магазин';
+
+    #[Override]
+    protected static ?string $pluralModelLabel = 'Магазины';
+
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\TextInput::make('name')
+                    ->required()
+                    ->maxLength(255)
+                    ->label('Название'),
+                Forms\Components\TextInput::make('slug')
+                    ->maxLength(255)
+                    ->hiddenOn('create')
+                    ->dehydrated(static fn (?string $state): bool => filled($state))
+                    ->unique(ignoreRecord: true),
+                Forms\Components\Toggle::make('is_active')
+                    ->default(true)
+                    ->required()
+                    ->label('Активен'),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable()
+                    ->label('Название'),
+                Tables\Columns\TextColumn::make('slug')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('locations_count')
+                    ->counts('locations')
+                    ->label('Точки'),
+                Tables\Columns\IconColumn::make('is_active')
+                    ->boolean()
+                    ->label('Активен'),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+
+    /**
+     * @return list<class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            LocationsRelationManager::class,
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListStores::route('/'),
+            'create' => Pages\CreateStore::route('/create'),
+            'edit' => Pages\EditStore::route('/{record}/edit'),
+        ];
+    }
+}

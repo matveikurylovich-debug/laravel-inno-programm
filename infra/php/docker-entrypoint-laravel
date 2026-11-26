@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+# config:cache нужен runtime-env (секреты), поэтому выполняется при старте
+# контейнера, а не в RUN при сборке (X-TOOL-15). В dev отключается
+# LARAVEL_CONFIG_CACHE=false в compose.dev.yaml.
+if [ -f artisan ] && [ "${LARAVEL_CONFIG_CACHE:-true}" = "true" ]; then
+    php artisan config:cache --no-ansi --quiet
+fi
+exec docker-php-entrypoint "$@"

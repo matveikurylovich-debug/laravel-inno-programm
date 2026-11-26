@@ -1,0 +1,12 @@
+{
+  "event_id": "77777777-7777-4777-8777-777777777773",
+  "event_type": "stock.committed",
+  "schema_version": 1,
+  "occurred_at": "2026-11-25T12:02:05+00:00",
+  "producer": "catalog-service",
+  "data": {
+    "event": "stock.committed",
+    "event_id": "77777777-7777-4777-8777-777777777773",
+    "order_id": "22222222-2222-4222-8222-222222222222"
+  }
+}

@@ -1,4 +1,4 @@
-@extends('emails.layout', ['subject' => 'Сброс пароля'])
+@extends('emails.layouts.base', ['subject' => 'Сброс пароля'])
 
 @section('content')
     <h2>Запрос на сброс пароля</h2>
@@ -9,6 +9,6 @@
         <a href="{{ $resetUrl }}" class="btn">Сбросить пароль</a>
     </p>
 
-    <p>Ссылка действительна в течение {{ $expiresIn ?? 15 }} минут.</p>
+    <p>Ссылка действительна в течение {{ $expiresIn }} минут.</p>
     <p>Если вы не запрашивали сброс пароля, проигнорируйте это сообщение.</p>
 @endsection

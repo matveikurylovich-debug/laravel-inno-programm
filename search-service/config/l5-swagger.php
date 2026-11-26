@@ -1,0 +1,87 @@
+<?php
+
+declare(strict_types=1);
+
+use L5Swagger\Generator;
+
+$swaggerEnabled = (bool) env('L5_SWAGGER_ENABLED', env('APP_ENV') === 'local');
+
+return [
+    'default' => 'default',
+    'documentations' => [
+        'default' => [
+            'api' => [
+                'title' => 'Search Service API',
+            ],
+            'routes' => $swaggerEnabled ? [
+                'api' => 'api/documentation',
+            ] : [],
+            'paths' => [
+                'use_absolute_path' => (bool) env('L5_SWAGGER_USE_ABSOLUTE_PATH', true),
+                'swagger_ui_assets_path' => env('L5_SWAGGER_UI_ASSETS_PATH', 'vendor/swagger-api/swagger-ui/dist/'),
+                'docs_json' => 'api-docs.json',
+                'docs_yaml' => 'api-docs.yaml',
+                'format_to_use_for_docs' => env('L5_FORMAT_TO_USE_FOR_DOCS', 'json'),
+                'annotations' => [
+                    base_path('app/OpenApi'),
+                ],
+            ],
+        ],
+    ],
+    'defaults' => [
+        'routes' => [
+            'docs' => $swaggerEnabled ? 'docs' : null,
+            'oauth2_callback' => $swaggerEnabled ? 'api/oauth2-callback' : null,
+            'middleware' => [
+                'api' => [],
+                'asset' => [],
+                'docs' => [],
+                'oauth2_callback' => [],
+            ],
+            'group_options' => [],
+        ],
+        'paths' => [
+            'docs' => storage_path('api-docs'),
+            'views' => base_path('resources/views/vendor/l5-swagger'),
+            'base' => env('L5_SWAGGER_BASE_PATH'),
+            'excludes' => [],
+        ],
+        'scanOptions' => [
+            'generator_factory' => null,
+            'builder_factory' => null,
+            'default_processors_configuration' => [],
+            'analyser' => null,
+            'analysis' => null,
+            'processors' => [],
+            'pattern' => null,
+            'exclude' => [],
+            'open_api_spec_version' => env('L5_SWAGGER_OPEN_API_SPEC_VERSION', Generator::OPEN_API_DEFAULT_SPEC_VERSION),
+        ],
+        'securityDefinitions' => [
+            'securitySchemes' => [],
+            'security' => [],
+        ],
+        'generate_always' => (bool) env('L5_SWAGGER_GENERATE_ALWAYS', false),
+        'generate_yaml_copy' => (bool) env('L5_SWAGGER_GENERATE_YAML_COPY', false),
+        'proxy' => false,
+        'additional_config_url' => null,
+        'operations_sort' => env('L5_SWAGGER_OPERATIONS_SORT'),
+        'validator_url' => null,
+        'ui' => [
+            'display' => [
+                'dark_mode' => (bool) env('L5_SWAGGER_UI_DARK_MODE', false),
+                'doc_expansion' => env('L5_SWAGGER_UI_DOC_EXPANSION', 'none'),
+                'filter' => (bool) env('L5_SWAGGER_UI_FILTERS', true),
+            ],
+            'authorization' => [
+                'persist_authorization' => (bool) env('L5_SWAGGER_UI_PERSIST_AUTHORIZATION', false),
+                'oauth2' => [
+                    'use_pkce_with_authorization_code_grant' => false,
+                ],
+            ],
+        ],
+        'constants' => [
+            'L5_SWAGGER_CONST_HOST' => env('L5_SWAGGER_CONST_HOST', 'http://localhost:8089'),
+        ],
+    ],
+];

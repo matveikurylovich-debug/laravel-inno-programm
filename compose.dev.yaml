@@ -1,0 +1,124 @@
+# Dev-слой. Подключается явно: COMPOSE_FILE=compose.yaml:compose.dev.yaml
+# (start.sh делает это при START_ENV=local). На stage и в CI этот файл не читается.
+
+x-dev-php: &dev-php
+  user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+  environment:
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS: '1'
+    LARAVEL_CONFIG_CACHE: 'false'
+
+services:
+  auth-app:
+    <<: *dev-php
+    build: { target: dev }
+    networks: [apps, auth-data, egress]
+    volumes:
+      - ./auth-service:/var/www/html
+      - ./.secrets/jwt:/run/jwt:ro
+  auth-events:
+    <<: *dev-php
+    volumes: [./auth-service:/var/www/html]
+  auth-scheduler:
+    <<: *dev-php
+    volumes: [./auth-service:/var/www/html]
+
+  catalog-app:
+    <<: *dev-php
+    build: { target: dev }
+    networks: [apps, catalog-data, egress]
+    volumes: !override
+      - ./catalog-service:/var/www/html
+  catalog-nginx:
+    volumes: !override
+      - ./catalog-service/public:/var/www/html/public:ro
+      - ./catalog-service/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  catalog-order-consumer:
+    <<: *dev-php
+    volumes: [./catalog-service:/var/www/html]
+  catalog-stock-consumer:
+    <<: *dev-php
+    volumes: [./catalog-service:/var/www/html]
+  catalog-outbox-relay:
+    <<: *dev-php
+    volumes: [./catalog-service:/var/www/html]
+  catalog-scheduler:
+    <<: *dev-php
+    volumes: [./catalog-service:/var/www/html]
+
+  order-app:
+    <<: *dev-php
+    build: { target: dev }
+    volumes: [./order-service:/var/www/html]
+  order-outbox-relay:
+    <<: *dev-php
+    volumes: [./order-service:/var/www/html]
+  order-catalog-consumer:
+    <<: *dev-php
+    volumes: [./order-service:/var/www/html]
+  order-inventory-consumer:
+    <<: *dev-php
+    volumes: [./order-service:/var/www/html]
+  order-payments:
+    <<: *dev-php
+    volumes: [./order-service:/var/www/html]
+  order-scheduler:
+    <<: *dev-php
+    volumes: [./order-service:/var/www/html]
+
+  search-app:
+    <<: *dev-php
+    build: { target: dev }
+    networks: [apps, search-data, egress]
+    volumes: [./search-service:/var/www/html]
+  search-catalog-consumer:
+    <<: *dev-php
+    volumes: [./search-service:/var/www/html]
+  search-events:
+    <<: *dev-php
+    volumes: [./search-service:/var/www/html]
+
+  notification-app:
+    <<: *dev-php
+    build: { target: dev }
+    volumes: [./notification-service:/var/www/html]
+  notification-auth-consumer:
+    <<: *dev-php
+    volumes: [./notification-service:/var/www/html]
+  notification-order-consumer:
+    <<: *dev-php
+    volumes: [./notification-service:/var/www/html]
+  notification-scheduler:
+    <<: *dev-php
+    volumes: [./notification-service:/var/www/html]
+
+  recommendation-app:
+    <<: *dev-php
+    build: { target: dev }
+    volumes: [./recommendation-service:/var/www/html]
+  recommendation-worker:
+    <<: *dev-php
+    volumes: [./recommendation-service:/var/www/html]
+  recommendation-scheduler:
+    <<: *dev-php
+    volumes: [./recommendation-service:/var/www/html]
+
+  mailpit:
+    image: axllent/mailpit:v1.24
+    restart: unless-stopped
+    networks: [mail, edge]
+    ports:
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  gateway:
+    ports: !override
+      - "127.0.0.1:${GATEWAY_HTTPS_PORT:-443}:443"
+      - "127.0.0.1:${GATEWAY_HTTP_PORT:-80}:80"
+
+  auth-nginx:
+    ports:
+      - "127.0.0.1:8000:80"

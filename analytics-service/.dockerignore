@@ -1,0 +1,6 @@
+.git
+*.md
+tests
+**/*_test.go
+.golangci.yml
+Dockerfile

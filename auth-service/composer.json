@@ -1,33 +1,42 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "ecommerce/auth-service",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
-    "license": "MIT",
+    "description": "Authentication, 2FA, RBAC, and JWT service for the ecommerce platform.",
+    "keywords": [
+        "auth",
+        "jwt",
+        "laravel"
+    ],
+    "license": "proprietary",
     "require": {
-        "php": "^8.3",
+        "php": "~8.5.0",
+        "ext-intl": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-rdkafka": "*",
+        "ext-redis": "*",
+        "darkaonline/l5-swagger": "^11.2",
+        "ecommerce/platform-kit": "^1.0",
         "firebase/php-jwt": "^7.1",
-        "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^13.17",
-        "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "mateusjunges/laravel-kafka": "^2.11",
-        "spatie/laravel-permission": "^8.3",
-        "tightenco/ziggy": "^2.0"
+        "php-amqplib/php-amqplib": "^3.7",
+        "spatie/laravel-permission": "^8.3"
     },
     "require-dev": {
+        "driftingly/rector-laravel": "^2.7",
         "fakerphp/faker": "^1.23",
-        "laravel/boost": "^2.9",
-        "laravel/breeze": "^2.4",
+        "larastan/larastan": "^3.15",
+        "laravel/boost": "^2.10",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
-        "laravel/sail": "^1.67",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "pestphp/pest": "^5.2",
-        "pestphp/pest-plugin-laravel": "^5.0"
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "rector/rector": "^2.9"
     },
     "autoload": {
         "psr-4": {
@@ -46,17 +55,11 @@
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
-            "@php artisan migrate --force",
-            "npm install --ignore-scripts",
-            "npm run build"
+            "@php artisan migrate --force"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "@php artisan dev"
-        ],
-        "test": [
-            "@php artisan config:clear --ansi @no_additional_args",
-            "@php artisan test"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
@@ -75,6 +78,22 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "lint": "pint --test",
+        "lint:fix": "pint",
+        "analyse": "phpstan analyse --memory-limit=1G --no-progress",
+        "analyse:baseline": "phpstan analyse --memory-limit=1G --generate-baseline",
+        "refactor": "rector process --dry-run --no-progress-bar",
+        "refactor:fix": "rector process --no-progress-bar",
+        "test": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php artisan test"
+        ],
+        "check": [
+            "@lint",
+            "@refactor",
+            "@analyse",
+            "@test"
         ]
     },
     "extra": {
@@ -84,6 +103,7 @@
     },
     "config": {
         "optimize-autoloader": true,
+        "platform-check": "php-only",
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
@@ -92,5 +112,14 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../packages/platform-kit",
+            "options": {
+                "symlink": true
+            }
+        }
+    ]
 }

@@ -1,0 +1,431 @@
+name: Platform CI and stage deployment
+on:
+  push:
+    branches: [master, 'feat/**', 'fix/**', 'chore/**', 'refactor/**', 'security/**']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_REGISTRY: ghcr.io/matveikurylovich-debug
+  IMAGE_TAG: ${{ github.sha }}
+  PHP_EXTENSIONS: mbstring, xml, intl, pdo_pgsql, pdo_sqlite, bcmath, redis, mongodb, rdkafka, zip, gd, sockets, pcntl
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Detect secrets in git history
+        run: gitleaks detect --source . --log-opts=--all --config .gitleaks.toml --redact
+
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          coverage: none
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: packages/platform-kit
+      - name: Run platform-kit unit tests
+        working-directory: packages/platform-kit
+        run: composer check
+      - name: Verify event envelope and JSON schemas
+        run: php scripts/ci/verify-contracts.php
+
+  php-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_SECRET: ci-only-app-secret
+      JWT_REFRESH_SECRET: ci-only-refresh-key-at-least-32-characters
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, catalog-service, order-service, search-service, notification-service, recommendation-service]
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          tools: composer:v2
+          coverage: none
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: ${{ matrix.service }}
+      - run: test -f .env.example && cp .env.example .env || true
+      - run: composer validate --strict
+      - run: ../scripts/ci/audit-high.sh
+      - run: composer lint
+      - run: composer refactor
+      - run: composer analyse
+      - name: Verify PHPStan baseline did not grow
+        if: github.event_name == 'pull_request'
+        run: |
+          baseline_file="phpstan-baseline.neon"
+          [[ -f "$baseline_file" ]] || exit 0
+          current=$(grep -c "count:" "$baseline_file" || true)
+          if git cat-file -e "origin/${{ github.base_ref }}:${{ matrix.service }}/${baseline_file}" 2>/dev/null; then
+            base=$(git show "origin/${{ github.base_ref }}:${{ matrix.service }}/${baseline_file}" | grep -c "count:" || true)
+            if (( current > base )); then
+              echo "PHPStan baseline grew from ${base} to ${current} entries!" >&2
+              exit 1
+            fi
+          fi
+      - name: Verify OpenAPI generation (Laravel)
+        if: matrix.service != 'recommendation-service'
+        run: php artisan l5-swagger:generate
+
+  php-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, catalog-service, order-service, search-service, notification-service]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: testing
+          POSTGRES_PASSWORD: testing
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U testing"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+      mongodb:
+        image: mongo:7.0
+        ports: ['27017:27017']
+      elasticsearch:
+        image: elasticsearch:8.15.5
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+        ports: ['9200:9200']
+        options: >-
+          --health-cmd "curl -fsS http://127.0.0.1:9200 >/dev/null"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      MONGODB_URI: mongodb://127.0.0.1:27017
+      JWT_REFRESH_SECRET: ci-only-refresh-key-at-least-32-characters
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      FRONTEND_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          tools: composer:v2
+          coverage: none
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: ${{ matrix.service }}
+      - run: composer test
+      - name: Run Architecture suite explicitly
+        run: vendor/bin/pest --testsuite=Arch
+      - name: PostgreSQL integration group
+        if: matrix.service == 'order-service' || matrix.service == 'catalog-service'
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: testing
+          DB_USERNAME: testing
+          DB_PASSWORD: testing
+        run: vendor/bin/pest --group=pgsql
+      - name: Elasticsearch integration group
+        if: matrix.service == 'search-service'
+        env:
+          ELASTICSEARCH_INTEGRATION: '1'
+          ELASTICSEARCH_HOSTS: http://127.0.0.1:9200
+        run: vendor/bin/pest --group=elasticsearch
+
+  recommendation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: recommendation_test
+          POSTGRES_USER: testing
+          POSTGRES_PASSWORD: testing
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U testing"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: recommendation-service
+    env:
+      APP_ENV: test
+      APP_SECRET: ci-only-app-secret
+      DATABASE_URL: postgresql://testing:testing@127.0.0.1:5432/recommendation?serverVersion=16
+      JWT_JWKS_PATH: ../packages/platform-kit/tests/fixtures/jwks.json
+      JWT_ISSUER: http://auth-app
+      JWT_AUDIENCE: ecommerce
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, intl, rdkafka
+          tools: composer:v2
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda
+        with:
+          working-directory: recommendation-service
+      - run: php bin/console doctrine:migrations:migrate --no-interaction
+      - run: php bin/console doctrine:schema:validate
+      - run: php bin/console lint:container
+      - run: php bin/console lint:yaml config --parse-tags
+      - run: composer test
+
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8-alpine
+        env:
+          CLICKHOUSE_DB: analytics
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ci-only-clickhouse-password
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: '1'
+        ports: ['9000:9000', '8123:8123']
+        options: >-
+          --health-cmd "wget --spider -q http://127.0.0.1:8123/ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+      rabbitmq:
+        image: rabbitmq:4.0-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: app
+          RABBITMQ_DEFAULT_PASS: ci-only-rabbitmq-password
+        ports: ['5672:5672']
+        options: >-
+          --health-cmd "rabbitmq-diagnostics check_running"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: analytics-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: analytics-service/go.mod
+          cache-dependency-path: analytics-service/go.sum
+      - name: Verify gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: Verify go mod tidy
+        run: go mod tidy -diff
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.5.0
+          working-directory: analytics-service
+      - name: Run unit tests with race detector
+        run: go test -race ./...
+      - name: Apply ClickHouse schema and run integration suite
+        env:
+          CLICKHOUSE_ADDR: 127.0.0.1:9000
+          CLICKHOUSE_DB: analytics
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ci-only-clickhouse-password
+          RABBITMQ_URL: amqp://app:ci-only-rabbitmq-password@127.0.0.1:5672/
+          RABBITMQ_EXCHANGE: analytics.events
+        run: |
+          python3 - << 'PY'
+          import pathlib, subprocess, sys
+          url = "http://default:ci-only-clickhouse-password@127.0.0.1:8123/"
+          for path in ("docker/clickhouse/01_init.sql", "docker/clickhouse/02_replacing.sql"):
+              raw = pathlib.Path(path).read_text()
+              for statement in (part.strip() for part in raw.split(";") if part.strip()):
+                  result = subprocess.run(["curl", "-fsS", url, "--data-binary", statement], check=False)
+                  if result.returncode != 0:
+                      print(statement[:200], file=sys.stderr)
+                      sys.exit(result.returncode)
+          PY
+          go test -race -tags=integration ./tests/integration/...
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Hadolint
+        run: |
+          curl -sSLf -o /usr/local/bin/hadolint \
+            https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-Linux-x86_64
+          chmod +x /usr/local/bin/hadolint
+          for f in infra/php/Dockerfile infra/php/laravel.Dockerfile recommendation-service/Dockerfile \
+                   analytics-service/Dockerfile frontend/Dockerfile \
+                   catalog-service/docker/minio/Dockerfile catalog-service/docker/minio/Dockerfile.mc; do
+            hadolint --failure-threshold error "$f"
+          done
+      - name: Shellcheck
+        run: shellcheck start.sh stop.sh infra/php/docker-entrypoint-laravel scripts/ci/*.sh scripts/deploy/*.sh
+      - name: Build images
+        run: ./scripts/ci/build-images.sh --push
+
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: images
+    permissions:
+      contents: read
+      packages: read
+    env:
+      COMPOSE_FILE: compose.yaml
+      CI_PULL_IMAGES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Boot and curl the gateway
+        run: ./scripts/ci/smoke.sh
+      - name: Save compose logs
+        if: failure()
+        run: docker compose logs --no-color > compose-logs.txt || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compose-logs
+          path: compose-logs.txt
+          if-no-files-found: ignore
+
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [secrets, contracts, php-quality, php-tests, recommendation, go, frontend, images, smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    environment: stage
+    concurrency: stage-deploy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_stage
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_stage ~/.ssh/known_hosts
+      - name: Publish compose files and roll the stage tag
+        env:
+          STAGE_USER: ${{ secrets.STAGE_USER }}
+          STAGE_IP: ${{ secrets.STAGE_IP }}
+        run: |
+          ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes "$STAGE_USER@$STAGE_IP" \
+            'mkdir -p ~/app/infra/gateway ~/app/infra/kafka ~/app/infra/rabbitmq ~/app/scripts/deploy ~/app/analytics-service/docker/clickhouse ~/app/recommendation-service/docker/postgres ~/app/auth-service/docker/nginx ~/app/catalog-service/docker/nginx ~/app/order-service/docker/nginx ~/app/search-service/docker/nginx ~/app/notification-service/docker/nginx ~/app/recommendation-service/docker/nginx'
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            compose.yaml "$STAGE_USER@$STAGE_IP:~/app/compose.yaml"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            infra/gateway/default.conf "$STAGE_USER@$STAGE_IP:~/app/infra/gateway/default.conf"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            infra/kafka/init-topics.sh "$STAGE_USER@$STAGE_IP:~/app/infra/kafka/init-topics.sh"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            infra/rabbitmq/definitions.json infra/rabbitmq/20-definitions.conf "$STAGE_USER@$STAGE_IP:~/app/infra/rabbitmq/"
+          for svc in auth catalog order search notification recommendation; do
+            scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+              "${svc}-service/docker/nginx/default.conf" "$STAGE_USER@$STAGE_IP:~/app/${svc}-service/docker/nginx/default.conf"
+          done
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            analytics-service/docker/clickhouse/01_init.sql analytics-service/docker/clickhouse/02_replacing.sql \
+            "$STAGE_USER@$STAGE_IP:~/app/analytics-service/docker/clickhouse/"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            recommendation-service/docker/postgres/init.sql \
+            "$STAGE_USER@$STAGE_IP:~/app/recommendation-service/docker/postgres/init.sql"
+          scp -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes \
+            scripts/deploy/stage-remote.sh "$STAGE_USER@$STAGE_IP:~/app/scripts/deploy/stage-remote.sh"
+          ssh -i ~/.ssh/id_stage -o StrictHostKeyChecking=yes "$STAGE_USER@$STAGE_IP" \
+            "chmod +x ~/app/scripts/deploy/stage-remote.sh ~/app/infra/kafka/init-topics.sh && COMPOSE_FILE=compose.yaml ~/app/scripts/deploy/stage-remote.sh ${{ github.sha }}"

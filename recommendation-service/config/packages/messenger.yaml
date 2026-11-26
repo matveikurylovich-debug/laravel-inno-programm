@@ -1,0 +1,21 @@
+framework:
+    messenger:
+        failure_transport: failed
+        transports:
+            sync: 'sync://'
+            failed:
+                dsn: 'doctrine://default?queue_name=failed'
+            kafka_catalog:
+                dsn: 'kafka://%env(KAFKA_BROKERS)%'
+                serializer: App\Serializer\CatalogEventSerializer
+                failure_transport: failed
+                retry_strategy:
+                    max_retries: 0
+                options:
+                    topic: '%env(KAFKA_CATALOG_TOPIC)%'
+                    kafka_conf:
+                        group.id: '%env(KAFKA_CONSUMER_GROUP)%'
+                        auto.offset.reset: earliest
+
+        routing:
+            App\Message\CatalogEventMessage: kafka_catalog
