@@ -9,7 +9,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/analytics ./cmd/api
 
-FROM alpine:3.21
+FROM alpine:3.24
 
 WORKDIR /app
 
