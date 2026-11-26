@@ -285,10 +285,17 @@ jobs:
           RABBITMQ_URL: amqp://app:ci-only-rabbitmq-password@127.0.0.1:5672/
           RABBITMQ_EXCHANGE: analytics.events
         run: |
-          for sql in docker/clickhouse/01_init.sql docker/clickhouse/02_replacing.sql; do
-            curl -fsS "http://default:ci-only-clickhouse-password@127.0.0.1:8123/?multiquery=1" \
-              --data-binary @"$sql"
-          done
+          python3 - << 'PY'
+          import pathlib, subprocess, sys
+          url = "http://default:ci-only-clickhouse-password@127.0.0.1:8123/"
+          for path in ("docker/clickhouse/01_init.sql", "docker/clickhouse/02_replacing.sql"):
+              raw = pathlib.Path(path).read_text()
+              for statement in (part.strip() for part in raw.split(";") if part.strip()):
+                  result = subprocess.run(["curl", "-fsS", url, "--data-binary", statement], check=False)
+                  if result.returncode != 0:
+                      print(statement[:200], file=sys.stderr)
+                      sys.exit(result.returncode)
+          PY
           go test -race -tags=integration ./tests/integration/...
 
   frontend:
